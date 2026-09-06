@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.venv/
+venv/
+env/
+
+# Local backup repository testing
+backup_repository/
+
+# Emergency restore binary runtime (track scripts, ignore heavy python binaries)
+emergency_restore/python/
+
+# Temporary files & logs
+*.tmp
+*.temp
+*.log
+
+# Sensitive credentials
+data/kakao_token.json
+
+# OS specific
+Thumbs.db
+Desktop.ini
+.DS_Store
