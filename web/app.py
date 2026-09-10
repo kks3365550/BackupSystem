@@ -6,6 +6,7 @@ import threading
 import psutil
 import datetime
 import tempfile
+from contextlib import asynccontextmanager
 from typing import Dict, List, Any, Optional
 from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
@@ -25,10 +26,16 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
-app = FastAPI(title="Server & System Backup Manager", version="2.1.4")
-
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
+# Fix #13: Background CPU monitor — samples every 0.5s so /api/system-info returns instantly
+_cpu_percent_cache = [0.0]
+def _cpu_monitor():
+    while True:
+        try:
+            _cpu_percent_cache[0] = psutil.cpu_percent(interval=0.5)
+        except Exception:
+            time.sleep(0.5)
+_cpu_monitor_thread = threading.Thread(target=_cpu_monitor, daemon=True)
+_cpu_monitor_thread.start()
 
 # Global execution state
 current_task = {
@@ -55,14 +62,18 @@ def append_task_log(msg: str, level: str = "INFO"):
 
 scheduler.register_log_callback(append_task_log)
 
-@app.on_event("startup")
-def on_startup():
+# Fix #15: Replace deprecated @app.on_event with modern lifespan context manager
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     scheduler.start()
     append_task_log("백업 스케줄러 서비스가 시작되었습니다.")
-
-@app.on_event("shutdown")
-def on_shutdown():
+    yield
     scheduler.stop()
+
+app = FastAPI(title="Server & System Backup Manager", version="2.1.4", lifespan=lifespan)
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 # --- Web UI Route ---
 @app.get("/", response_class=HTMLResponse)
@@ -94,7 +105,7 @@ def get_system_info():
         pass
 
     return {
-        "cpu_percent": psutil.cpu_percent(interval=0.1),
+        "cpu_percent": _cpu_percent_cache[0],  # Fix #13: use background-sampled value (no blocking)
         "memory": {
             "total": psutil.virtual_memory().total,
             "used": psutil.virtual_memory().used,
@@ -530,18 +541,6 @@ def run_custom_selection_backup(req: RunCustomSelectionBackupRequest, background
     background_tasks.add_task(_background_custom_backup_task, req.dict())
     return {"status": "started"}
 
-@app.post("/api/backup/cancel")
-def cancel_current_task():
-    global current_task
-    with task_lock:
-        if current_task["running"]:
-            if current_task.get("cancel_event"):
-                current_task["cancel_event"].set()
-            current_task["running"] = False
-            current_task["error"] = "사용자에 의해 취소되었습니다."
-            append_task_log("사용자 요청으로 백업/복원 작업이 취소되었습니다.", level="WARNING")
-            return {"success": True, "message": "작업이 취소되었습니다."}
-        return {"success": True, "message": "실행 중인 작업이 없습니다."}
 
 def _background_backup_task(params: Dict[str, Any]):
     global current_task
@@ -722,16 +721,19 @@ class RunRestoreRequest(BaseModel):
 
 def _background_restore_task(params: Dict[str, Any]):
     global current_task
-    repo_dir = params.get("repo_dir")
-    if not repo_dir:
-        profiles = ConfigManager.get_profiles()
-        repo_dir = profiles[0].get("repo_dir") if profiles else os.path.join(BASE_DIR, "backup_repository")
-
     snap_id = params["snapshot_id"]
     target_dir = params["target_dir"]
     selected = params.get("selected_rel_paths")
     overwrite = params.get("overwrite", True)
     cancel_evt = current_task["cancel_event"]
+
+    # Fix #9: Use _find_snapshot_repo to auto-discover correct repo instead of blindly using first profile
+    repo_dir = params.get("repo_dir")
+    if not repo_dir or not os.path.exists(repo_dir):
+        repo_dir = _find_snapshot_repo(snap_id, repo_dir)
+    if not repo_dir:
+        profiles = ConfigManager.get_profiles()
+        repo_dir = profiles[0].get("repo_dir") if profiles else os.path.join(BASE_DIR, "backup_repository")
 
     append_task_log(f"복원 작업 시작: 스냅샷 '{snap_id}' -> 대상 경로: '{target_dir}'")
 

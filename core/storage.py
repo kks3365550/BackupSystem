@@ -16,6 +16,11 @@ except ImportError:
 ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 
 class BlobStorage:
+    # Fix #8: Class-level per-repo-dir cache so all BlobStorage instances in the same process share it.
+    # Previously, each new BlobStorage() started with an empty cache — defeating the purpose.
+    _class_blob_caches: Dict[str, Set[str]] = {}
+    _class_cache_lock: threading.Lock = threading.Lock()
+
     def __init__(self, repo_dir: str):
         self.repo_dir = os.path.abspath(repo_dir)
         self.blobs_dir = os.path.join(self.repo_dir, "blobs")
@@ -24,8 +29,12 @@ class BlobStorage:
         self.init_repo()
         from core.metadata_db import MetadataDB
         self.db = MetadataDB(self.repo_dir)
-        self._blob_cache = set()
-        self._cache_lock = threading.Lock()
+        # Use shared class-level cache for this repo
+        with BlobStorage._class_cache_lock:
+            if self.repo_dir not in BlobStorage._class_blob_caches:
+                BlobStorage._class_blob_caches[self.repo_dir] = set()
+        self._blob_cache = BlobStorage._class_blob_caches[self.repo_dir]
+        self._cache_lock = BlobStorage._class_cache_lock
 
     def init_repo(self):
         os.makedirs(self.blobs_dir, exist_ok=True)
@@ -231,7 +240,9 @@ class BlobStorage:
         with open(temp_blob_path, "wb") as f:
             f.write(compressed)
         os.replace(temp_blob_path, blob_path)
-        self.db.record_new_blob(len(compressed))
+        # Fix #16: Don't call record_new_blob here — caller (snapshot.py) handles batch update for consistency
+        with self._cache_lock:
+            self._blob_cache.add(sha256_hash)
         return sha256_hash, orig_size, len(compressed), True
 
     def extract_blob_to_file(self, sha256_hash: str, dest_filepath: str, verify_hash: bool = True) -> bool:

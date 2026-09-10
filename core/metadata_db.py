@@ -62,7 +62,12 @@ class MetadataDB:
             pass
 
     def record_new_blob(self, stored_size: int, count: int = 1):
-        """Atomically increments blob count and stored bytes in cache."""
+        """Atomically increments blob count and stored bytes in cache.
+        Fix #11: 'count' should be the number of truly NEW unique blobs, not new files.
+        Callers must pass only blobs that are genuinely new (is_new=True from put_file_blob_onepass).
+        """
+        if count <= 0 and stored_size <= 0:
+            return
         try:
             with self._lock, self._get_connection() as conn:
                 row = conn.execute("SELECT id FROM blobs_summary WHERE id = 1;").fetchone()
@@ -71,7 +76,7 @@ class MetadataDB:
                     conn.execute("""
                         INSERT INTO blobs_summary (id, total_blobs, stored_bytes, last_updated)
                         VALUES (1, ?, ?, ?);
-                    """, (count, stored_size, now))
+                    """, (max(0, count), max(0, stored_size), now))
                 else:
                     conn.execute("""
                         UPDATE blobs_summary
@@ -79,7 +84,7 @@ class MetadataDB:
                             stored_bytes = stored_bytes + ?,
                             last_updated = ?
                         WHERE id = 1;
-                    """, (count, stored_size, now))
+                    """, (max(0, count), max(0, stored_size), now))
                 conn.commit()
         except Exception:
             pass

@@ -76,7 +76,12 @@ class BackupScheduler:
                 hour, minute = map(int, sched_val.split(":"))
                 now_dt = datetime.datetime.now()
                 target_today = now_dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
-                
+
+                # Fix #12: Prevent re-trigger loop — require at least 1h since last run to avoid
+                # re-triggering on the same day after a quick failure/retry within the same minute.
+                if elapsed_sec < 3600:
+                    return False
+
                 # If target time today has passed, and last_run was before target time today
                 if now_dt >= target_today:
                     target_ts = target_today.timestamp()
@@ -151,10 +156,23 @@ class BackupScheduler:
             if pruned:
                 self._log(profile_name, f"보관 주기 만료 스냅샷 {len(pruned)}개 정리 완료.")
 
+            # Fix #4: Send KakaoTalk success notification for scheduled auto-backup
+            try:
+                from core.notifier import notify_backup_result
+                notify_backup_result(manifest=manifest, profile_name=profile_name)
+            except Exception:
+                pass
+
         except Exception as e:
             self._log(profile_name, f"백업 중 오류 발생: {str(e)}", level="ERROR")
             profile["last_status"] = "failed"
             ConfigManager.save_profile(profile)
+            # Fix #4: Send KakaoTalk failure notification for scheduled auto-backup
+            try:
+                from core.notifier import notify_backup_result
+                notify_backup_result(error_msg=str(e), profile_name=profile_name)
+            except Exception:
+                pass
 
         finally:
             if profile_id in self.active_jobs:

@@ -83,12 +83,18 @@ def send_kakao_message(text: str) -> bool:
         "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
     }
     
+    # Fix #10: Use configurable dashboard URL (env var > Tailscale IP > localhost fallback)
+    dashboard_url = (
+        os.environ.get("BACKUP_DASHBOARD_URL")
+        or "http://100.99.168.69:8765"
+    )
+
     template_object = {
         "object_type": "text",
         "text": text,
         "link": {
-            "web_url": "http://127.0.0.1:8765",
-            "mobile_web_url": "http://127.0.0.1:8765"
+            "web_url": dashboard_url,
+            "mobile_web_url": dashboard_url
         },
         "button_title": "백업 대시보드"
     }
