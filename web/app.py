@@ -25,7 +25,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
-app = FastAPI(title="Server & System Backup Manager", version="2.1.0")
+app = FastAPI(title="Server & System Backup Manager", version="2.1.1")
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
