@@ -39,12 +39,13 @@ class RestoreEngine:
         to_restore = []
 
         if selected_rel_paths:
-            # Normalize selected paths
-            normalized_selected = [p.replace('\\', '/').strip('/') for p in selected_rel_paths]
+            # Normalize selected paths for case-insensitive matching
+            normalized_selected = [p.replace('\\', '/').strip('/').lower() for p in selected_rel_paths]
             for entry in entries:
                 rel_p = entry.get("rel_path", "").replace('\\', '/').strip('/')
+                rel_p_lower = rel_p.lower()
                 for sel in normalized_selected:
-                    if rel_p == sel or rel_p.startswith(sel + "/"):
+                    if rel_p_lower == sel or rel_p_lower.startswith(sel + "/"):
                         to_restore.append(entry)
                         break
         else:
@@ -59,6 +60,12 @@ class RestoreEngine:
 
         num_workers = min(12, max(4, os.cpu_count() or 4))
 
+        # Strict boundary check with trailing separator
+        norm_target = os.path.abspath(target_dir)
+        norm_target_prefix = norm_target if norm_target.endswith(os.sep) else norm_target + os.sep
+        norm_target_lower = norm_target.lower()
+        norm_target_prefix_lower = norm_target_prefix.lower()
+
         def _restore_one(entry):
             if cancel_event and cancel_event.is_set():
                 return "cancelled", 0
@@ -72,9 +79,10 @@ class RestoreEngine:
                 return "skip", 0
 
             dest_path = os.path.normpath(os.path.join(target_dir, rel_path))
+            dest_lower = dest_path.lower()
 
-            # Fix: Case-insensitive path traversal protection for Windows
-            if not dest_path.lower().startswith(target_dir.lower()):
+            # Fix: Strict case-insensitive path traversal protection with boundary prefix
+            if not (dest_lower == norm_target_lower or dest_lower.startswith(norm_target_prefix_lower)):
                 return ("fail", 0, rel_path, "경로 트래버설 차단: 대상 디렉토리 밖으로 복원 시도")
 
             if os.path.exists(dest_path) and not overwrite:
