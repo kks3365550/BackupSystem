@@ -1,11 +1,11 @@
 @echo off
-chcp 65001 > nul
-title 긴급 비상 재해 복구 - 원클릭 C드라이브 전체 복구
+setlocal
+title Emergency Disaster Recovery - One-Click Full C: Drive Restore
 
-:: 관리자 권한 확인 및 자동 승격
+:: Check Administrator Privileges and Auto-Elevate
 openfiles >nul 2>&1
 if '%errorlevel%' NEQ '0' (
-    echo [안내] C드라이브 시스템 및 사용자 폴더 복구를 위해 관리자 권한으로 승격합니다...
+    echo [Notice] Elevating to Administrator for C: drive system and user folder recovery...
     powershell -Command "Start-Process '%~f0' -Verb RunAs"
     exit /b
 )
@@ -19,7 +19,7 @@ if "%PY_EXE%"=="" (
     if not errorlevel 1 (
         set "PY_EXE=python"
     ) else (
-        echo [오류] 파이썬 환경을 찾을 수 없습니다. 파이썬이 설치되어 있는지 확인하세요.
+        echo [Error] Python environment not found. Please verify Python is installed.
         pause
         exit /b 1
     )
@@ -33,15 +33,16 @@ if not exist "%PY_SCRIPT%" (
 )
 
 echo ======================================================================
-echo   🛡️  원클릭 C드라이브 전체 자동 복구
+echo   [*] One-Click Full C: Drive Disaster Recovery
 echo ======================================================================
-echo  - 백업 저장소의 가장 최신 스냅샷을 원본 C드라이브 경로로 복원합니다.
-echo  - 프로그램, 소스코드, 드라이버, 레지스트리, 바탕화면 파일이 복구됩니다.
+echo  - Restores the latest snapshot directly to original C: drive paths.
+echo  - Restores programs, source codes, drivers, registry, and desktop files.
 echo ======================================================================
 echo.
 
 "%PY_EXE%" "%PY_SCRIPT%" --auto
 
 echo.
-echo 복구 작업이 종료되었습니다.
+echo Recovery process finished.
 pause
+

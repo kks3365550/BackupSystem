@@ -87,7 +87,8 @@ def sync_install_directories():
     print("[3/5] Synchronizing install distribution folders...")
     targets = [
         r'c:\Users\kksjmj\Desktop\ai\백업시스템_설치용',
-        r'D:\백업시스템_설치용'
+        r'D:\백업시스템_설치용',
+        r'F:\백업시스템_설치용'
     ]
     for target in targets:
         drive = os.path.splitdrive(target)[0]

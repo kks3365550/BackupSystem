@@ -1,11 +1,11 @@
 @echo off
-chcp 65001 > nul
-title 긴급 비상 재해 복구 - 선택형 복구 매니저
+setlocal
+title Emergency Disaster Recovery - Interactive Restore Manager
 
-:: 관리자 권한 확인 및 자동 승격
+:: Check Administrator Privileges and Auto-Elevate
 openfiles >nul 2>&1
 if '%errorlevel%' NEQ '0' (
-    echo [안내] C드라이브 폴더 복구를 위해 관리자 권한으로 승격합니다...
+    echo [Notice] Elevating to Administrator for C: drive folder recovery...
     powershell -Command "Start-Process '%~f0' -Verb RunAs"
     exit /b
 )
@@ -19,7 +19,7 @@ if "%PY_EXE%"=="" (
     if not errorlevel 1 (
         set "PY_EXE=python"
     ) else (
-        echo [오류] 파이썬 환경을 찾을 수 없습니다. 파이썬이 설치되어 있는지 확인하세요.
+        echo [Error] Python environment not found. Please verify Python is installed.
         pause
         exit /b 1
     )
@@ -35,5 +35,6 @@ if not exist "%PY_SCRIPT%" (
 "%PY_EXE%" "%PY_SCRIPT%"
 
 echo.
-echo 복구 작업이 종료되었습니다.
+echo Recovery process finished.
 pause
+
