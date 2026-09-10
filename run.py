@@ -58,26 +58,26 @@ def open_browser(port: int):
             break
         time.sleep(0.1)
 
-    opened = False
-    try:
-        opened = webbrowser.open(url)
-    except Exception:
-        pass
+    # 1. Prioritize Samsung Internet if installed
+    samsung_path = r"C:\Program Files\Samsung\Internet\Application\samsunginternet.exe"
+    if sys.platform.startswith("win") and os.path.exists(samsung_path):
+        try:
+            subprocess.Popen([samsung_path, url])
+            return
+        except Exception:
+            pass
 
-    # Windows: also launch msedge directly to ensure window pops to front
-    if sys.platform.startswith("win"):
-        edge_paths = [
-            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-        ]
-        for ep in edge_paths:
-            if os.path.exists(ep):
-                try:
-                    subprocess.Popen([ep, url])
-                    opened = True
-                    break
-                except Exception:
-                    pass
+    # 2. Fallback to system default browser
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(url)
+        else:
+            webbrowser.open(url)
+    except Exception:
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
 
 def main():
     settings = ConfigManager.get_settings()
