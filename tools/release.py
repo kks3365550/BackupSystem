@@ -100,6 +100,10 @@ def sync_install_directories():
         subprocess.run(['robocopy', os.path.join(BASE_DIR, 'core'), os.path.join(target, 'core'), '/E', '/MIR'], capture_output=True)
         subprocess.run(['robocopy', os.path.join(BASE_DIR, 'web'), os.path.join(target, 'web'), '/E', '/MIR'], capture_output=True)
         
+        # Sync emergency_restore (with embedded python)
+        if os.path.exists(os.path.join(BASE_DIR, 'emergency_restore')):
+            subprocess.run(['robocopy', os.path.join(BASE_DIR, 'emergency_restore'), os.path.join(target, 'emergency_restore'), '/E', '/MIR'], capture_output=True)
+        
         # Sync root py and bat files
         for item in os.listdir(BASE_DIR):
             full_path = os.path.join(BASE_DIR, item)
