@@ -67,6 +67,23 @@ class RestoreEngine:
         lock = threading.Lock()
 
         num_workers = min(12, max(4, os.cpu_count() or 4))
+        current_user_profile = os.path.normpath(os.path.expanduser('~'))
+        remap_from = ""
+        for entry in to_restore:
+            src = entry.get("source_root", "")
+            if "users" in src.lower():
+                parts = src.replace('/', '\\').split('\\')
+                try:
+                    u_idx = [p.lower() for p in parts].index("users")
+                    if u_idx + 1 < len(parts):
+                        backup_user = parts[u_idx + 1]
+                        drive_prefix = parts[0] if ':' in parts[0] else 'C:'
+                        candidate_remap = os.path.normpath(f"{drive_prefix}\\Users\\{backup_user}")
+                        if candidate_remap.lower() != current_user_profile.lower():
+                            remap_from = candidate_remap
+                            break
+                except (ValueError, IndexError):
+                    continue
 
         def _restore_one(entry):
             if cancel_event and cancel_event.is_set():
@@ -85,6 +102,10 @@ class RestoreEngine:
                 if not src_root:
                     return ("fail", 0, rel_path, "스냅샷에 원본 경로(source_root) 정보가 없습니다.")
                 file_target_dir = os.path.abspath(src_root)
+                if remap_from:
+                    norm_base = os.path.normpath(file_target_dir)
+                    if norm_base.lower().startswith(remap_from.lower()):
+                        file_target_dir = os.path.normpath(current_user_profile + norm_base[len(remap_from):])
                 dest_path = os.path.normpath(os.path.join(file_target_dir, rel_path))
                 f_norm_target = file_target_dir
                 f_norm_prefix = f_norm_target if f_norm_target.endswith(os.sep) else f_norm_target + os.sep

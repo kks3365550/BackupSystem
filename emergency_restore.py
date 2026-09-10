@@ -49,6 +49,12 @@ def extract_blob(blob_path: str, dest_path: str, expected_sha256: str, verify_ha
         raise FileNotFoundError(f"Blob file not found: {blob_path}")
 
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+    if os.path.exists(dest_path):
+        try:
+            import stat as stat_mod
+            os.chmod(dest_path, stat_mod.S_IWRITE)
+        except Exception:
+            pass
     sha256 = hashlib.sha256() if verify_hash else None
 
     # Check magic byte for zstd (0x28 0xB5 0x2F 0xFD)
@@ -197,25 +203,32 @@ def run_emergency_restore(
         print("[!] 복원할 파일이 없습니다.")
         return
 
-    # User remapping detection
-    current_user_profile = os.path.expanduser('~')
-    sample_source = entries[0].get("source_root", "")
+    # Robust User Remapping: scan all entries to detect any user profile paths
+    current_user_profile = os.path.normpath(os.path.expanduser('~'))
     remap_from = ""
-    if remap_user and "Users" in sample_source:
-        parts = sample_source.split(os.sep)
-        try:
-            u_idx = [p.lower() for p in parts].index("users")
-            if u_idx + 1 < len(parts):
-                backup_user = parts[u_idx + 1]
-                remap_from = os.path.join(parts[0] + os.sep, "Users", backup_user)
-                if remap_from.lower() != current_user_profile.lower():
-                    print(f"[*] 윈도우 사용자 폴더 리매핑 감지:")
-                    print(f"    - 백업 당시: {remap_from}")
-                    print(f"    - 현재 시스템: {current_user_profile}")
-                else:
-                    remap_from = ""
-        except ValueError:
-            pass
+    if remap_user:
+        for entry in entries:
+            src = entry.get("source_root", "")
+            if "users" in src.lower():
+                parts = src.replace('/', '\\').split('\\')
+                try:
+                    u_idx = [p.lower() for p in parts].index("users")
+                    if u_idx + 1 < len(parts):
+                        backup_user = parts[u_idx + 1]
+                        drive_prefix = parts[0] if ':' in parts[0] else 'C:'
+                        candidate_remap = os.path.normpath(f"{drive_prefix}\\Users\\{backup_user}")
+                        if candidate_remap.lower() != current_user_profile.lower():
+                            remap_from = candidate_remap
+                            break
+                except (ValueError, IndexError):
+                    continue
+
+        if remap_from:
+            print(f"[*] 윈도우 사용자 폴더 자동 리매핑 감지 및 적용:")
+            print(f"    - 백업 계정: {remap_from}")
+            print(f"    - 현재 계정: {current_user_profile} (현재 로그인된 계정으로 자동 전송됩니다)")
+        else:
+            remap_from = ""
 
     num_workers = min(12, max(4, os.cpu_count() or 4))
     print(f"[*] 병렬 가속: {num_workers}개 스레드로 동시 복원 진행")
@@ -245,8 +258,10 @@ def run_emergency_restore(
             dest_path = os.path.normpath(os.path.join(target_override, rel_path))
         else:
             base_dir = source_root
-            if remap_from and base_dir.lower().startswith(remap_from.lower()):
-                base_dir = current_user_profile + base_dir[len(remap_from):]
+            if remap_from:
+                norm_base = os.path.normpath(base_dir)
+                if norm_base.lower().startswith(remap_from.lower()):
+                    base_dir = os.path.normpath(current_user_profile + norm_base[len(remap_from):])
             dest_path = os.path.normpath(os.path.join(base_dir, rel_path))
 
         blob_path = get_blob_path(repo_dir, sha256)

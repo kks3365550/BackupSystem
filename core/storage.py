@@ -294,6 +294,12 @@ class BlobStorage:
 
         os.makedirs(os.path.dirname(dest_filepath), exist_ok=True)
         target_dest = dest_filepath if direct_write else (dest_filepath + ".restore.tmp")
+        if os.path.exists(target_dest):
+            try:
+                import stat as stat_mod
+                os.chmod(target_dest, stat_mod.S_IWRITE)
+            except Exception:
+                pass
 
         # Check first 4 magic bytes
         with open(blob_path, "rb") as f_head:
