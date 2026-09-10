@@ -176,7 +176,7 @@ def import_registry_file(reg_filepath: str) -> bool:
         return False
     cmd = ["reg", "import", os.path.abspath(reg_filepath)]
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        res = subprocess.run(cmd, capture_output=True, text=True, encoding="cp949", errors="replace", timeout=15)
         return res.returncode == 0
     except Exception:
         return False

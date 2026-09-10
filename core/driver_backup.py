@@ -60,7 +60,7 @@ def export_windows_drivers(dest_dir: str, force: bool = False) -> Dict[str, Any]
 
     cmd = ["pnputil", "/export-driver", "*", dest_dir]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="cp949", errors="replace", timeout=180)
         
         driver_count = 0
         total_size = 0

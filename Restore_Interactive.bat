@@ -34,3 +34,6 @@ if not exist "%PY_SCRIPT%" (
 
 "%PY_EXE%" "%PY_SCRIPT%"
 
+echo.
+echo 복구 작업이 종료되었습니다.
+pause

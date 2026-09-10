@@ -214,6 +214,7 @@ class SnapshotEngine:
         new_stored_bytes = 0
         entries = []
         seen_keys = set()
+        seen_norm_paths = set()
         files_to_process_parallel = []
 
         # 3. Process files: Fast Path (no extra disk stat queries needed!)
@@ -226,6 +227,7 @@ class SnapshotEngine:
             seen_keys.add(key)
 
             norm_full_path = os.path.normpath(full_path).replace('\\', '/').lower()
+            seen_norm_paths.add(norm_full_path)
             norm_rel = rel_path.replace('\\', '/').lower()
             prev_entry = prev_entries_map.get(norm_full_path) or prev_entries_map.get(key) or prev_rel_map.get(norm_rel)
 
@@ -335,8 +337,12 @@ class SnapshotEngine:
         # Calculate deleted files count compared to previous snapshot
         deleted_files_count = 0
         if best_snapshot and "entries" in best_snapshot:
-            for k in prev_entries_map.keys():
-                if k not in seen_keys:
+            for prev_e in best_snapshot["entries"]:
+                s_root = prev_e.get("source_root", "")
+                r_path = prev_e.get("rel_path", "")
+                t_key = (s_root, r_path)
+                p_norm = os.path.normpath(os.path.join(s_root, r_path)).replace('\\', '/').lower()
+                if t_key not in seen_keys and p_norm not in seen_norm_paths:
                     deleted_files_count += 1
 
         duration = time.time() - start_time
@@ -534,9 +540,12 @@ class SnapshotEngine:
             "children": {}
         }
 
+        if not snapshot_data or not snapshot_data.get("entries"):
+            return {"name": "root", "type": "directory", "children": []}
+
         for entry in snapshot_data.get("entries", []):
             rel_path = entry.get("rel_path", "")
-            parts = rel_path.split('/')
+            parts = rel_path.replace('\\', '/').strip('/').split('/')
             curr = root
 
             for i, part in enumerate(parts):

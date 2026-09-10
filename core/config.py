@@ -22,7 +22,7 @@ DEFAULT_PROFILE = {
     "auto_backup_enabled": False,
     "retention_count": 30,
     "retention_days": 60,
-    "compression_level": 6,
+    "compression_level": 3,
     "last_run": None,
     "last_status": "never",
     "last_snapshot_id": None
