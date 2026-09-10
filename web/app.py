@@ -227,11 +227,29 @@ def _get_all_candidate_repos(repo_dir: Optional[str] = None) -> List[str]:
     candidates.add(os.path.abspath(os.path.join(BASE_DIR, "backup_repository")))
     candidates.add(os.path.abspath(os.path.join(os.path.expanduser("~"), "MyBackup_Repository")))
 
-    # Scan all drive letters for drive root, MyBackup_Repository, or backup_repository
-    for letter in "CDEFGHIJKLMNOPQRSTUVWXYZ":
-        for repo_cand in (f"{letter}:\\", f"{letter}:\\MyBackup_Repository", f"{letter}:\\backup_repository"):
-            if os.path.exists(os.path.join(repo_cand, "snapshots")) and os.path.exists(os.path.join(repo_cand, "blobs")):
-                candidates.add(os.path.abspath(repo_cand))
+    # Scan all valid mounted drive letters for drive root, MyBackup_Repository, or backup_repository
+    mounted_roots = set()
+    try:
+        for part in psutil.disk_partitions(all=False):
+            if part.mountpoint:
+                mounted_roots.add(part.mountpoint)
+    except Exception:
+        pass
+
+    if not mounted_roots:
+        # Fallback to standard drive letters if psutil query fails
+        for letter in "CDEF":
+            d = f"{letter}:\\"
+            if os.path.exists(d):
+                mounted_roots.add(d)
+
+    for m_root in mounted_roots:
+        for repo_cand in (m_root, os.path.join(m_root, "MyBackup_Repository"), os.path.join(m_root, "backup_repository")):
+            try:
+                if os.path.exists(os.path.join(repo_cand, "snapshots")) and os.path.exists(os.path.join(repo_cand, "blobs")):
+                    candidates.add(os.path.abspath(repo_cand))
+            except (PermissionError, OSError):
+                pass
 
     valid = [r for r in candidates if os.path.exists(r)]
 
@@ -489,6 +507,13 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             f"중복제거 절감: {round(summary.get('dedup_saved_bytes', 0)/(1024*1024), 2)}MB | "
             f"소요: {summary.get('duration_seconds')}초"
         )
+        # Fix #1: Send KakaoTalk notification for custom selection backup
+        try:
+            from core.notifier import notify_backup_result
+            notify_backup_result(manifest=manifest, profile_name=profile_name)
+        except Exception as e_notif:
+            append_task_log(f"카카오톡 알림 전송 실패: {e_notif}", level="WARNING")
+
         manifest_summary = {
             "id": manifest.get("id"),
             "created_at": manifest.get("created_at"),
@@ -514,6 +539,11 @@ def _background_custom_backup_task(params: Dict[str, Any]):
         import traceback
         append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
         append_task_log(traceback.format_exc(), level="ERROR")
+        try:
+            from core.notifier import notify_backup_result
+            notify_backup_result(error_msg=str(e), profile_name=profile_name)
+        except Exception:
+            pass
         with task_lock:
             current_task["error"] = str(e)
     finally:

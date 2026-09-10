@@ -1,6 +1,7 @@
 """
 독립형 비상 재해 복구 엔진 (Standalone Emergency Disaster Recovery Script)
-외부 라이브러리(FastAPI 등) 없이 파이썬 기본 표준 라이브러리(zlib, hashlib, json 등)만으로 동작합니다.
+외부 프레임워크(FastAPI 등) 없이 파이썬 표준 라이브러리(zlib, hashlib, json 등)만으로 동작합니다.
+초고속 1MB 스트리밍 I/O 및 멀티스레드 병렬 복원을 지원합니다.
 """
 
 import os
@@ -10,6 +11,8 @@ import zlib
 import hashlib
 import time
 import glob
+import threading
+import concurrent.futures
 from typing import Dict, List, Any, Optional
 
 try:
@@ -17,7 +20,7 @@ try:
 except ImportError:
     zstd = None
 
-# Safe stdout/stderr reconfigure to prevent cp949 encoding errors on pure Windows CMD
+# Safe stdout/stderr reconfigure to prevent cp949 encoding errors on Windows CMD
 try:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -46,7 +49,7 @@ def extract_blob(blob_path: str, dest_path: str, expected_sha256: str, verify_ha
         raise FileNotFoundError(f"Blob file not found: {blob_path}")
 
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-    temp_dest = dest_path + ".restore.tmp"
+    temp_dest = dest_path + f".restore_tmp_{os.getpid()}_{os.urandom(3).hex()}"
 
     sha256 = hashlib.sha256() if verify_hash else None
 
@@ -56,6 +59,9 @@ def extract_blob(blob_path: str, dest_path: str, expected_sha256: str, verify_ha
 
     is_zstd = (header == b"\x28\xb5\x2f\xfd")
 
+    # High speed 1MB streaming buffer
+    buf_size = 1048576
+
     with open(blob_path, "rb") as fin, open(temp_dest, "wb") as fout:
         if is_zstd:
             if zstd is None:
@@ -63,7 +69,7 @@ def extract_blob(blob_path: str, dest_path: str, expected_sha256: str, verify_ha
             dctx = zstd.ZstdDecompressor()
             with dctx.stream_reader(fin) as reader:
                 while True:
-                    chunk = reader.read(65536)
+                    chunk = reader.read(buf_size)
                     if not chunk:
                         break
                     fout.write(chunk)
@@ -72,7 +78,7 @@ def extract_blob(blob_path: str, dest_path: str, expected_sha256: str, verify_ha
         else:
             decompressor = zlib.decompressobj()
             while True:
-                chunk = fin.read(65536)
+                chunk = fin.read(buf_size)
                 if not chunk:
                     break
                 decompressed = decompressor.decompress(chunk)
@@ -88,7 +94,10 @@ def extract_blob(blob_path: str, dest_path: str, expected_sha256: str, verify_ha
 
     if verify_hash and sha256.hexdigest() != expected_sha256:
         if os.path.exists(temp_dest):
-            os.remove(temp_dest)
+            try:
+                os.remove(temp_dest)
+            except OSError:
+                pass
         raise ValueError(f"Hash mismatch for {dest_path}")
 
     if os.path.exists(dest_path):
@@ -110,9 +119,18 @@ def get_candidate_repositories() -> List[str]:
         r"D:\MyBackup_Repository",
         r"C:\Users\kksjmj\Desktop\ai\백업시스템\backup_repository"
     ]
-    for letter in "CDEFGHIJKLMNOPQRSTUVWXYZ":
-        for repo_name in ("MyBackup_Repository", "backup_repository"):
-            candidates.append(f"{letter}:\\{repo_name}")
+
+    try:
+        import psutil
+        for part in psutil.disk_partitions(all=False):
+            if part.mountpoint:
+                candidates.append(os.path.join(part.mountpoint, "MyBackup_Repository"))
+                candidates.append(os.path.join(part.mountpoint, "backup_repository"))
+    except Exception:
+        for letter in "CDEFG":
+            candidates.append(f"{letter}:\\MyBackup_Repository")
+            candidates.append(f"{letter}:\\backup_repository")
+
     valid = []
     seen = set()
     for c in candidates:
@@ -167,7 +185,7 @@ def run_emergency_restore(
     filter_keyword: Optional[str] = None
 ):
     print("=" * 70)
-    print(" [복구시작] 긴급 비상 재해 복구 (Emergency Disaster Recovery)")
+    print(" [복구시작] 초고속 멀티스레드 비상 재해 복구 (Emergency Restore)")
     print("=" * 70)
     print(f"[*] 저장소 경로: {repo_dir}")
     print(f"[*] 스냅샷 파일: {snapshot_path}")
@@ -190,7 +208,7 @@ def run_emergency_restore(
         return
 
     # User remapping detection
-    current_user_profile = os.path.expanduser('~') # e.g. C:\Users\kksjmj or C:\Users\NewUser
+    current_user_profile = os.path.expanduser('~')
     sample_source = entries[0].get("source_root", "")
     remap_from = ""
     if remap_user and "Users" in sample_source:
@@ -209,20 +227,21 @@ def run_emergency_restore(
         except ValueError:
             pass
 
+    num_workers = min(12, max(4, os.cpu_count() or 4))
+    print(f"[*] 병렬 가속: {num_workers}개 스레드로 동시 복원 진행")
+    print("-" * 70)
+
     start_time = time.time()
     restored_count = 0
     skipped_count = 0
     failed_count = 0
     restored_bytes = 0
+    processed_count = 0
     total_to_process = len(entries)
-
-    print("-" * 70)
-    print("[*] 복원 작업을 시작합니다... (잠시만 기다려주세요)")
-    print("-" * 70)
-
+    lock = threading.Lock()
     reg_files_to_import = []
 
-    for idx, entry in enumerate(entries, 1):
+    def _worker_restore(entry):
         rel_path = entry.get("rel_path", "")
         source_root = entry.get("source_root", "")
         sha256 = entry.get("sha256") or entry.get("blob_id")
@@ -230,9 +249,8 @@ def run_emergency_restore(
         mtime = entry.get("mtime")
 
         if not rel_path or not sha256:
-            continue
+            return "skip", 0, None
 
-        # Target path calculation
         if target_override:
             dest_path = os.path.normpath(os.path.join(target_override, rel_path))
         else:
@@ -244,8 +262,7 @@ def run_emergency_restore(
         blob_path = get_blob_path(repo_dir, sha256)
 
         if not overwrite and os.path.exists(dest_path):
-            skipped_count += 1
-            continue
+            return "skip", 0, None
 
         try:
             extract_blob(blob_path, dest_path, sha256, verify_hash=verify_hash)
@@ -255,20 +272,32 @@ def run_emergency_restore(
                 except OSError:
                     pass
 
-            if dest_path.lower().endswith(".reg"):
-                reg_files_to_import.append(dest_path)
+            is_reg = dest_path.lower().endswith(".reg")
+            return "ok", f_size, dest_path if is_reg else None
+        except Exception:
+            return "fail", 0, None
 
-            restored_count += 1
-            restored_bytes += f_size
-        except Exception as e:
-            failed_count += 1
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+        futures = {executor.submit(_worker_restore, e): e for e in entries}
+        for fut in concurrent.futures.as_completed(futures):
+            status, f_size, reg_p = fut.result()
+            with lock:
+                processed_count += 1
+                if status == "ok":
+                    restored_count += 1
+                    restored_bytes += f_size
+                    if reg_p:
+                        reg_files_to_import.append(reg_p)
+                elif status == "skip":
+                    skipped_count += 1
+                elif status == "fail":
+                    failed_count += 1
 
-        # Progress reporting
-        if idx % 100 == 0 or idx == total_to_process:
-            elapsed = time.time() - start_time
-            speed = (restored_bytes / elapsed) if elapsed > 0 else 0
-            pct = (idx / total_to_process) * 100
-            print(f"\r진행률: [{pct:5.1f}%] {idx}/{total_to_process} 파일 | 복원: {restored_count}건 ({format_bytes(restored_bytes)}) | 속도: {format_bytes(int(speed))}/s", end="", flush=True)
+                if processed_count % 100 == 0 or processed_count == total_to_process:
+                    elapsed = time.time() - start_time
+                    speed = (restored_bytes / elapsed) if elapsed > 0 else 0
+                    pct = (processed_count / total_to_process) * 100
+                    print(f"\r진행률: [{pct:5.1f}%] {processed_count:,}/{total_to_process:,} 파일 | 복원: {restored_count:,}건 ({format_bytes(restored_bytes)}) | 속도: {format_bytes(int(speed))}/s", end="", flush=True)
 
     print()
     total_elapsed = time.time() - start_time
@@ -286,7 +315,7 @@ def run_emergency_restore(
         print(f"\n[*] 복원된 윈도우 레지스트리 백업 파일이 {len(reg_files_to_import)}개 있습니다:")
         for rf in reg_files_to_import[:5]:
             print(f"    - {rf}")
-        print("    (필요 시 위 .reg 파일을 실행하여 레지스트리를 복원하세요)")
+        print("    (필요 시 위 .reg 파일을 실행하여 레지스트리를 적용하세요)")
 
 def main():
     candidates = get_candidate_repositories()
@@ -298,69 +327,26 @@ def main():
 
     snapshots = find_snapshots(repo_dir)
     if not snapshots:
-        print(f"[!] '{repo_dir}' 내에 복원 가능한 스냅샷이 존재하지 않습니다.")
-        input("\n엔터 키를 누르면 종료합니다...")
+        print(f"[!] 저장소({repo_dir})에 스냅샷 파일이 없습니다.")
         return
 
-    print("\n" + "=" * 70)
-    print("       [긴급 비상 복구 매니저] (Emergency Disaster Recovery)")
-    print("=" * 70)
-    print(f"저장소: {repo_dir}\n")
-    print("사용 가능한 백업 스냅샷 목록:")
-    for i, snap in enumerate(snapshots):
-        is_latest = " [최신 권장]" if i == 0 else ""
-        print(f" [{i+1}] {snap['id']} ({snap['iso_time']}) - {snap['file_count']:,}개 파일{is_latest}")
+    print("\n--- 복원 가능한 스냅샷 목록 ---")
+    for i, s in enumerate(snapshots[:10], 1):
+        print(f"[{i}] {s['id']} | 일시: {s['iso_time'][:19]} | 프로필: {s['profile_name']} | 파일: {s['file_count']}개")
 
-    selected_idx = 0
-    if len(snapshots) > 1 and "--auto" not in sys.argv:
-        val = input(f"\n복원할 스냅샷 번호를 선택하세요 [기본: 1]: ").strip()
-        if val.isdigit() and 1 <= int(val) <= len(snapshots):
-            selected_idx = int(val) - 1
+    choice = input("\n복원할 스냅샷 번호를 선택하세요 (기본값: 1): ").strip()
+    sel_idx = int(choice) - 1 if choice.isdigit() and 1 <= int(choice) <= len(snapshots) else 0
+    selected_snap = snapshots[sel_idx]
 
-    selected_snap = snapshots[selected_idx]
     print(f"\n선택된 스냅샷: {selected_snap['id']}")
+    target = input("복원할 대상 디렉토리 (엔터 입력 시 백업 당시 원본 위치로 복원): ").strip('"\' ')
+    target_override = target if target else None
 
-    target_override = None
-    filter_kw = None
-
-    if "--auto" in sys.argv:
-        print("[*] 자동 모드(--auto): 백업 당시의 원본 위치(C드라이브 등)로 즉시 전체 복원을 진행합니다.")
-    else:
-        print("\n복구 대상 위치를 선택하세요:")
-        print(" [1] 원본 위치 그대로 복구 (C드라이브의 원래 위치로 즉시 원상복구) [기본값]")
-        print(" [2] 별도 지정 폴더로 복구 (예: C:\\Restored)")
-        mode_choice = input("선택 [기본: 1]: ").strip()
-        if mode_choice == "2":
-            target_override = input("복원할 대상 폴더 경로 입력: ").strip('"\' ')
-            if not target_override:
-                target_override = r"C:\Restored"
-
-        print("\n복원 범위:")
-        print(" [1] 전체 파일 복원 [기본값]")
-        print(" [2] 특정 폴더/파일명만 검색하여 선택 복원")
-        range_choice = input("선택 [기본: 1]: ").strip()
-        if range_choice == "2":
-            filter_kw = input("복원할 파일명 또는 경로 키워드 입력 (예: 백업시스템, Documents 등): ").strip()
-
-    confirm = "y"
-    if "--auto" not in sys.argv:
-        confirm = input("\n복원을 시작하시겠습니까? (Y/n): ").strip().lower()
-
-    if confirm in ("", "y", "yes"):
-        run_emergency_restore(
-            repo_dir=repo_dir,
-            snapshot_path=selected_snap["path"],
-            target_override=target_override,
-            filter_keyword=filter_kw,
-            remap_user=True,
-            overwrite=True,
-            verify_hash=True
-        )
-    else:
-        print("[*] 복원이 취소되었습니다.")
-
-    if "--auto" not in sys.argv:
-        input("\n작업 완료. 엔터 키를 누르면 창을 닫습니다...")
+    run_emergency_restore(
+        repo_dir=repo_dir,
+        snapshot_path=selected_snap["path"],
+        target_override=target_override
+    )
 
 if __name__ == "__main__":
     main()

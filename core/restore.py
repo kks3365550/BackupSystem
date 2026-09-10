@@ -73,8 +73,8 @@ class RestoreEngine:
 
             dest_path = os.path.normpath(os.path.join(target_dir, rel_path))
 
-            # Fix #14: Path traversal protection
-            if not dest_path.startswith(target_dir):
+            # Fix: Case-insensitive path traversal protection for Windows
+            if not dest_path.lower().startswith(target_dir.lower()):
                 return ("fail", 0, rel_path, "경로 트래버설 차단: 대상 디렉토리 밖으로 복원 시도")
 
             if os.path.exists(dest_path) and not overwrite:
@@ -89,17 +89,12 @@ class RestoreEngine:
                     except OSError:
                         pass
 
-                # If restored file is a registry key (.reg), auto-import to Windows
-                if dest_path.lower().endswith(".reg"):
-                    try:
-                        from core.registry_backup import import_registry_file
-                        import_registry_file(dest_path)
-                    except Exception:
-                        pass
-
-                return "ok", f_size
+                is_reg = dest_path.lower().endswith(".reg")
+                return "ok", f_size, dest_path if is_reg else None
             except Exception as e:
                 return ("fail", 0, rel_path, str(e))
+
+        reg_files_to_import = []
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
             futures = {executor.submit(_restore_one, entry): entry for entry in to_restore}
@@ -116,6 +111,8 @@ class RestoreEngine:
                     if result[0] == "ok":
                         restored_files += 1
                         restored_bytes += result[1]
+                        if len(result) > 2 and result[2]:
+                            reg_files_to_import.append(result[2])
                     elif result[0] == "skip":
                         skipped_files += 1
                     elif result[0] == "fail":
@@ -138,6 +135,18 @@ class RestoreEngine:
                             "percent": pct,
                             "restored_bytes": restored_bytes
                         })
+
+        # Fix: Safely import registry files sequentially after all files are restored
+        if reg_files_to_import:
+            try:
+                from core.registry_backup import import_registry_file
+                for rf in reg_files_to_import:
+                    try:
+                        import_registry_file(rf)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
 
         duration = time.time() - start_time
         return {

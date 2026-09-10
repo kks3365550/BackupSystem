@@ -1,6 +1,6 @@
 import fnmatch
 import os
-from typing import List, Optional
+from typing import List, Optional, Set
 
 DEFAULT_EXCLUDE_PATTERNS = [
     # Windows system files and caches
@@ -49,32 +49,45 @@ DEFAULT_EXCLUDE_PATTERNS = [
 
 class PathFilter:
     def __init__(self, exclude_patterns: Optional[List[str]] = None, include_patterns: Optional[List[str]] = None, use_defaults: bool = True):
-        self.exclude_patterns = list(DEFAULT_EXCLUDE_PATTERNS) if use_defaults else []
+        raw_excludes = list(DEFAULT_EXCLUDE_PATTERNS) if use_defaults else []
         if exclude_patterns:
             for p in exclude_patterns:
                 p = p.strip()
-                if p and p not in self.exclude_patterns:
-                    self.exclude_patterns.append(p)
+                if p and p not in raw_excludes:
+                    raw_excludes.append(p)
         self.include_patterns = include_patterns or []
 
+        # Fix: Pre-split patterns into O(1) exact match set and wildcard patterns
+        self.exact_names: Set[str] = set()
+        self.wildcard_patterns: List[str] = []
+
+        for pattern in raw_excludes:
+            p = pattern.strip().lower()
+            if not p or p.startswith('#'):
+                continue
+            if '*' in p or '?' in p or '[' in p:
+                self.wildcard_patterns.append(p)
+            else:
+                self.exact_names.add(p)
+
     def is_excluded(self, path: str, is_dir: bool = False) -> bool:
-        norm_path = os.path.normpath(path).replace('\\', '/')
+        norm_path = os.path.normpath(path).replace('\\', '/').lower()
         basename = os.path.basename(norm_path)
 
-        for pattern in self.exclude_patterns:
-            pattern = pattern.strip()
-            if not pattern or pattern.startswith('#'):
-                continue
-            
-            # Match basename
-            if fnmatch.fnmatch(basename, pattern) or fnmatch.fnmatch(basename.lower(), pattern.lower()):
+        # 1. Fast O(1) exact name lookup for basename (covers ~90% of hits: .git, node_modules, desktop.ini, etc.)
+        if basename in self.exact_names:
+            return True
+
+        # 2. Fast O(1) ancestor directory name lookup
+        path_parts = set(norm_path.split('/'))
+        if not self.exact_names.isdisjoint(path_parts):
+            return True
+
+        # 3. Wildcard matching for remainder patterns (*.tmp, *.pyc, *cache*, etc.)
+        for pattern in self.wildcard_patterns:
+            if fnmatch.fnmatch(basename, pattern):
                 return True
-            
-            # Match full or relative path pattern
             if fnmatch.fnmatch(norm_path, pattern) or fnmatch.fnmatch(norm_path, f"*/{pattern}/*") or fnmatch.fnmatch(norm_path, f"*/{pattern}"):
-                return True
-            
-            if pattern in norm_path.split('/'):
                 return True
 
         return False

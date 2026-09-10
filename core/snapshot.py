@@ -93,7 +93,11 @@ class SnapshotEngine:
                                 elif entry.is_file(follow_symlinks=False):
                                     if not path_filter.is_excluded(entry.path, is_dir=False):
                                         st = entry.stat(follow_symlinks=False)
-                                        rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')
+                                        # Fix: Fast prefix slicing instead of expensive os.path.relpath
+                                        if entry.path.startswith(src_root):
+                                            rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')
+                                        else:
+                                            rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')
                                         found_files.append((entry.path, src_root, rel_path, st.st_size, st.st_mtime))
                             except (PermissionError, OSError):
                                 continue
@@ -106,10 +110,10 @@ class SnapshotEngine:
                         active_tasks -= 1
                         cond.notify_all()
 
-                        if progress_callback and (total_found % 50 == 0 or total_found == 1):
+                        if progress_callback and (total_found % 200 == 0 or total_found == 1):
                             progress_callback({
                                 "type": "scanning",
-                                "current_file": f"파일 탐색 중... ({total_found}개 발견: {os.path.basename(curr_dir)})",
+                                "current_file": f"파일 탐색 중... ({total_found:,}개 발견: {os.path.basename(curr_dir)})",
                                 "processed_files": 0,
                                 "total_files": total_found,
                                 "percent": 0,

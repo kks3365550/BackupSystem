@@ -9,6 +9,8 @@ from core.driver_backup import export_windows_drivers
 from core.registry_backup import collect_full_app_package
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+os.chdir(BASE_DIR)
+sys.path.insert(0, BASE_DIR)
 
 def run_cli_backup(profile_id: str = None):
     print(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] === 스마트 원샷 백업 시작 ===")
