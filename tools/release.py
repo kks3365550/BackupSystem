@@ -202,7 +202,7 @@ def main():
     parser = argparse.ArgumentParser(description="Backup System Release & Versioning Manager")
     parser.add_argument('--bump', choices=['patch', 'minor', 'major', 'none'], default='patch', help="Version bump type")
     parser.add_argument('-m', '--message', type=str, default="Automated engine build and bugfix release", help="Commit and changelog message")
-    parser.add_argument('--remote-ip', type=str, default="100.99.168.69", help="Tailscale remote desktop IP")
+    parser.add_argument('--remote-ip', type=str, default="100.90.20.59", help="Tailscale remote desktop IP")
     parser.add_argument('--skip-remote', action="store_true", help="Skip remote deployment")
     args = parser.parse_args()
 
