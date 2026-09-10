@@ -58,26 +58,19 @@ def open_browser(port: int):
             break
         time.sleep(0.1)
 
-    # 1. Prioritize Samsung Internet if installed
-    samsung_path = r"C:\Program Files\Samsung\Internet\Application\samsunginternet.exe"
-    if sys.platform.startswith("win") and os.path.exists(samsung_path):
-        try:
-            subprocess.Popen([samsung_path, url], close_fds=True)
-            return
-        except Exception:
-            pass
-
-    # 2. Fallback to system default browser
+    # 1. Open via Windows native ShellExecute (Strictly respects Windows Default Browser)
     try:
         if sys.platform.startswith("win"):
             os.startfile(url)
-        else:
-            webbrowser.open(url)
+            return
     except Exception:
-        try:
-            webbrowser.open(url)
-        except Exception:
-            pass
+        pass
+
+    # 2. Safe fallback to standard webbrowser library
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
 
 def main():
     settings = ConfigManager.get_settings()
@@ -85,16 +78,9 @@ def main():
     host = settings.get("server_host", "0.0.0.0")
     auto_open = settings.get("auto_open_browser", True)
 
-    # 1. If server is already running on this port, just open the dashboard!
+    # 1. If server is already running on this port, simply open default browser and return!
     if is_port_in_use(port):
-        print("=" * 60)
-        print("  백업시스템 매니저 (Backup System Manager)")
-        print("=" * 60)
-        print(f"[*] 백업 서버가 이미 정상 동작 중입니다 (포트: {port}).")
-        print(f"[*] 웹 브라우저에서 대시보드를 열었습니다: http://127.0.0.1:{port}")
-        print("=" * 60)
         open_browser(port)
-        time.sleep(1.5)
         return
 
     # 2. Start server and open browser

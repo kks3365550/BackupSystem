@@ -1,5 +1,18 @@
 Set WshShell = CreateObject("WScript.Shell")
-Dim currentDir
-currentDir = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName)
+Set fso = CreateObject("Scripting.FileSystemObject")
+Dim currentDir, pyExe, userProfile
+currentDir = fso.GetParentFolderName(WScript.ScriptFullName)
 WshShell.CurrentDirectory = currentDir
-WshShell.Run "pythonw run.py", 0, False
+
+userProfile = WshShell.ExpandEnvironmentStrings("%USERPROFILE%")
+pyExe = "pythonw"
+
+If fso.FileExists(currentDir & "\.venv\Scripts\pythonw.exe") Then
+    pyExe = """" & currentDir & "\.venv\Scripts\pythonw.exe"""
+ElseIf fso.FileExists(userProfile & "\AppData\Local\Python\pythoncore-3.14-64\pythonw.exe") Then
+    pyExe = """" & userProfile & "\AppData\Local\Python\pythoncore-3.14-64\pythonw.exe"""
+ElseIf fso.FileExists(userProfile & "\AppData\Local\Python\bin\pythonw.exe") Then
+    pyExe = """" & userProfile & "\AppData\Local\Python\bin\pythonw.exe"""
+End If
+
+WshShell.Run pyExe & " run.py", 0, False
