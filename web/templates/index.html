@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>서버 & 시스템 증분 백업 매니저</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind CSS (Local Bundle) -->
+    <script src="/static/vendor/tailwind.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -23,8 +23,8 @@
             }
         }
     </script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Lucide Icons (Local Bundle) -->
+    <script src="/static/vendor/lucide.min.js"></script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-blue-600 selection:text-white">
@@ -38,9 +38,9 @@
             <div>
                 <h1 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
                     서버 & 시스템 백업 매니저
-                    <span class="text-[10px] px-2 py-0.5 bg-blue-900/80 text-blue-300 rounded-full font-medium border border-blue-700/60">v1.0 Pro</span>
+                    <span class="text-[10px] px-2 py-0.5 bg-emerald-900/80 text-emerald-300 rounded-full font-medium border border-emerald-700/60">v2.1.0</span>
                 </h1>
-                <p class="text-[11px] text-slate-400">스냅샷 기반 증분 백업 & 데이터 중복 제거 엔진</p>
+                <p class="text-[11px] text-slate-400">멀티코어 Zstandard 엔진 & 증분 스냅샷 중복제거</p>
             </div>
         </div>
 

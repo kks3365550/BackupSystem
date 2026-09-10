@@ -11,20 +11,26 @@ if '%errorlevel%' NEQ '0' (
 )
 
 cd /d "%~dp0"
-set "REPO_DIR=%~dp0"
-set "EMERGENCY_DIR=%REPO_DIR%emergency_restore"
-set "PY_EXE=%EMERGENCY_DIR%\python\python.exe"
-
-if not exist "%PY_EXE%" (
+set "PY_EXE="
+if exist "%~dp0.venv\Scripts\python.exe" set "PY_EXE=%~dp0.venv\Scripts\python.exe"
+if exist "%~dp0emergency_restore\python\python.exe" set "PY_EXE=%~dp0emergency_restore\python\python.exe"
+if "%PY_EXE%"=="" (
     where python >nul 2>&1
-    if '%errorlevel%' EQU '0' (
+    if not errorlevel 1 (
         set "PY_EXE=python"
     ) else (
-        echo [오류] 독립 파이썬 환경을 찾을 수 없습니다: %PY_EXE%
+        echo [오류] 파이썬 환경을 찾을 수 없습니다. 파이썬이 설치되어 있는지 확인하세요.
         pause
         exit /b 1
     )
 )
 
-"%PY_EXE%" "%EMERGENCY_DIR%\emergency_restore.py"
+set "PY_SCRIPT=%~dp0emergency_restore.py"
+if not exist "%PY_SCRIPT%" (
+    if exist "%~dp0emergency_restore\emergency_restore.py" (
+        set "PY_SCRIPT=%~dp0emergency_restore\emergency_restore.py"
+    )
+)
+
+"%PY_EXE%" "%PY_SCRIPT%"
 

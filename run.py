@@ -40,7 +40,13 @@ if sys.platform.startswith("win"):
         pass
 
 def open_browser(port: int):
-    time.sleep(1.2)
+    import socket
+    for _ in range(60):
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.08):
+                break
+        except OSError:
+            time.sleep(0.05)
     url = f"http://127.0.0.1:{port}"
     try:
         webbrowser.open(url)

@@ -169,8 +169,8 @@
     "auto_backup_enabled": true,
     "retention_count": 3,
     "compression_level": 9,
-    "last_run": 1788659451.1481001,
+    "last_run": 1788998522.6033013,
     "last_status": "success",
-    "last_snapshot_id": "snap_20260906_105049_3c8103"
+    "last_snapshot_id": "snap_20260910_090200_4bab0b"
   }
 ]

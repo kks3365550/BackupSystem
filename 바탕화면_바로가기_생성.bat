@@ -12,8 +12,13 @@ if "!PY_EXE!"=="" (
     py -3 --version >nul 2>&1
     if not errorlevel 1 set "PY_EXE=py -3"
 )
-if "!PY_EXE!"=="" set "PY_EXE=python"
 
-powershell -ExecutionPolicy Bypass -Command "if (-not (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)) { Start-Process -FilePath '!PY_EXE!' -ArgumentList 'run.py' -WorkingDirectory '%~dp0' -WindowStyle Hidden } else { Start-Process 'http://127.0.0.1:8765' }"
+if "!PY_EXE!"=="" (
+    echo [오류] 파이썬을 찾을 수 없습니다. 1_원클릭_환경설치(최초1회).bat 을 먼저 실행해주세요.
+    pause
+    exit /b 1
+)
 
-exit /b 0
+!PY_EXE! create_desktop_shortcut.py
+echo.
+pause

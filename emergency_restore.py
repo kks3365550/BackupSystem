@@ -12,6 +12,11 @@ import time
 import glob
 from typing import Dict, List, Any, Optional
 
+try:
+    import zstandard as zstd
+except ImportError:
+    zstd = None
+
 # Safe stdout/stderr reconfigure to prevent cp949 encoding errors on pure Windows CMD
 try:
     if hasattr(sys.stdout, "reconfigure"):
@@ -43,24 +48,43 @@ def extract_blob(blob_path: str, dest_path: str, expected_sha256: str, verify_ha
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
     temp_dest = dest_path + ".restore.tmp"
 
-    decompressor = zlib.decompressobj()
     sha256 = hashlib.sha256() if verify_hash else None
 
+    # Check magic byte for zstd (0x28 0xB5 0x2F 0xFD)
+    with open(blob_path, "rb") as fin:
+        header = fin.read(4)
+
+    is_zstd = (header == b"\x28\xb5\x2f\xfd")
+
     with open(blob_path, "rb") as fin, open(temp_dest, "wb") as fout:
-        while True:
-            chunk = fin.read(65536)
-            if not chunk:
-                break
-            decompressed = decompressor.decompress(chunk)
-            if decompressed:
-                fout.write(decompressed)
+        if is_zstd:
+            if zstd is None:
+                raise RuntimeError("이 백업 블롭은 Zstandard(zstd)로 압축되었습니다. 'pip install zstandard'를 실행해 주세요.")
+            dctx = zstd.ZstdDecompressor()
+            with dctx.stream_reader(fin) as reader:
+                while True:
+                    chunk = reader.read(65536)
+                    if not chunk:
+                        break
+                    fout.write(chunk)
+                    if sha256:
+                        sha256.update(chunk)
+        else:
+            decompressor = zlib.decompressobj()
+            while True:
+                chunk = fin.read(65536)
+                if not chunk:
+                    break
+                decompressed = decompressor.decompress(chunk)
+                if decompressed:
+                    fout.write(decompressed)
+                    if sha256:
+                        sha256.update(decompressed)
+            tail = decompressor.flush()
+            if tail:
+                fout.write(tail)
                 if sha256:
-                    sha256.update(decompressed)
-        tail = decompressor.flush()
-        if tail:
-            fout.write(tail)
-            if sha256:
-                sha256.update(tail)
+                    sha256.update(tail)
 
     if verify_hash and sha256.hexdigest() != expected_sha256:
         if os.path.exists(temp_dest):
@@ -75,6 +99,38 @@ def extract_blob(blob_path: str, dest_path: str, expected_sha256: str, verify_ha
 
     os.replace(temp_dest, dest_path)
     return True
+
+def get_candidate_repositories() -> List[str]:
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        script_dir,
+        os.path.dirname(script_dir),
+        os.path.join(script_dir, "backup_repository"),
+        os.path.join(os.path.expanduser("~"), "MyBackup_Repository"),
+        r"D:\MyBackup_Repository",
+        r"C:\Users\kksjmj\Desktop\ai\백업시스템\backup_repository"
+    ]
+    for letter in "CDEFGHIJKLMNOPQRSTUVWXYZ":
+        for repo_name in ("MyBackup_Repository", "backup_repository"):
+            candidates.append(f"{letter}:\\{repo_name}")
+    valid = []
+    seen = set()
+    for c in candidates:
+        norm = os.path.normpath(c).lower()
+        if norm not in seen and os.path.exists(os.path.join(c, "snapshots")) and os.path.exists(os.path.join(c, "blobs")):
+            seen.add(norm)
+            valid.append(c)
+
+    def _latest_snap_time(r: str) -> float:
+        s_dir = os.path.join(r, "snapshots")
+        try:
+            files = [os.path.join(s_dir, f) for f in os.listdir(s_dir) if f.endswith(".json")]
+            return max([os.path.getmtime(f) for f in files]) if files else 0.0
+        except Exception:
+            return 0.0
+
+    valid.sort(key=_latest_snap_time, reverse=True)
+    return valid
 
 def find_snapshots(repo_dir: str) -> List[Dict[str, Any]]:
     snaps_dir = os.path.join(repo_dir, "snapshots")
@@ -233,18 +289,8 @@ def run_emergency_restore(
         print("    (필요 시 위 .reg 파일을 실행하여 레지스트리를 복원하세요)")
 
 def main():
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    candidates = [
-        script_dir,
-        os.path.dirname(script_dir),
-        r"D:\MyBackup_Repository",
-        r"C:\Users\kksjmj\Desktop\ai\백업시스템\backup_repository"
-    ]
-    repo_dir = None
-    for c in candidates:
-        if os.path.exists(os.path.join(c, "snapshots")) and os.path.exists(os.path.join(c, "blobs")):
-            repo_dir = c
-            break
+    candidates = get_candidate_repositories()
+    repo_dir = candidates[0] if candidates else None
 
     if not repo_dir:
         print("[!] 백업 저장소를 자동으로 찾을 수 없습니다.")

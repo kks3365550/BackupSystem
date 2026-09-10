@@ -17,6 +17,16 @@ DEFAULT_EXCLUDE_PATTERNS = [
     "*.temp",
     "*.lock",
     "*~*",
+    "*.dmp",
+    # Crash reports and telemetry
+    "*Crashpad*",
+    "*CrashReporting*",
+    "*crash_reports*",
+    # Browser / App caches
+    "*Cache*",
+    "*GPUCache*",
+    "*Code Cache*",
+    "*ShaderCache*",
     # Development / Cache folders
     "__pycache__",
     "*.pyc",
@@ -30,7 +40,11 @@ DEFAULT_EXCLUDE_PATTERNS = [
     "dist",
     "build",
     ".next",
-    ".nuxt"
+    ".nuxt",
+    # Massive VM / Disk images that should be excluded from file-level backup
+    "*.vhdx",
+    "*.vmdk",
+    "*.vdi"
 ]
 
 class PathFilter:

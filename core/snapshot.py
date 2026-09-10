@@ -3,7 +3,10 @@ import time
 import json
 import uuid
 import datetime
-from typing import Dict, List, Any, Optional, Callable
+import threading
+import queue
+import concurrent.futures
+from typing import Dict, List, Any, Optional, Callable, Tuple
 from core.hasher import calculate_sha256, get_file_stat
 from core.filter import PathFilter
 from core.storage import BlobStorage
@@ -65,39 +68,188 @@ class SnapshotEngine:
                     if tuple_key not in prev_entries_map:
                         prev_entries_map[tuple_key] = entry
 
-        # 2. Prepare for scanning
-        all_files_to_process = []
+    @classmethod
+    def _scan_sources_parallel(
+        cls,
+        sources: List[str],
+        path_filter: PathFilter,
+        num_workers: int = 8,
+        cancel_event: Optional[Any] = None,
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None
+    ) -> List[Tuple[str, str, str, int, float]]:
+        """
+        Fast parallel directory exploration using os.scandir and ThreadPool.
+        Retrieves file size and mtime directly from Windows C-kernel cache (WIN32_FIND_DATA),
+        completely eliminating subsequent stat disk queries.
+        """
+        all_files: List[Tuple[str, str, str, int, float]] = []
+        lock = threading.Lock()
+        dir_queue = queue.Queue()
+        active_tasks = 0
+        cond = threading.Condition(lock)
+
         for src in sources:
             src = os.path.abspath(src)
             if not os.path.exists(src):
                 continue
-
             if os.path.isfile(src):
                 if not path_filter.is_excluded(src, is_dir=False):
-                    all_files_to_process.append((src, os.path.dirname(src), os.path.basename(src)))
+                    try:
+                        st = os.stat(src)
+                        all_files.append((src, os.path.dirname(src), os.path.basename(src), st.st_size, st.st_mtime))
+                    except (PermissionError, OSError):
+                        pass
             else:
-                for root, dirs, files in os.walk(src):
-                    # Filter directories in place to avoid walking into excluded dirs
-                    dirs[:] = [d for d in dirs if not path_filter.is_excluded(os.path.join(root, d), is_dir=True)]
+                if not path_filter.is_excluded(src, is_dir=True):
+                    with lock:
+                        dir_queue.put((src, src))
 
-                    for file in files:
-                        full_path = os.path.join(root, file)
-                        if not path_filter.is_excluded(full_path, is_dir=False):
-                            rel_path = os.path.relpath(full_path, src).replace('\\', '/')
-                            all_files_to_process.append((full_path, src, rel_path))
+        if dir_queue.empty():
+            return all_files
 
-                    if progress_callback and (len(all_files_to_process) % 100 == 0 or len(all_files_to_process) == 1):
-                        progress_callback({
-                            "type": "scanning",
-                            "current_file": f"파일 목록 탐색 중... ({len(all_files_to_process)}개 발견)",
-                            "processed_files": 0,
-                            "total_files": len(all_files_to_process),
-                            "percent": 0,
-                            "new_files": 0,
-                            "modified_files": 0,
-                            "unmodified_files": 0,
-                            "transferred_bytes": 0
-                        })
+        stop_workers = False
+
+        def worker_loop():
+            nonlocal active_tasks, stop_workers
+            while True:
+                with cond:
+                    while dir_queue.empty() and active_tasks > 0 and not stop_workers:
+                        cond.wait(timeout=0.1)
+
+                    if stop_workers or (dir_queue.empty() and active_tasks == 0):
+                        cond.notify_all()
+                        return
+
+                    dir_item = dir_queue.get()
+                    active_tasks += 1
+
+                curr_dir, src_root = dir_item
+                try:
+                    if cancel_event and cancel_event.is_set():
+                        with cond:
+                            stop_workers = True
+                            cond.notify_all()
+                        return
+
+                    sub_dirs = []
+                    found_files = []
+
+                    with os.scandir(curr_dir) as it:
+                        for entry in it:
+                            try:
+                                if entry.is_dir(follow_symlinks=False):
+                                    if not path_filter.is_excluded(entry.path, is_dir=True):
+                                        sub_dirs.append(entry.path)
+                                elif entry.is_file(follow_symlinks=False):
+                                    if not path_filter.is_excluded(entry.path, is_dir=False):
+                                        st = entry.stat(follow_symlinks=False)
+                                        rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')
+                                        found_files.append((entry.path, src_root, rel_path, st.st_size, st.st_mtime))
+                            except (PermissionError, OSError):
+                                continue
+
+                    with cond:
+                        for sd in sub_dirs:
+                            dir_queue.put((sd, src_root))
+                        all_files.extend(found_files)
+                        total_found = len(all_files)
+                        active_tasks -= 1
+                        cond.notify_all()
+
+                        if progress_callback and (total_found % 50 == 0 or total_found == 1):
+                            progress_callback({
+                                "type": "scanning",
+                                "current_file": f"파일 탐색 중... ({total_found}개 발견: {os.path.basename(curr_dir)})",
+                                "processed_files": 0,
+                                "total_files": total_found,
+                                "percent": 0,
+                                "new_files": 0,
+                                "modified_files": 0,
+                                "unmodified_files": 0,
+                                "transferred_bytes": 0
+                            })
+                except (PermissionError, OSError):
+                    with cond:
+                        active_tasks -= 1
+                        cond.notify_all()
+
+        threads = []
+        for _ in range(num_workers):
+            t = threading.Thread(target=worker_loop, daemon=True)
+            t.start()
+            threads.append(t)
+
+        for t in threads:
+            t.join()
+
+        if cancel_event and cancel_event.is_set():
+            raise InterruptedError("Backup operation was cancelled by user.")
+
+        return all_files
+
+    @classmethod
+    def create_snapshot(
+        cls,
+        repo_dir: str,
+        sources: List[str],
+        profile_id: str = "default",
+        profile_name: str = "Default Backup",
+        exclude_patterns: Optional[List[str]] = None,
+        compress_level: int = 6,
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+        cancel_event: Optional[Any] = None
+    ) -> Dict[str, Any]:
+        start_time = time.time()
+        storage = BlobStorage(repo_dir)
+        path_filter = PathFilter(exclude_patterns=exclude_patterns)
+
+        # 1. Build fast incremental diff cache from existing snapshots in the repository
+        existing_snapshots = cls.list_snapshots(repo_dir)
+        prev_snapshot = None
+        for s in existing_snapshots:
+            if s.get("profile_id") == profile_id or s.get("profile_name") == profile_name:
+                prev_snapshot = cls.get_snapshot(repo_dir, s["id"])
+                break
+        
+        # Fallback to the latest available snapshot in repository if profile id differs
+        if not prev_snapshot and existing_snapshots:
+            prev_snapshot = cls.get_snapshot(repo_dir, existing_snapshots[0]["id"])
+
+        prev_entries_map = {}
+        prev_rel_map = {}
+        snapshots_to_cache = []
+        if prev_snapshot:
+            snapshots_to_cache.append(prev_snapshot)
+        for s in existing_snapshots[:5]:
+            if not prev_snapshot or s.get("id") != prev_snapshot.get("id"):
+                snap_obj = cls.get_snapshot(repo_dir, s["id"])
+                if snap_obj:
+                    snapshots_to_cache.append(snap_obj)
+
+        for snap_item in snapshots_to_cache:
+            if snap_item and "entries" in snap_item:
+                for entry in snap_item["entries"]:
+                    s_root = entry.get("source_root", "")
+                    r_path = entry.get("rel_path", "")
+                    full_p = os.path.normpath(os.path.join(s_root, r_path)).replace('\\', '/').lower()
+                    if full_p not in prev_entries_map:
+                        prev_entries_map[full_p] = entry
+                    tuple_key = (s_root, r_path)
+                    if tuple_key not in prev_entries_map:
+                        prev_entries_map[tuple_key] = entry
+                    norm_r = r_path.replace('\\', '/').lower()
+                    if norm_r not in prev_rel_map:
+                        prev_rel_map[norm_r] = entry
+
+        # 2. Parallel multi-worker directory scanning with C-kernel stat collection
+        num_workers = min(8, max(2, (os.cpu_count() or 4) // 2))
+        all_files_to_process = cls._scan_sources_parallel(
+            sources=sources,
+            path_filter=path_filter,
+            num_workers=num_workers,
+            cancel_event=cancel_event,
+            progress_callback=progress_callback
+        )
 
         total_files_count = len(all_files_to_process)
         total_source_bytes = 0
@@ -105,103 +257,122 @@ class SnapshotEngine:
         modified_files_count = 0
         unmodified_files_count = 0
         new_stored_bytes = 0
-        processed_files_count = 0
         entries = []
         seen_keys = set()
+        files_to_process_parallel = []
 
-        # 3. Process files (Incremental & Deduplication)
-        for full_path, src_root, rel_path in all_files_to_process:
+        # 3. Process files: Fast Path (no extra disk stat queries needed!)
+        for full_path, src_root, rel_path, f_size, f_mtime in all_files_to_process:
             if cancel_event and cancel_event.is_set():
                 raise InterruptedError("Backup operation was cancelled by user.")
 
-            processed_files_count += 1
-            stat = get_file_stat(full_path)
-            if not stat:
-                continue
-
-            f_size = stat['size']
-            f_mtime = stat['mtime']
             total_source_bytes += f_size
             key = (src_root, rel_path)
             seen_keys.add(key)
 
             norm_full_path = os.path.normpath(full_path).replace('\\', '/').lower()
-            prev_entry = prev_entries_map.get(norm_full_path) or prev_entries_map.get(key)
-            is_unmodified = False
+            norm_rel = rel_path.replace('\\', '/').lower()
+            prev_entry = prev_entries_map.get(norm_full_path) or prev_entries_map.get(key) or prev_rel_map.get(norm_rel)
 
-            # Check if file is exactly identical in size and mtime to previous snapshot
+            # Check unmodified fast path
             if prev_entry and prev_entry.get("sha256") and prev_entry.get("size") == f_size and abs(prev_entry.get("mtime", 0) - f_mtime) < 0.001:
-                # Fast path: Reuse previous sha256 and blob reference without reading file
-                sha256_hash = prev_entry.get("sha256")
-                blob_id = prev_entry.get("blob_id", sha256_hash)
-                # Verify blob exists in storage
+                blob_id = prev_entry.get("blob_id", prev_entry.get("sha256"))
                 if blob_id and storage.has_blob(blob_id):
-                    is_unmodified = True
                     unmodified_files_count += 1
-                    entry = {
+                    entries.append({
                         "source_root": src_root,
                         "rel_path": rel_path,
                         "size": f_size,
                         "mtime": f_mtime,
-                        "sha256": sha256_hash,
+                        "sha256": prev_entry.get("sha256"),
                         "blob_id": blob_id,
                         "status": "unmodified"
-                    }
-                    entries.append(entry)
+                    })
+                    continue
 
-            if not is_unmodified:
-                # File is new or modified: compute SHA-256 and store blob
-                try:
-                    sha256_hash = calculate_sha256(full_path)
-                    _, orig_size, stored_size, is_new_blob = storage.put_file_blob(
-                        full_path,
-                        sha256_hash=sha256_hash,
-                        compress_level=compress_level
-                    )
-                    if is_new_blob:
-                        new_stored_bytes += stored_size
+            files_to_process_parallel.append((full_path, src_root, rel_path, f_size, f_mtime, prev_entry))
 
-                    status = "modified" if prev_entry else "new"
-                    if status == "modified":
-                        modified_files_count += 1
-                    else:
-                        new_files_count += 1
+        processed_files_count = unmodified_files_count
 
-                    entry = {
-                        "source_root": src_root,
-                        "rel_path": rel_path,
-                        "size": f_size,
-                        "mtime": f_mtime,
-                        "sha256": sha256_hash,
-                        "blob_id": sha256_hash,
-                        "status": status
-                    }
-                    entries.append(entry)
-                except (PermissionError, OSError) as e:
-                    # Locked or inaccessible file: log and continue
-                    entry = {
-                        "source_root": src_root,
-                        "rel_path": rel_path,
-                        "size": f_size,
-                        "mtime": f_mtime,
-                        "error": str(e),
-                        "status": "error"
-                    }
-                    entries.append(entry)
+        # 2차 Pass: 신규 및 수정된 파일들을 8개 워커로 병렬 One-Pass 처리
+        lock = threading.Lock()
 
-            # Progress callback notification
-            if progress_callback and (processed_files_count % 10 == 0 or processed_files_count == total_files_count):
-                percent = round((processed_files_count / max(1, total_files_count)) * 100, 1)
+        def _worker_process_file(item):
+            full_p, s_root, r_path, size, mtime, p_entry = item
+            if cancel_event and cancel_event.is_set():
+                raise InterruptedError("Operation cancelled")
+            try:
+                # One-Pass streaming hash + compression
+                sha256_hash, orig_sz, stored_sz, is_new = storage.put_file_blob_onepass(
+                    full_p,
+                    compress_level=compress_level,
+                    cancel_event=cancel_event
+                )
+                st = "modified" if p_entry else "new"
+                res_entry = {
+                    "source_root": s_root,
+                    "rel_path": r_path,
+                    "size": size,
+                    "mtime": mtime,
+                    "sha256": sha256_hash,
+                    "blob_id": sha256_hash,
+                    "status": st
+                }
+                return res_entry, is_new, stored_sz, st, None
+            except Exception as ex:
+                return {
+                    "source_root": s_root,
+                    "rel_path": r_path,
+                    "size": size,
+                    "mtime": mtime,
+                    "error": str(ex),
+                    "status": "error"
+                }, False, 0, "error", str(ex)
+
+        if files_to_process_parallel:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+                futures = {executor.submit(_worker_process_file, it): it for it in files_to_process_parallel}
+                for fut in concurrent.futures.as_completed(futures):
+                    if cancel_event and cancel_event.is_set():
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        raise InterruptedError("Backup operation was cancelled by user.")
+
+                    entry, is_new, stored_sz, st, err = fut.result()
+                    with lock:
+                        processed_files_count += 1
+                        entries.append(entry)
+                        if is_new:
+                            new_stored_bytes += stored_sz
+                        if st == "new":
+                            new_files_count += 1
+                        elif st == "modified":
+                            modified_files_count += 1
+
+                        if progress_callback and (processed_files_count % 5 == 0 or processed_files_count == total_files_count):
+                            pct = round((processed_files_count / max(1, total_files_count)) * 100, 1)
+                            progress_callback({
+                                "type": "progress",
+                                "current_file": f"[{num_workers}코어 병렬가속] {entry.get('rel_path', '')}",
+                                "processed_files": processed_files_count,
+                                "total_files": total_files_count,
+                                "percent": pct,
+                                "new_files": new_files_count,
+                                "modified_files": modified_files_count,
+                                "unmodified_files": unmodified_files_count,
+                                "transferred_bytes": new_stored_bytes
+                            })
+        else:
+            if progress_callback:
                 progress_callback({
                     "type": "progress",
-                    "current_file": rel_path,
-                    "processed_files": processed_files_count,
+                    "current_file": "검증 완료 (모든 파일 동일)",
+                    "processed_files": total_files_count,
                     "total_files": total_files_count,
-                    "percent": percent,
-                    "new_files": new_files_count,
-                    "modified_files": modified_files_count,
+                    "percent": 100.0,
+                    "new_files": 0,
+                    "modified_files": 0,
                     "unmodified_files": unmodified_files_count,
-                    "transferred_bytes": new_stored_bytes
+                    "transferred_bytes": 0
                 })
 
         # Calculate deleted files count compared to previous snapshot
@@ -249,35 +420,37 @@ class SnapshotEngine:
 
     @classmethod
     def list_snapshots(cls, repo_dir: str) -> List[Dict[str, Any]]:
-        storage = BlobStorage(repo_dir)
-        snapshots = []
-        if not os.path.exists(storage.snapshots_dir):
+        try:
+            from core.metadata_db import MetadataDB
+            return MetadataDB(repo_dir).sync_snapshots()
+        except Exception:
+            storage = BlobStorage(repo_dir)
+            snapshots = []
+            if not os.path.exists(storage.snapshots_dir):
+                return snapshots
+
+            for filename in os.listdir(storage.snapshots_dir):
+                if filename.endswith(".json"):
+                    snap_path = os.path.join(storage.snapshots_dir, filename)
+                    try:
+                        with open(snap_path, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                            snapshots.append({
+                                "id": data.get("id"),
+                                "created_at": data.get("created_at"),
+                                "iso_time": data.get("iso_time"),
+                                "profile_id": data.get("profile_id"),
+                                "profile_name": data.get("profile_name"),
+                                "backup_type": data.get("backup_type"),
+                                "base_snapshot_id": data.get("base_snapshot_id"),
+                                "sources": data.get("sources", []),
+                                "summary": data.get("summary", {})
+                            })
+                    except Exception:
+                        pass
+
+            snapshots.sort(key=lambda x: x.get("created_at", 0), reverse=True)
             return snapshots
-
-        for filename in os.listdir(storage.snapshots_dir):
-            if filename.endswith(".json"):
-                snap_path = os.path.join(storage.snapshots_dir, filename)
-                try:
-                    with open(snap_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        # Return metadata summary for fast listing (omit large entries array)
-                        snapshots.append({
-                            "id": data.get("id"),
-                            "created_at": data.get("created_at"),
-                            "iso_time": data.get("iso_time"),
-                            "profile_id": data.get("profile_id"),
-                            "profile_name": data.get("profile_name"),
-                            "backup_type": data.get("backup_type"),
-                            "base_snapshot_id": data.get("base_snapshot_id"),
-                            "sources": data.get("sources", []),
-                            "summary": data.get("summary", {})
-                        })
-                except Exception:
-                    pass
-
-        # Sort by creation time descending (newest first)
-        snapshots.sort(key=lambda x: x.get("created_at", 0), reverse=True)
-        return snapshots
 
     @classmethod
     def get_snapshot(cls, repo_dir: str, snapshot_id: str) -> Optional[Dict[str, Any]]:
@@ -310,11 +483,17 @@ class SnapshotEngine:
             except Exception:
                 time.sleep(0.2)
 
-        if deleted and prune_orphaned_blobs:
+        if deleted:
             try:
-                cls.prune_storage(repo_dir)
+                from core.metadata_db import MetadataDB
+                MetadataDB(repo_dir).delete_snapshot_record(snapshot_id)
             except Exception:
                 pass
+            if prune_orphaned_blobs:
+                try:
+                    cls.prune_storage(repo_dir)
+                except Exception:
+                    pass
         return deleted
 
     @classmethod

@@ -25,7 +25,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
-app = FastAPI(title="Server & System Backup Manager", version="1.0.0")
+app = FastAPI(title="Server & System Backup Manager", version="2.1.0")
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
@@ -106,10 +106,7 @@ def get_system_info():
 
 @app.get("/api/storage-stats")
 def get_storage_stats(repo_dir: Optional[str] = None):
-    profiles = ConfigManager.get_profiles()
-    repos = [repo_dir] if repo_dir else list(set([p.get("repo_dir") for p in profiles if p.get("repo_dir")]))
-    if not repos:
-        repos = [os.path.join(BASE_DIR, "backup_repository")]
+    repos = [repo_dir] if repo_dir and os.path.exists(repo_dir) else _get_all_candidate_repos(repo_dir)
 
     total_blobs = 0
     stored_bytes = 0
@@ -203,21 +200,56 @@ def delete_profile(profile_id: str):
         raise HTTPException(status_code=404, detail="Profile not found")
     return {"success": True}
 
+def _get_all_candidate_repos(repo_dir: Optional[str] = None) -> List[str]:
+    """Auto-discovers all active backup repositories across all drives and profiles."""
+    candidates = set()
+    if repo_dir:
+        candidates.add(os.path.abspath(repo_dir))
+
+    profiles = ConfigManager.get_profiles()
+    for p in profiles:
+        r = p.get("repo_dir")
+        if r:
+            candidates.add(os.path.abspath(r))
+
+    # Standard default repository locations
+    candidates.add(os.path.abspath(os.path.join(BASE_DIR, "backup_repository")))
+    candidates.add(os.path.abspath(os.path.join(os.path.expanduser("~"), "MyBackup_Repository")))
+
+    # Scan all drive letters for drive root, MyBackup_Repository, or backup_repository
+    for letter in "CDEFGHIJKLMNOPQRSTUVWXYZ":
+        for repo_cand in (f"{letter}:\\", f"{letter}:\\MyBackup_Repository", f"{letter}:\\backup_repository"):
+            if os.path.exists(os.path.join(repo_cand, "snapshots")) and os.path.exists(os.path.join(repo_cand, "blobs")):
+                candidates.add(os.path.abspath(repo_cand))
+
+    valid = [r for r in candidates if os.path.exists(r)]
+
+    def _latest_snap_time(r: str) -> float:
+        s_dir = os.path.join(r, "snapshots")
+        try:
+            files = [os.path.join(s_dir, f) for f in os.listdir(s_dir) if f.endswith(".json")]
+            return max([os.path.getmtime(f) for f in files]) if files else 0.0
+        except Exception:
+            return 0.0
+
+    valid.sort(key=_latest_snap_time, reverse=True)
+    return valid
+
 # --- Snapshots API ---
 @app.get("/api/snapshots")
 def list_snapshots(repo_dir: Optional[str] = None):
-    profiles = ConfigManager.get_profiles()
-    repos = [repo_dir] if repo_dir else list(set([p.get("repo_dir") for p in profiles if p.get("repo_dir")]))
-    if not repos:
-        repos = [os.path.join(BASE_DIR, "backup_repository")]
-
+    repos = [repo_dir] if repo_dir and os.path.exists(repo_dir) else _get_all_candidate_repos(repo_dir)
     all_snaps = []
+    seen_ids = set()
+
     for r in repos:
-        if os.path.exists(r):
-            snaps = SnapshotEngine.list_snapshots(r)
-            for s in snaps:
+        snaps = SnapshotEngine.list_snapshots(r)
+        for s in snaps:
+            sid = s.get("id")
+            if sid and sid not in seen_ids:
+                seen_ids.add(sid)
                 s["repo_dir"] = r
-            all_snaps.extend(snaps)
+                all_snaps.append(s)
 
     all_snaps.sort(key=lambda x: x.get("created_at", 0), reverse=True)
     return all_snaps
@@ -225,13 +257,11 @@ def list_snapshots(repo_dir: Optional[str] = None):
 def _find_snapshot_repo(snapshot_id: str, repo_dir: Optional[str] = None) -> Optional[str]:
     if repo_dir and os.path.exists(repo_dir):
         return repo_dir
-    profiles = ConfigManager.get_profiles()
-    repos = list(set([p.get("repo_dir") for p in profiles if p.get("repo_dir")] + [os.path.join(BASE_DIR, "backup_repository")]))
+    repos = _get_all_candidate_repos(repo_dir)
     for r in repos:
-        if r and os.path.exists(r):
-            snap_file = os.path.join(r, "snapshots", f"{snapshot_id}.json")
-            if os.path.exists(snap_file):
-                return r
+        snap_file = os.path.join(r, "snapshots", f"{snapshot_id}.json")
+        if os.path.exists(snap_file):
+            return r
     return None
 
 @app.get("/api/snapshots/{snapshot_id}")
@@ -294,101 +324,130 @@ class RunCustomSelectionBackupRequest(BaseModel):
 
 def _background_custom_backup_task(params: Dict[str, Any]):
     global current_task
-    include_drivers = params.get("include_drivers", True)
-    selected_projects = params.get("selected_projects", [])
-    selected_apps = params.get("selected_apps", [])
-    custom_folders = params.get("custom_folders", [])
-    repo_dir = params.get("repo_dir") or "D:\\MyBackup_Repository"
-    profile_name = params.get("profile_name", "내 맞춤형 선택 백업")
-    excludes = params.get("exclude_patterns") or [
-        "node_modules", "__pycache__", "*.pyc", ".venv", "venv", "*.tmp", "*.temp", "*.log", "backup_repository", "MyBackup_Repository"
-    ]
-
-    cancel_evt = current_task["cancel_event"]
-    all_sources = []
-
-    # 1. Driver Export if requested
-    if include_drivers:
-        driver_dir = "C:\\Users\\kksjmj\\Windows_Drivers"
-        append_task_log("윈도우 OEM 드라이버 추출을 시작합니다...")
-        d_res = export_windows_drivers(driver_dir)
-        if d_res.get("success"):
-            append_task_log(f"드라이버 {d_res.get('driver_count')}개 패키지 추출 완료 -> {driver_dir}")
-            all_sources.append(driver_dir)
-        else:
-            append_task_log(f"드라이버 추출 중 알림: {d_res.get('error', '')}", level="WARNING")
-            if os.path.exists(driver_dir):
-                all_sources.append(driver_dir)
-
-    # 2. Add projects
-    for p in selected_projects:
-        if os.path.exists(p) and p not in all_sources:
-            all_sources.append(p)
-
-    # 3. Add apps + their AppData + Start Menu Shortcuts + Full Registry Keys
-    reg_backup_dir = os.path.join(tempfile.gettempdir(), "Universal_Registry_Backup")
-    os.makedirs(reg_backup_dir, exist_ok=True)
-
-    from core.registry_backup import collect_full_app_package
-    installed_apps_cache = get_installed_applications()
-
-    for a in selected_apps:
-        # Find matching app metadata
-        matched_app = next((item for item in installed_apps_cache if item.get("location") == a or item.get("name") == a), None)
-        app_name = matched_app["name"] if matched_app else os.path.basename(a)
-        publisher = matched_app.get("publisher", "") if matched_app else ""
-        location = a if os.path.exists(a) else (matched_app.get("location", "") if matched_app else "")
-
-        sources_to_add, reg_files = collect_full_app_package(app_name, publisher, location, reg_backup_dir)
-
-        for src in sources_to_add:
-            if src not in all_sources:
-                all_sources.append(src)
-
-        append_task_log(f"[{app_name}] 프로그램 본체 + 개인설정(AppData) + 시작메뉴 바로가기 + 레지스트리({len(reg_files)}개) 완전 패키징 완료")
-
-    if os.path.exists(reg_backup_dir) and os.listdir(reg_backup_dir) and reg_backup_dir not in all_sources:
-        all_sources.append(reg_backup_dir)
-
-    # 4. Add custom folders
-    for c in custom_folders:
-        if os.path.exists(c) and c not in all_sources:
-            all_sources.append(c)
-
-    if not all_sources:
-        append_task_log("백업할 대상 폴더가 선택되지 않았습니다.", level="ERROR")
-        with task_lock:
-            current_task["running"] = False
-            current_task["error"] = "선택된 백업 대상이 없습니다."
-        return
-
-    append_task_log(f"선택 백업 시작: 총 {len(all_sources)}개 대상 경로 -> 저장소: {repo_dir}")
-
-    # Save as profile if requested
-    profile_id = "prof_custom_selected"
-    if params.get("save_as_profile", True):
-        prof = {
-            "id": profile_id,
-            "name": profile_name,
-            "sources": all_sources,
-            "repo_dir": repo_dir,
-            "exclude_patterns": excludes,
-            "schedule_type": "interval_hours",
-            "schedule_value": "12",
-            "auto_backup_enabled": True,
-            "retention_count": 30,
-            "retention_days": 60,
-            "compression_level": 6
-        }
-        ConfigManager.save_profile(prof)
-
-    def on_progress(p_data):
-        with task_lock:
-            current_task["progress"] = p_data
-        if p_data.get("processed_files", 0) % 50 == 0:
-            append_task_log(f"진행 중: {p_data.get('percent')}% ({p_data.get('processed_files')}/{p_data.get('total_files')} 파일)")
-
     try:
+        include_drivers = params.get("include_drivers", True)
+        selected_projects = params.get("selected_projects", [])
+        selected_apps = params.get("selected_apps", [])
+        custom_folders = params.get("custom_folders", [])
+        repo_dir = params.get("repo_dir")
+        if not repo_dir:
+            for cand in _get_all_candidate_repos():
+                if os.path.exists(os.path.join(cand, "snapshots")):
+                    repo_dir = cand
+                    break
+        if not repo_dir:
+            repo_dir = "D:\\MyBackup_Repository" if os.path.exists("D:\\") else os.path.join(os.path.expanduser("~"), "MyBackup_Repository")
+
+        profile_name = params.get("profile_name", "내 맞춤형 선택 백업")
+        excludes = params.get("exclude_patterns") or [
+            "node_modules", "__pycache__", "*.pyc", ".venv", "venv", "*.tmp", "*.temp", "*.log", "backup_repository", "MyBackup_Repository"
+        ]
+
+        cancel_evt = current_task.get("cancel_event")
+        all_sources = []
+
+        # 저장소 드라이브 유효성 확인 및 자동 폴백
+        repo_drive = os.path.splitdrive(repo_dir)[0]
+        if repo_drive and not os.path.exists(repo_drive + "\\"):
+            fallback_dir = os.path.join(os.path.expanduser("~"), "MyBackup_Repository")
+            append_task_log(f"저장소 드라이브({repo_drive})가 없어 대체 경로({fallback_dir})를 사용합니다.", level="WARNING")
+            repo_dir = fallback_dir
+        os.makedirs(repo_dir, exist_ok=True)
+
+        # 1. Driver Export if requested
+        if include_drivers:
+            driver_dir = os.path.join(os.path.expanduser("~"), "Windows_Drivers")
+            with task_lock:
+                current_task["progress"]["current_file"] = "윈도우 OEM 드라이버 수집 중..."
+            append_task_log("윈도우 OEM 드라이버 추출을 시도합니다...")
+            try:
+                d_res = export_windows_drivers(driver_dir)
+                if d_res.get("success"):
+                    append_task_log(f"드라이버 {d_res.get('driver_count')}개 패키지 추출 완료 -> {driver_dir}")
+                    all_sources.append(driver_dir)
+                else:
+                    append_task_log(f"드라이버 추출 건너뜀 (알림: {d_res.get('error', '권한 부족 또는 시간 초과')})", level="WARNING")
+            except Exception as d_err:
+                append_task_log(f"드라이버 추출 중 오류로 건너뜀: {d_err}", level="WARNING")
+
+        # 2. Add projects
+        for p in selected_projects:
+            if os.path.exists(p) and p not in all_sources:
+                all_sources.append(p)
+
+        # 3. Add apps + their AppData + Start Menu Shortcuts + Full Registry Keys
+        if selected_apps:
+            reg_backup_dir = os.path.join(tempfile.gettempdir(), "Universal_Registry_Backup")
+            os.makedirs(reg_backup_dir, exist_ok=True)
+
+            try:
+                from core.registry_backup import collect_full_app_package
+                installed_apps_cache = get_installed_applications()
+
+                for a in selected_apps:
+                    if cancel_evt and cancel_evt.is_set():
+                        raise InterruptedError("Cancelled by user")
+                    
+                    matched_app = next((item for item in installed_apps_cache if item.get("location") == a or item.get("name") == a), None)
+                    app_name = matched_app["name"] if matched_app else os.path.basename(a)
+                    publisher = matched_app.get("publisher", "") if matched_app else ""
+                    location = a if os.path.exists(a) else (matched_app.get("location", "") if matched_app else "")
+
+                    with task_lock:
+                        current_task["progress"]["current_file"] = f"[{app_name}] 설정 및 레지스트리 수집 중..."
+
+                    sources_to_add, reg_files = collect_full_app_package(app_name, publisher, location, reg_backup_dir)
+
+                    for src in sources_to_add:
+                        if src not in all_sources:
+                            all_sources.append(src)
+
+                    append_task_log(f"[{app_name}] 프로그램 본체 + 개인설정(AppData) + 바로가기 패키징 완료")
+
+                if os.path.exists(reg_backup_dir) and os.listdir(reg_backup_dir) and reg_backup_dir not in all_sources:
+                    all_sources.append(reg_backup_dir)
+            except Exception as e_app:
+                append_task_log(f"프로그램 패키징 중 알림: {e_app}", level="WARNING")
+
+        # 4. Add custom folders
+        for c in custom_folders:
+            if os.path.exists(c) and c not in all_sources:
+                all_sources.append(c)
+
+        if not all_sources:
+            append_task_log("백업할 유효한 대상 파일/폴더가 없습니다. 대상을 확인해 주세요.", level="ERROR")
+            with task_lock:
+                current_task["error"] = "선택된 백업 대상이 없습니다."
+            return
+
+        append_task_log(f"선택 백업 스캔 시작: 총 {len(all_sources)}개 대상 경로 -> 저장소: {repo_dir}")
+        with task_lock:
+            current_task["progress"]["current_file"] = "파일 목록 스캔 및 해시 분석 중..."
+
+        # Save as profile if requested
+        profile_id = "prof_custom_selected"
+        if params.get("save_as_profile", True):
+            prof = {
+                "id": profile_id,
+                "name": profile_name,
+                "sources": all_sources,
+                "repo_dir": repo_dir,
+                "exclude_patterns": excludes,
+                "schedule_type": "interval_hours",
+                "schedule_value": "12",
+                "auto_backup_enabled": True,
+                "retention_count": 30,
+                "retention_days": 60,
+                "compression_level": 6
+            }
+            ConfigManager.save_profile(prof)
+
+        def on_progress(p_data):
+            with task_lock:
+                current_task["progress"] = p_data
+            if p_data.get("processed_files", 0) % 50 == 0:
+                append_task_log(f"진행 중: {p_data.get('percent')}% ({p_data.get('processed_files')}/{p_data.get('total_files')} 파일)")
+
         manifest = SnapshotEngine.create_snapshot(
             repo_dir=repo_dir,
             sources=all_sources,
@@ -418,8 +477,21 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             f"중복제거 절감: {round(summary.get('dedup_saved_bytes', 0)/(1024*1024), 2)}MB | "
             f"소요: {summary.get('duration_seconds')}초"
         )
+        manifest_summary = {
+            "id": manifest.get("id"),
+            "created_at": manifest.get("created_at"),
+            "type": manifest.get("type"),
+            "profile_id": manifest.get("profile_id"),
+            "profile_name": manifest.get("profile_name"),
+            "repo_dir": manifest.get("repo_dir"),
+            "summary": manifest.get("summary")
+        }
+        del manifest
+        import gc
+        gc.collect()
+
         with task_lock:
-            current_task["result"] = manifest
+            current_task["result"] = manifest_summary
             current_task["error"] = None
 
     except InterruptedError:
@@ -427,7 +499,9 @@ def _background_custom_backup_task(params: Dict[str, Any]):
         with task_lock:
             current_task["error"] = "Cancelled by user"
     except Exception as e:
+        import traceback
         append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
+        append_task_log(traceback.format_exc(), level="ERROR")
         with task_lock:
             current_task["error"] = str(e)
     finally:
@@ -470,33 +544,51 @@ def cancel_current_task():
 
 def _background_backup_task(params: Dict[str, Any]):
     global current_task
-    profile_id = params.get("profile_id")
-    profile = None
-    if profile_id:
-        profile = ConfigManager.get_profile(profile_id)
-
-    if not profile:
-        profiles = ConfigManager.get_profiles()
-        # Find active profile with auto_backup_enabled == True, or first profile
-        profile = next((p for p in profiles if p.get("auto_backup_enabled")), (profiles[0] if profiles else {}))
-        profile_id = profile.get("id", "prof_default")
-    
-    repo_dir = params.get("repo_dir") or profile.get("repo_dir") or os.path.join(BASE_DIR, "backup_repository")
-    sources = params.get("sources") or profile.get("sources") or [BASE_DIR]
-    excludes = params.get("exclude_patterns") or profile.get("exclude_patterns") or []
-    compress = params.get("compression_level") or profile.get("compression_level") or 6
-    profile_name = profile.get("name", "수동 백업")
-
-    cancel_evt = current_task["cancel_event"]
-    append_task_log(f"백업 작업 시작: '{profile_name}' (원본 {len(sources)}개 경로 -> 저장소: {repo_dir})")
-
-    def on_progress(p_data):
-        with task_lock:
-            current_task["progress"] = p_data
-        if p_data.get("processed_files", 0) % 50 == 0:
-            append_task_log(f"진행 중: {p_data.get('percent')}% ({p_data.get('processed_files')}/{p_data.get('total_files')} 파일)")
-
     try:
+        profile_id = params.get("profile_id")
+        profile = None
+        if profile_id:
+            profile = ConfigManager.get_profile(profile_id)
+
+        if not profile:
+            profiles = ConfigManager.get_profiles()
+            # Find active profile with auto_backup_enabled == True, or first profile
+            profile = next((p for p in profiles if p.get("auto_backup_enabled")), (profiles[0] if profiles else {}))
+            profile_id = profile.get("id", "prof_default")
+        
+        repo_dir = params.get("repo_dir") or profile.get("repo_dir")
+        if not repo_dir:
+            for cand in _get_all_candidate_repos():
+                if os.path.exists(os.path.join(cand, "snapshots")):
+                    repo_dir = cand
+                    break
+        if not repo_dir:
+            repo_dir = "D:\\MyBackup_Repository" if os.path.exists("D:\\") else os.path.join(BASE_DIR, "backup_repository")
+
+        sources = params.get("sources") or profile.get("sources") or [BASE_DIR]
+        excludes = params.get("exclude_patterns") or profile.get("exclude_patterns") or []
+        compress = params.get("compression_level") or profile.get("compression_level") or 6
+        profile_name = profile.get("name", "수동 백업")
+
+        # 저장소 드라이브 유효성 확인 및 폴백
+        repo_drive = os.path.splitdrive(repo_dir)[0]
+        if repo_drive and not os.path.exists(repo_drive + "\\"):
+            fallback_dir = os.path.join(os.path.expanduser("~"), "MyBackup_Repository")
+            append_task_log(f"저장소 드라이브({repo_drive})가 없어 대체 경로({fallback_dir})를 사용합니다.", level="WARNING")
+            repo_dir = fallback_dir
+        os.makedirs(repo_dir, exist_ok=True)
+
+        cancel_evt = current_task["cancel_event"]
+        append_task_log(f"백업 작업 시작: '{profile_name}' (원본 {len(sources)}개 경로 -> 저장소: {repo_dir})")
+        with task_lock:
+            current_task["progress"]["current_file"] = "파일 목록 스캔 및 해시 분석 중..."
+
+        def on_progress(p_data):
+            with task_lock:
+                current_task["progress"] = p_data
+            if p_data.get("processed_files", 0) % 50 == 0:
+                append_task_log(f"진행 중: {p_data.get('percent')}% ({p_data.get('processed_files')}/{p_data.get('total_files')} 파일)")
+
         manifest = SnapshotEngine.create_snapshot(
             repo_dir=repo_dir,
             sources=sources,
@@ -537,8 +629,21 @@ def _background_backup_task(params: Dict[str, Any]):
         except Exception as e_notif:
             append_task_log(f"카카오톡 알림 전송 실패: {e_notif}", level="WARNING")
 
+        manifest_summary = {
+            "id": manifest.get("id"),
+            "created_at": manifest.get("created_at"),
+            "type": manifest.get("type"),
+            "profile_id": manifest.get("profile_id"),
+            "profile_name": manifest.get("profile_name"),
+            "repo_dir": manifest.get("repo_dir"),
+            "summary": manifest.get("summary")
+        }
+        del manifest
+        import gc
+        gc.collect()
+
         with task_lock:
-            current_task["result"] = manifest
+            current_task["result"] = manifest_summary
             current_task["error"] = None
 
     except InterruptedError:
@@ -546,7 +651,9 @@ def _background_backup_task(params: Dict[str, Any]):
         with task_lock:
             current_task["error"] = "Cancelled by user"
     except Exception as e:
+        import traceback
         append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
+        append_task_log(traceback.format_exc(), level="ERROR")
         try:
             from core.notifier import notify_backup_result
             notify_backup_result(error_msg=str(e), profile_name=profile_name)
@@ -554,7 +661,7 @@ def _background_backup_task(params: Dict[str, Any]):
             pass
         with task_lock:
             current_task["error"] = str(e)
-            if profile_id:
+            if profile_id and profile:
                 profile["last_status"] = "failed"
                 ConfigManager.save_profile(profile)
     finally:
@@ -776,3 +883,60 @@ def shutdown_system():
         os._exit(0)
     threading.Thread(target=_kill, daemon=True).start()
     return {"success": True, "message": "백업 시스템 서비스가 완전히 종료됩니다."}
+
+# --- Remote Self-Update API ---
+@app.post("/api/system/self-update")
+async def self_update(request: Request):
+    """
+    Receives raw zip binary of latest code, extracts it over BASE_DIR, and restarts the service.
+    Enables true zero-touch remote updating from another machine.
+    """
+    body = await request.body()
+    if not body:
+        raise HTTPException(status_code=400, detail="Empty update payload")
+
+    import io
+    import zipfile
+    import subprocess
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(body), "r") as zf:
+            file_names = zf.namelist()
+            if not any("core" in fn or "web" in fn or "run.py" in fn for fn in file_names):
+                raise HTTPException(status_code=400, detail="Invalid update package: missing core/web components")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid zip payload: {str(e)}")
+
+    temp_zip = os.path.join(tempfile.gettempdir(), f"backup_update_{int(time.time())}.zip")
+    with open(temp_zip, "wb") as f:
+        f.write(body)
+
+    updater_bat = os.path.join(tempfile.gettempdir(), f"run_updater_{int(time.time())}.bat")
+    py_exe = sys.executable
+
+    bat_content = f"""@echo off
+timeout /t 1 >nul
+tar -xf "{temp_zip}" -C "{BASE_DIR}"
+cd /d "{BASE_DIR}"
+start "" "{py_exe}" run.py
+del "{temp_zip}" >nul 2>&1
+del "%~f0" >nul 2>&1
+"""
+    with open(updater_bat, "w", encoding="utf-8") as f:
+        f.write(bat_content)
+
+    def _trigger_update_and_restart():
+        time.sleep(0.8)
+        subprocess.Popen(
+            ["cmd.exe", "/c", updater_bat],
+            creationflags=0x00000008 | 0x00000200,
+            close_fds=True
+        )
+        time.sleep(0.2)
+        os._exit(0)
+
+    threading.Thread(target=_trigger_update_and_restart, daemon=True).start()
+    return {
+        "success": True,
+        "message": f"업데이트 패키지({len(body)} 바이트)를 수신했습니다. 1초 후 자동으로 덮어쓰고 최신 엔진으로 재시작됩니다."
+    }
