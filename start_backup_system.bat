@@ -32,7 +32,7 @@ if errorlevel 1 (
     ) else (
         start /b "" "!PY_EXE!" run.py
     )
-    timeout /t 2 /nobreak >nul
+    ping 127.0.0.1 -n 3 >nul 2>&1
 ) else (
     echo [*] 백업 서버가 이미 백그라운드에서 정상 동작 중입니다.
 )
@@ -41,6 +41,6 @@ echo [*] 기본 웹 브라우저에서 대시보드를 엽니다: http://127.0.0
 start http://127.0.0.1:8765
 
 echo [V] 완료되었습니다. 이 창은 3초 후 자동으로 닫힙니다.
-timeout /t 3 >nul
+ping 127.0.0.1 -n 4 >nul 2>&1
 exit /b 0
 
