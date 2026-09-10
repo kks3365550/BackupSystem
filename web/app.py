@@ -25,7 +25,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
-app = FastAPI(title="Server & System Backup Manager", version="2.1.2")
+app = FastAPI(title="Server & System Backup Manager", version="2.1.3")
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
@@ -381,7 +381,8 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             os.makedirs(reg_backup_dir, exist_ok=True)
 
             try:
-                from core.registry_backup import collect_full_app_package
+                from core.registry_backup import AppPackageCollector, collect_full_app_package
+                collector = AppPackageCollector(reg_backup_dir)
                 installed_apps_cache = get_installed_applications()
 
                 for a in selected_apps:
@@ -396,7 +397,7 @@ def _background_custom_backup_task(params: Dict[str, Any]):
                     with task_lock:
                         current_task["progress"]["current_file"] = f"[{app_name}] 설정 및 레지스트리 수집 중..."
 
-                    sources_to_add, reg_files = collect_full_app_package(app_name, publisher, location, reg_backup_dir)
+                    sources_to_add, reg_files = collect_full_app_package(app_name, publisher, location, reg_backup_dir, collector=collector)
 
                     for src in sources_to_add:
                         if src not in all_sources:
