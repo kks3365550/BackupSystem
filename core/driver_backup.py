@@ -94,3 +94,27 @@ def export_windows_drivers(dest_dir: str, force: bool = False) -> Dict[str, Any]
             "dest_dir": dest_dir,
             "error": str(e)
         }
+
+def install_windows_drivers(drivers_dir: str) -> Dict[str, Any]:
+    """
+    Installs all exported driver packages (*.inf) from drivers_dir into the Windows DriverStore
+    and updates all matching devices using pnputil.
+    """
+    drivers_dir = os.path.abspath(drivers_dir)
+    pattern = os.path.join(drivers_dir, "*.inf")
+    cmd = ["pnputil", "/add-driver", pattern, "/subdirs", "/install"]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="cp949", errors="replace", timeout=300)
+        success = proc.returncode in (0, 259, 3010)
+        return {
+            "success": success,
+            "returncode": proc.returncode,
+            "reboot_required": proc.returncode in (259, 3010),
+            "output": proc.stdout[:1000] if proc.stdout else ""
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+

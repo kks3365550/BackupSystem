@@ -243,6 +243,7 @@ def run_emergency_restore(
     total_to_process = len(entries)
     lock = threading.Lock()
     reg_files_to_import = []
+    driver_dirs_to_install = set()
 
     def _worker_restore(entry):
         rel_path = entry.get("rel_path", "")
@@ -252,7 +253,11 @@ def run_emergency_restore(
         mtime = entry.get("mtime")
 
         if not rel_path or not sha256:
-            return "skip", 0, None
+            return "skip", 0, None, None
+
+        # Intelligently skip gigantic dummy VM sparse disk images (>50GB raw zeroes)
+        if f_size > 50 * 1024 * 1024 * 1024 and ("avd" in rel_path.lower() or "userdata.img" in rel_path.lower()):
+            return "skip", 0, None, None
 
         if target_override:
             dest_path = os.path.normpath(os.path.join(target_override, rel_path))
@@ -267,7 +272,7 @@ def run_emergency_restore(
         blob_path = get_blob_path(repo_dir, sha256)
 
         if not overwrite and os.path.exists(dest_path):
-            return "skip", 0, None
+            return "skip", 0, None, None
 
         try:
             extract_blob(blob_path, dest_path, sha256, verify_hash=verify_hash)
@@ -278,15 +283,17 @@ def run_emergency_restore(
                     pass
 
             is_reg = dest_path.lower().endswith(".reg")
-            return "ok", f_size, dest_path if is_reg else None
+            is_inf = dest_path.lower().endswith(".inf") and "windows_drivers" in dest_path.lower()
+            drv_dir = os.path.dirname(os.path.dirname(dest_path)) if is_inf else None
+            return "ok", f_size, dest_path if is_reg else None, drv_dir
         except Exception:
-            return "fail", 0, None
+            return "fail", 0, None, None
 
     last_print_time = 0.0
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
         futures = {executor.submit(_worker_restore, e): e for e in entries}
         for fut in concurrent.futures.as_completed(futures):
-            status, f_size, reg_p = fut.result()
+            status, f_size, reg_p, drv_p = fut.result()
             with lock:
                 processed_count += 1
                 if status == "ok":
@@ -294,6 +301,8 @@ def run_emergency_restore(
                     restored_bytes += f_size
                     if reg_p:
                         reg_files_to_import.append(reg_p)
+                    if drv_p:
+                        driver_dirs_to_install.add(drv_p)
                 elif status == "skip":
                     skipped_count += 1
                 elif status == "fail":
@@ -337,6 +346,28 @@ def run_emergency_restore(
             print("[*] 레지스트리 일괄 적용 완료!")
         else:
             print("    (필요 시 위 .reg 파일을 실행하여 레지스트리를 적용하세요)")
+
+    if driver_dirs_to_install:
+        print(f"\n[*] 복원된 윈도우 하드웨어 드라이버 저장소가 감지되었습니다:")
+        for dd in sorted(driver_dirs_to_install):
+            print(f"    - {dd}")
+        if "--auto" in sys.argv or "-a" in sys.argv:
+            print("\n[*] [자동 모드] Windows DriverStore에 하드웨어 드라이버 일괄 설치/등록 진행...")
+            import subprocess
+            for dd in driver_dirs_to_install:
+                try:
+                    pattern = os.path.join(dd, "*.inf")
+                    cmd = ["pnputil", "/add-driver", pattern, "/subdirs", "/install"]
+                    proc = subprocess.run(cmd, capture_output=True, text=True, encoding="cp949", errors="replace", timeout=300)
+                    if proc.returncode in (0, 259, 3010):
+                        print(f"[*] 드라이버 일괄 설치 완료! (상태 코드: {proc.returncode})")
+                    else:
+                        print(f"[!] 드라이버 설치 응답 코드: {proc.returncode}")
+                except Exception as e:
+                    print(f"[!] 드라이버 설치 중 오류: {e}")
+        else:
+            print("    (필요 시 'pnputil /add-driver <경로>\\*.inf /subdirs /install' 명령으로 설치 가능)")
+
 
 def main():
     import argparse
