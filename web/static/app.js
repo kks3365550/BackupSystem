@@ -396,7 +396,17 @@ async function pollTaskStatus() {
         const task = await fetchAPI('/api/task/status');
         state.taskStatus = task;
 
+        const wasRunning = state.taskWasRunning || false;
         const isRunning = task.running;
+        state.taskWasRunning = isRunning;
+
+        // Auto Live Refresh on task completion (running -> completed)
+        if (wasRunning && !isRunning) {
+            loadDashboard();
+            loadSnapshots();
+            if (state.activeTab === 'profiles') loadProfiles();
+        }
+
         const progress = task.progress || {};
 
         // Update Runner UI
@@ -509,7 +519,7 @@ function renderProfilesList() {
                 </div>
                 <div>
                     <span class="text-slate-500 block text-[11px]">압축 레벨</span>
-                    <span class="font-medium text-slate-300">zlib Level ${p.compression_level}</span>
+                    <span class="font-medium text-slate-300">초고속 압축 (Level ${p.compression_level || 3})</span>
                 </div>
                 <div>
                     <span class="text-slate-500 block text-[11px]">최근 백업</span>
@@ -563,7 +573,7 @@ function openCreateProfileModal() {
     document.getElementById('prof-daily-time').value = '03:00';
     document.getElementById('prof-auto-enable').checked = true;
     document.getElementById('prof-retention').value = '30';
-    document.getElementById('prof-compression').value = '6';
+    document.getElementById('prof-compression').value = '3';
     onScheduleTypeChange();
     openModal('profile-modal');
 }

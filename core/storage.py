@@ -146,19 +146,26 @@ class BlobStorage:
             # Genuinely new blob: compress in RAM and write directly to disk
             os.makedirs(os.path.dirname(blob_path), exist_ok=True)
             temp_file = blob_path + f".tmp_{os.getpid()}_{os.urandom(4).hex()}"
-            if HAS_ZSTD:
-                cctx = zstd.ZstdCompressor(level=compress_level)
-                compressed = cctx.compress(data)
-            else:
-                compressed = zlib.compress(data, level=compress_level if compress_level in range(1, 10) else 6)
-            
-            with open(temp_file, "wb") as fout:
-                fout.write(compressed)
-            os.replace(temp_file, blob_path)
-            stored_size = len(compressed)
-            with self._cache_lock:
-                self._blob_cache.add(sha256_hash)
-            return sha256_hash, orig_size, stored_size, True
+            try:
+                if HAS_ZSTD:
+                    cctx = zstd.ZstdCompressor(level=compress_level)
+                    compressed = cctx.compress(data)
+                else:
+                    compressed = zlib.compress(data, level=compress_level if compress_level in range(1, 10) else 6)
+                
+                with open(temp_file, "wb") as fout:
+                    fout.write(compressed)
+                os.replace(temp_file, blob_path)
+                stored_size = len(compressed)
+                with self._cache_lock:
+                    self._blob_cache.add(sha256_hash)
+                return sha256_hash, orig_size, stored_size, True
+            finally:
+                if os.path.exists(temp_file):
+                    try:
+                        os.remove(temp_file)
+                    except OSError:
+                        pass
 
         # Streaming path for large files (> 16MB)
         sha256 = hashlib.sha256()
@@ -320,9 +327,21 @@ class BlobStorage:
                 os.remove(temp_dest)
             raise ValueError(f"Hash verification failed for {dest_filepath} (Expected: {sha256_hash}, got {sha256.hexdigest()})")
 
+        import stat as stat_mod
         if os.path.exists(dest_filepath):
-            os.remove(dest_filepath)
-        os.replace(temp_dest, dest_filepath)
+            try:
+                os.chmod(dest_filepath, stat_mod.S_IWRITE)
+                os.remove(dest_filepath)
+            except OSError:
+                pass
+        try:
+            os.replace(temp_dest, dest_filepath)
+        except PermissionError:
+            try:
+                os.chmod(dest_filepath, stat_mod.S_IWRITE)
+                os.replace(temp_dest, dest_filepath)
+            except Exception:
+                raise
         return True
 
     def read_blob_bytes(self, sha256_hash: str) -> bytes:
