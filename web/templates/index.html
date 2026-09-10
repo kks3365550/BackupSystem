@@ -38,7 +38,7 @@
             <div>
                 <h1 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
                     서버 & 시스템 백업 매니저
-                    <span class="text-[10px] px-2 py-0.5 bg-emerald-900/80 text-emerald-300 rounded-full font-medium border border-emerald-700/60">v2.1.13</span>
+                    <span class="text-[10px] px-2 py-0.5 bg-emerald-900/80 text-emerald-300 rounded-full font-medium border border-emerald-700/60">v2.1.14</span>
                 </h1>
                 <p class="text-[11px] text-slate-400">멀티코어 Zstandard 엔진 & 증분 스냅샷 중복제거</p>
             </div>
@@ -665,17 +665,35 @@
         <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
             <div class="p-4 border-b border-slate-800 flex justify-between items-center">
                 <div>
-                    <h3 id="explorer-modal-title" class="font-bold text-sm text-slate-100">스냅샷 파일 탐색</h3>
+                    <h3 id="explorer-modal-title" class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                        <i data-lucide="folder-search" class="w-4 h-4 text-blue-400"></i>
+                        <span>스냅샷 파일 탐색</span>
+                    </h3>
                     <div id="explorer-modal-meta" class="text-xs text-slate-400 mt-0.5"></div>
                 </div>
                 <button onclick="closeModal('explorer-modal')" class="text-slate-400 hover:text-slate-200">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
-            <div id="explorer-tree-container" class="p-4 overflow-y-auto flex-1 space-y-1 font-mono text-xs">
-                <!-- Tree items -->
+
+            <!-- Breadcrumb Navigation & Quick Filter -->
+            <div class="px-4 py-2 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between gap-3 text-xs">
+                <div id="explorer-breadcrumb" class="flex items-center gap-1.5 overflow-x-auto py-0.5 text-slate-400 flex-1 font-mono text-[11px]">
+                    <!-- Dynamic breadcrumb tags -->
+                </div>
+                <div class="relative w-48 shrink-0">
+                    <i data-lucide="search" class="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2"></i>
+                    <input type="text" id="explorer-search-input" oninput="filterExplorerItems()" placeholder="현재 폴더 내 검색..." class="w-full bg-slate-800 border border-slate-700/80 rounded-lg pl-8 pr-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+                </div>
             </div>
-            <div class="p-3 bg-slate-950 border-t border-slate-800 flex justify-end">
+
+            <!-- Directory Items List -->
+            <div id="explorer-tree-container" class="p-3 overflow-y-auto flex-1 space-y-1 font-mono text-xs max-h-[55vh]">
+                <!-- Direct items -->
+            </div>
+
+            <div class="p-3 bg-slate-950 border-t border-slate-800 flex justify-between items-center text-xs">
+                <div id="explorer-item-count" class="text-slate-400 text-[11px]"></div>
                 <button onclick="closeModal('explorer-modal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold">
                     닫기
                 </button>

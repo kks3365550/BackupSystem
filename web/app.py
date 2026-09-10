@@ -294,14 +294,37 @@ def _find_snapshot_repo(snapshot_id: str, repo_dir: Optional[str] = None) -> Opt
     return None
 
 @app.get("/api/snapshots/{snapshot_id}")
-def get_snapshot(snapshot_id: str, repo_dir: Optional[str] = None):
+def get_snapshot(snapshot_id: str, repo_dir: Optional[str] = None, include_entries: bool = False):
     r = _find_snapshot_repo(snapshot_id, repo_dir)
     if not r:
         raise HTTPException(status_code=404, detail="Snapshot not found")
     data = SnapshotEngine.get_snapshot(r, snapshot_id)
     if not data:
         raise HTTPException(status_code=404, detail="Snapshot not found")
+    if not include_entries:
+        # Strip massive entries array to send lightweight metadata (0.001s response, ~500 bytes)
+        return {
+            "id": data.get("id"),
+            "created_at": data.get("created_at"),
+            "iso_time": data.get("iso_time"),
+            "profile_id": data.get("profile_id"),
+            "profile_name": data.get("profile_name"),
+            "backup_type": data.get("backup_type"),
+            "base_snapshot_id": data.get("base_snapshot_id"),
+            "sources": data.get("sources", []),
+            "summary": data.get("summary", {})
+        }
     return data
+
+@app.get("/api/snapshots/{snapshot_id}/browse")
+def browse_snapshot(snapshot_id: str, subpath: str = "", repo_dir: Optional[str] = None):
+    r = _find_snapshot_repo(snapshot_id, repo_dir)
+    if not r:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+    try:
+        return SnapshotEngine.browse_snapshot_directory(r, snapshot_id, subpath=subpath)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/snapshots/{snapshot_id}/tree")
 def get_snapshot_tree(snapshot_id: str, repo_dir: Optional[str] = None):

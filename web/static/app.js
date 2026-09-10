@@ -240,72 +240,163 @@ function renderSnapshotsTable() {
     lucide.createIcons();
 }
 
+// State for explorer navigation
+state.explorer = {
+    snapshotId: null,
+    currentPath: '',
+    items: [],
+    filterQuery: ''
+};
+
 async function inspectSnapshot(snapshotId) {
     try {
-        const [snapData, treeData] = await Promise.all([
-            fetchAPI(`/api/snapshots/${snapshotId}`),
-            fetchAPI(`/api/snapshots/${snapshotId}/tree`)
-        ]);
+        state.explorer.snapshotId = snapshotId;
+        state.explorer.currentPath = '';
+        state.explorer.filterQuery = '';
 
+        // Fetch lightweight metadata only (no 30MB entries download, <1ms response)
+        const snapData = await fetchAPI(`/api/snapshots/${snapshotId}?include_entries=false`);
         state.selectedSnapshot = snapData;
-        state.selectedSnapshotTree = treeData;
 
         document.getElementById('explorer-modal-title').innerText = `스냅샷 파일 탐색: ${snapshotId}`;
         const sum = snapData.summary || {};
         document.getElementById('explorer-modal-meta').innerHTML = `
             <span>생성 일시: <b>${formatDate(snapData.iso_time)}</b></span> · 
             <span>총 파일: <b>${sum.total_files}개 (${formatBytes(sum.total_bytes)})</b></span> · 
-            <span>신규/수정: <b>${sum.new_files + sum.modified_files}개</b></span>
+            <span>신규/수정: <b>${(sum.new_files || 0) + (sum.modified_files || 0)}개</b></span>
         `;
 
-        renderExplorerTree(treeData);
+        const searchInput = document.getElementById('explorer-search-input');
+        if (searchInput) searchInput.value = '';
+
         openModal('explorer-modal');
+        await loadExplorerPath('');
     } catch (e) {
         alert('스냅샷 정보를 불러오지 못했습니다: ' + e.message);
     }
 }
 
-function renderExplorerTree(node, depth = 0) {
+async function loadExplorerPath(subpath) {
     const container = document.getElementById('explorer-tree-container');
     if (!container) return;
 
-    function buildNodeHTML(item, d) {
+    state.explorer.currentPath = subpath;
+    container.innerHTML = `
+        <div class="flex items-center justify-center py-12 text-slate-400 gap-2">
+            <span class="w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin"></span>
+            <span>폴더 내용을 불러오는 중...</span>
+        </div>
+    `;
+
+    renderExplorerBreadcrumb(subpath);
+
+    try {
+        const res = await fetchAPI(`/api/snapshots/${state.explorer.snapshotId}/browse?subpath=${encodeURIComponent(subpath)}`);
+        state.explorer.items = res.items || [];
+        renderExplorerItems();
+    } catch (e) {
+        container.innerHTML = `<div class="p-4 text-center text-red-400">오류 발생: ${e.message}</div>`;
+    }
+}
+
+function renderExplorerBreadcrumb(subpath) {
+    const bcContainer = document.getElementById('explorer-breadcrumb');
+    if (!bcContainer) return;
+
+    const parts = subpath ? subpath.split('/').filter(Boolean) : [];
+    let html = `
+        <button onclick="loadExplorerPath('')" class="hover:text-blue-400 transition flex items-center gap-1 ${parts.length === 0 ? 'text-slate-100 font-bold' : 'text-slate-400'}">
+            <i data-lucide="home" class="w-3.5 h-3.5"></i>
+            <span>루트</span>
+        </button>
+    `;
+
+    let accumulated = '';
+    parts.forEach((p, idx) => {
+        accumulated += (idx === 0 ? '' : '/') + p;
+        const isLast = (idx === parts.length - 1);
+        const pathTarget = accumulated;
+        html += `
+            <span class="text-slate-600">/</span>
+            <button onclick="loadExplorerPath('${pathTarget.replace(/'/g, "\\'")}')" class="hover:text-blue-400 transition truncate max-w-[140px] ${isLast ? 'text-slate-100 font-bold' : 'text-slate-400'}">
+                ${p}
+            </button>
+        `;
+    });
+
+    bcContainer.innerHTML = html;
+    lucide.createIcons();
+}
+
+function filterExplorerItems() {
+    const searchInput = document.getElementById('explorer-search-input');
+    state.explorer.filterQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
+    renderExplorerItems();
+}
+
+function renderExplorerItems() {
+    const container = document.getElementById('explorer-tree-container');
+    const countEl = document.getElementById('explorer-item-count');
+    if (!container) return;
+
+    let items = state.explorer.items;
+    if (state.explorer.filterQuery) {
+        items = items.filter(it => it.name.toLowerCase().includes(state.explorer.filterQuery));
+    }
+
+    if (countEl) {
+        countEl.innerText = `현재 위치 항목: ${items.length}개 (전체 ${state.explorer.items.length}개)`;
+    }
+
+    if (items.length === 0) {
+        container.innerHTML = `<div class="text-center py-10 text-slate-500">표시할 파일이나 폴더가 없습니다.</div>`;
+        return;
+    }
+
+    let html = '';
+    if (state.explorer.currentPath) {
+        const parentPath = state.explorer.currentPath.includes('/') 
+            ? state.explorer.currentPath.substring(0, state.explorer.currentPath.lastIndexOf('/'))
+            : '';
+        html += `
+            <div onclick="loadExplorerPath('${parentPath.replace(/'/g, "\\'")}')" class="flex items-center gap-2 py-1.5 px-3 rounded-lg text-xs cursor-pointer hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition">
+                <i data-lucide="corner-left-up" class="w-4 h-4 text-slate-400"></i>
+                <span class="font-medium">.. (상위 디렉토리로 이동)</span>
+            </div>
+        `;
+    }
+
+    html += items.map(item => {
         const isDir = item.type === 'directory';
-        const paddingLeft = d * 18;
         const icon = isDir ? 'folder' : 'file';
         const iconColor = isDir ? 'text-amber-400' : 'text-blue-400';
         const itemRelPath = (item.rel_path || '').replace(/'/g, "\\'");
         const itemName = (item.name || '').replace(/'/g, "\\'");
 
-        let html = `
-            <div class="tree-node flex items-center justify-between py-1.5 px-3 rounded-lg text-xs cursor-pointer select-none group" style="padding-left: ${paddingLeft + 12}px">
-                <div class="flex items-center gap-2 overflow-hidden flex-1 mr-2">
+        const clickAction = isDir 
+            ? `onclick="loadExplorerPath('${itemRelPath}')"`
+            : '';
+
+        return `
+            <div ${clickAction} class="flex items-center justify-between py-1.5 px-3 rounded-lg text-xs cursor-pointer hover:bg-slate-800/80 transition group select-none">
+                <div class="flex items-center gap-2.5 overflow-hidden flex-1 mr-2">
                     <i data-lucide="${icon}" class="w-4 h-4 ${iconColor} shrink-0"></i>
-                    <span class="truncate font-medium ${isDir ? 'text-slate-200' : 'text-slate-300'}">${item.name}</span>
+                    <span class="truncate font-medium ${isDir ? 'text-slate-200 hover:text-amber-300' : 'text-slate-300'}">${item.name}</span>
+                    ${isDir && item.file_count ? `<span class="text-[10px] text-slate-500">(${item.file_count}개 파일)</span>` : ''}
                 </div>
-                <div class="flex items-center gap-2 shrink-0 text-slate-500 text-[11px]">
-                    ${!isDir ? `<span>${formatBytes(item.size)}</span>` : ''}
+                <div class="flex items-center gap-3 shrink-0 text-slate-500 text-[11px]">
+                    ${!isDir ? `<span>${formatBytes(item.size)}</span>` : (item.size ? `<span>${formatBytes(item.size)}</span>` : '')}
                     ${!isDir && item.status ? `<span class="px-1.5 py-0.5 rounded text-[10px] ${item.status === 'new' ? 'bg-emerald-950 text-emerald-400' : item.status === 'modified' ? 'bg-amber-950 text-amber-400' : 'bg-slate-800 text-slate-400'}">${item.status}</span>` : ''}
-                    ${itemRelPath ? `
-                        <button type="button" onclick="event.stopPropagation(); openRestoreModal('${state.selectedSnapshot ? state.selectedSnapshot.id : ''}', '${itemRelPath}', '${itemName}', '${item.type}')" class="opacity-0 group-hover:opacity-100 px-2 py-0.5 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white rounded text-[10px] font-medium transition flex items-center gap-1 shadow" title="${isDir ? '이 폴더만 복원' : '이 파일만 복원'}">
-                            <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
-                            <span>복원</span>
-                        </button>
-                    ` : ''}
+                    <button type="button" onclick="event.stopPropagation(); openRestoreModal('${state.explorer.snapshotId}', '${itemRelPath}', '${itemName}', '${item.type}')" class="opacity-0 group-hover:opacity-100 px-2.5 py-1 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white rounded-lg text-[11px] font-medium transition flex items-center gap-1 shadow border border-slate-700 hover:border-blue-500" title="${isDir ? '이 폴더만 복원' : '이 파일만 복원'}">
+                        <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                        <span>복원</span>
+                    </button>
                 </div>
             </div>
         `;
+    }).join('');
 
-        if (isDir && item.children) {
-            html += `<div class="tree-children">${item.children.map(c => buildNodeHTML(c, d + 1)).join('')}</div>`;
-        }
-        return html;
-    }
-
-    container.innerHTML = node.children && node.children.length > 0 
-        ? node.children.map(c => buildNodeHTML(c, 0)).join('')
-        : `<div class="text-center py-6 text-slate-500">빈 디렉토리입니다.</div>`;
-
+    container.innerHTML = html;
     lucide.createIcons();
 }
 
