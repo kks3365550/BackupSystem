@@ -315,37 +315,83 @@ def run_emergency_restore(
         print(f"\n[*] 복원된 윈도우 레지스트리 백업 파일이 {len(reg_files_to_import)}개 있습니다:")
         for rf in reg_files_to_import[:5]:
             print(f"    - {rf}")
-        print("    (필요 시 위 .reg 파일을 실행하여 레지스트리를 적용하세요)")
+        
+        # In auto mode, automatically apply registry keys
+        if "--auto" in sys.argv or "-a" in sys.argv:
+            print("\n[*] [자동 모드] 복원된 레지스트리 키를 윈도우에 일괄 적용합니다...")
+            import subprocess
+            for rf in reg_files_to_import:
+                try:
+                    subprocess.run(["reg.exe", "import", rf], capture_output=True, text=True, timeout=10)
+                except Exception:
+                    pass
+            print("[*] 레지스트리 일괄 적용 완료!")
+        else:
+            print("    (필요 시 위 .reg 파일을 실행하여 레지스트리를 적용하세요)")
 
 def main():
-    candidates = get_candidate_repositories()
-    repo_dir = candidates[0] if candidates else None
+    import argparse
+    parser = argparse.ArgumentParser(description="독립형 긴급 비상 재해 복구 엔진")
+    parser.add_argument("--auto", "-a", action="store_true", help="가장 최신 스냅샷을 원본 위치로 즉시 무인 자동 복구")
+    parser.add_argument("--repo", "-r", type=str, default=None, help="백업 저장소 경로")
+    parser.add_argument("--snapshot", "-s", type=str, default=None, help="복원할 스냅샷 ID 또는 파일 경로")
+    parser.add_argument("--target", "-t", type=str, default=None, help="복원 대상 디렉토리 (미지정 시 백업 당시 원본 위치)")
+    parser.add_argument("--filter", "-f", type=str, default=None, help="특정 파일/폴더 키워드 필터링 복원")
+    args = parser.parse_args()
 
-    if not repo_dir:
-        print("[!] 백업 저장소를 자동으로 찾을 수 없습니다.")
-        repo_dir = input("백업 저장소 경로를 입력해주세요 (예: D:\\MyBackup_Repository): ").strip('"\' ')
+    candidates = get_candidate_repositories()
+    repo_dir = args.repo or (candidates[0] if candidates else None)
+
+    if not repo_dir or not os.path.exists(repo_dir):
+        if args.auto and candidates:
+            repo_dir = candidates[0]
+        else:
+            print("[!] 백업 저장소를 자동으로 찾을 수 없습니다.")
+            repo_dir = input("백업 저장소 경로를 입력해주세요 (예: D:\\MyBackup_Repository): ").strip('"\' ')
 
     snapshots = find_snapshots(repo_dir)
     if not snapshots:
         print(f"[!] 저장소({repo_dir})에 스냅샷 파일이 없습니다.")
         return
 
-    print("\n--- 복원 가능한 스냅샷 목록 ---")
-    for i, s in enumerate(snapshots[:10], 1):
-        print(f"[{i}] {s['id']} | 일시: {s['iso_time'][:19]} | 프로필: {s['profile_name']} | 파일: {s['file_count']}개")
+    if args.auto:
+        # Full automatic restore: pick the latest snapshot and restore to original path
+        selected_snap = snapshots[0]
+        print(f"\n[*] [자동 모드 활성] 가장 최신 스냅샷을 자동 선택합니다: {selected_snap['id']} ({selected_snap['iso_time'][:19]})")
+        run_emergency_restore(
+            repo_dir=repo_dir,
+            snapshot_path=selected_snap["path"],
+            target_override=args.target,
+            filter_keyword=args.filter
+        )
+        return
 
-    choice = input("\n복원할 스냅샷 번호를 선택하세요 (기본값: 1): ").strip()
-    sel_idx = int(choice) - 1 if choice.isdigit() and 1 <= int(choice) <= len(snapshots) else 0
-    selected_snap = snapshots[sel_idx]
+    # Interactive mode
+    if args.snapshot:
+        selected_snap = next((s for s in snapshots if s["id"] == args.snapshot or s["path"] == args.snapshot), None)
+        if not selected_snap:
+            print(f"[!] 지정한 스냅샷({args.snapshot})을 찾을 수 없습니다.")
+            return
+    else:
+        print("\n--- 복원 가능한 스냅샷 목록 ---")
+        for i, s in enumerate(snapshots[:10], 1):
+            print(f"[{i}] {s['id']} | 일시: {s['iso_time'][:19]} | 프로필: {s['profile_name']} | 파일: {s['file_count']}개")
+
+        choice = input("\n복원할 스냅샷 번호를 선택하세요 (기본값: 1): ").strip()
+        sel_idx = int(choice) - 1 if choice.isdigit() and 1 <= int(choice) <= len(snapshots) else 0
+        selected_snap = snapshots[sel_idx]
 
     print(f"\n선택된 스냅샷: {selected_snap['id']}")
-    target = input("복원할 대상 디렉토리 (엔터 입력 시 백업 당시 원본 위치로 복원): ").strip('"\' ')
-    target_override = target if target else None
+    target = args.target
+    if not target:
+        target_in = input("복원할 대상 디렉토리 (엔터 입력 시 백업 당시 원본 위치로 복원): ").strip('"\' ')
+        target = target_in if target_in else None
 
     run_emergency_restore(
         repo_dir=repo_dir,
         snapshot_path=selected_snap["path"],
-        target_override=target_override
+        target_override=target,
+        filter_keyword=args.filter
     )
 
 if __name__ == "__main__":

@@ -68,6 +68,9 @@ def send_kakao_message(text: str) -> bool:
     client_secret = token_info.get("client_secret")
     refresh_token = token_info.get("refresh_token")
     expires_at = token_info.get("expires_at", 0)
+    # Defense: If expires_at was saved as relative seconds (< 100 million), treat as expired or adjust
+    if 0 < expires_at < 100000000:
+        expires_at = 0
 
     # Refresh access token if expired and refresh_token is available
     if (not access_token or time.time() >= (expires_at - 300)) and refresh_token and rest_api_key:
@@ -106,8 +109,8 @@ def send_kakao_message(text: str) -> bool:
             print("[KakaoNotifier] KakaoTalk message sent successfully!")
             return True
         elif res.status_code == 401 and refresh_token and rest_api_key:
-            # Token invalid, try refreshing once
-            access_token = refresh_kakao_access_token(rest_api_key, refresh_token)
+            # Token invalid, try refreshing once with client_secret
+            access_token = refresh_kakao_access_token(rest_api_key, refresh_token, client_secret)
             if access_token:
                 headers["Authorization"] = f"Bearer {access_token}"
                 res = requests.post(url, headers=headers, data=payload_data, timeout=10)

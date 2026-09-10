@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import json
 import webbrowser
 import urllib.parse
@@ -59,11 +60,12 @@ def setup_kakao():
         token_data = res.json()
         if "access_token" in token_data and "refresh_token" in token_data:
             os.makedirs(DATA_DIR, exist_ok=True)
+            expires_in = token_data.get("expires_in", 21600)
             save_data = {
                 "rest_api_key": rest_api_key,
                 "access_token": token_data["access_token"],
                 "refresh_token": token_data["refresh_token"],
-                "expires_at": token_data.get("expires_in", 21600)
+                "expires_at": time.time() + expires_in
             }
             with open(TOKEN_FILE, "w", encoding="utf-8") as f:
                 json.dump(save_data, f, indent=2, ensure_ascii=False)

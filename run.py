@@ -56,7 +56,7 @@ def open_browser(port: int):
 def main():
     settings = ConfigManager.get_settings()
     port = settings.get("server_port", 8765)
-    host = settings.get("server_host", "127.0.0.1")
+    host = settings.get("server_host", "0.0.0.0")
     auto_open = settings.get("auto_open_browser", True)
 
     if auto_open:
