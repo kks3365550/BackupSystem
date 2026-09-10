@@ -62,7 +62,7 @@ def open_browser(port: int):
     samsung_path = r"C:\Program Files\Samsung\Internet\Application\samsunginternet.exe"
     if sys.platform.startswith("win") and os.path.exists(samsung_path):
         try:
-            subprocess.Popen([samsung_path, url])
+            subprocess.Popen([samsung_path, url], close_fds=True)
             return
         except Exception:
             pass
