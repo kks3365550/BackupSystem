@@ -1,9 +1,13 @@
 import os
 import sys
 import time
+import socket
 import asyncio
 import webbrowser
 import threading
+import subprocess
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 import uvicorn
 from core.config import ConfigManager
 
@@ -39,25 +43,67 @@ if sys.platform.startswith("win"):
     except Exception:
         pass
 
-def open_browser(port: int):
-    import socket
-    for _ in range(60):
-        try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.08):
-                break
-        except OSError:
-            time.sleep(0.05)
-    url = f"http://127.0.0.1:{port}"
+def is_port_in_use(port: int) -> bool:
     try:
-        webbrowser.open(url)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.3)
+            return s.connect_ex(('127.0.0.1', port)) == 0
+    except Exception:
+        return False
+
+def open_browser(port: int):
+    url = f"http://127.0.0.1:{port}"
+    for _ in range(50):
+        if is_port_in_use(port):
+            break
+        time.sleep(0.1)
+
+    opened = False
+    try:
+        opened = webbrowser.open(url)
     except Exception:
         pass
+
+    # Windows: also launch msedge directly to ensure window pops to front
+    if sys.platform.startswith("win"):
+        edge_paths = [
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        ]
+        for ep in edge_paths:
+            if os.path.exists(ep):
+                try:
+                    subprocess.Popen([ep, url])
+                    opened = True
+                    break
+                except Exception:
+                    pass
 
 def main():
     settings = ConfigManager.get_settings()
     port = settings.get("server_port", 8765)
     host = settings.get("server_host", "0.0.0.0")
     auto_open = settings.get("auto_open_browser", True)
+
+    # 1. If server is already running on this port, just open the dashboard!
+    if is_port_in_use(port):
+        print("=" * 60)
+        print("  백업시스템 매니저 (Backup System Manager)")
+        print("=" * 60)
+        print(f"[*] 백업 서버가 이미 정상 동작 중입니다 (포트: {port}).")
+        print(f"[*] 웹 브라우저에서 대시보드를 열었습니다: http://127.0.0.1:{port}")
+        print("=" * 60)
+        open_browser(port)
+        time.sleep(1.5)
+        return
+
+    # 2. Start server and open browser
+    print("=" * 60)
+    print("  백업 매니저 시스템 (Backup System Manager)")
+    print("=" * 60)
+    print(f"[*] 백업 서버를 시작합니다 (포트: {port})...")
+    print(f"[*] 접속 주소: http://127.0.0.1:{port}")
+    print("=" * 60)
 
     if auto_open:
         threading.Thread(target=open_browser, args=(port,), daemon=True).start()
