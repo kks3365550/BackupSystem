@@ -25,7 +25,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
-app = FastAPI(title="Server & System Backup Manager", version="2.1.3")
+app = FastAPI(title="Server & System Backup Manager", version="2.1.4")
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
@@ -297,8 +297,8 @@ def delete_snapshot(snapshot_id: str, repo_dir: Optional[str] = None):
 
 # --- Installed Applications & Projects Discovery API ---
 @app.get("/api/apps/installed")
-def list_installed_apps():
-    return get_installed_applications()
+def list_installed_apps(refresh: bool = False):
+    return get_installed_applications(force_refresh=refresh)
 
 @app.get("/api/projects/list")
 def list_project_items():
