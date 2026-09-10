@@ -13,6 +13,32 @@ try:
 except ImportError:
     HAS_ZSTD = False
 
+import stat as stat_mod
+
+def lock_file_immutable(filepath: str):
+    """Protects file from ransomware tampering by setting OS read-only attribute (WORM)."""
+    try:
+        if os.path.exists(filepath):
+            os.chmod(filepath, stat_mod.S_IREAD)
+    except Exception:
+        pass
+
+def unlock_file_writable(filepath: str):
+    """Unlocks file to allow authorized backup engine deletion/pruning."""
+    try:
+        if os.path.exists(filepath):
+            os.chmod(filepath, stat_mod.S_IWRITE)
+    except Exception:
+        pass
+
+def get_disk_free_gb(path: str) -> float:
+    """Returns free disk space in gigabytes for the volume containing path."""
+    try:
+        total, used, free = shutil.disk_usage(path)
+        return round(free / (1024 ** 3), 2)
+    except Exception:
+        return 999.0
+
 ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 
 class BlobStorage:
@@ -117,6 +143,7 @@ class BlobStorage:
 
         stored_size = os.path.getsize(temp_blob_path)
         os.replace(temp_blob_path, blob_path)
+        lock_file_immutable(blob_path)
         with self._cache_lock:
             self._blob_cache.add(sha256_hash)
         return sha256_hash, orig_size, stored_size, True
@@ -156,6 +183,7 @@ class BlobStorage:
                 with open(temp_file, "wb") as fout:
                     fout.write(compressed)
                 os.replace(temp_file, blob_path)
+                lock_file_immutable(blob_path)
                 stored_size = len(compressed)
                 with self._cache_lock:
                     self._blob_cache.add(sha256_hash)
@@ -215,6 +243,7 @@ class BlobStorage:
             # New blob
             os.makedirs(os.path.dirname(blob_path), exist_ok=True)
             os.replace(temp_file, blob_path)
+            lock_file_immutable(blob_path)
             stored_size = os.path.getsize(blob_path)
             with self._cache_lock:
                 self._blob_cache.add(sha256_hash)
@@ -247,6 +276,7 @@ class BlobStorage:
         with open(temp_blob_path, "wb") as f:
             f.write(compressed)
         os.replace(temp_blob_path, blob_path)
+        lock_file_immutable(blob_path)
         # Fix #16: Don't call record_new_blob here — caller (snapshot.py) handles batch update for consistency
         with self._cache_lock:
             self._blob_cache.add(sha256_hash)
@@ -376,9 +406,12 @@ class BlobStorage:
                         blob_path = os.path.join(root, file)
                         try:
                             fsize = os.path.getsize(blob_path)
+                            unlock_file_writable(blob_path)
                             os.remove(blob_path)
                             deleted_count += 1
                             freed_bytes += fsize
+                            with self._cache_lock:
+                                self._blob_cache.discard(blob_hash)
                         except OSError:
                             pass
         if deleted_count > 0:

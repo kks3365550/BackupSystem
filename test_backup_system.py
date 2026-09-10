@@ -3,11 +3,23 @@ import sys
 import time
 import shutil
 import tempfile
+import stat
 from core.snapshot import SnapshotEngine
 from core.restore import RestoreEngine
 from core.storage import BlobStorage
 from core.hasher import calculate_sha256
 from core.config import ConfigManager
+
+def safe_rmtree(path):
+    if not os.path.exists(path):
+        return
+    def _handle_readonly(func, p, excinfo):
+        try:
+            os.chmod(p, stat.S_IWRITE)
+            func(p)
+        except Exception:
+            pass
+    shutil.rmtree(path, onerror=_handle_readonly)
 
 def test_full_system_flow():
     print("\n=======================================================")
@@ -15,8 +27,7 @@ def test_full_system_flow():
     print("=======================================================")
 
     test_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "test_sandbox"))
-    if os.path.exists(test_root):
-        shutil.rmtree(test_root, ignore_errors=True)
+    safe_rmtree(test_root)
 
     src_dir = os.path.join(test_root, "source")
     repo_dir = os.path.join(test_root, "backup_repo")
@@ -141,11 +152,62 @@ def test_full_system_flow():
     assert stats['total_snapshots'] >= 3
     assert stats['dedup_saved_bytes'] > 0
 
+    # 10. Test WORM Immutability Protection (Ransomware Defense)
+    print("\n[Step 10] Testing WORM Immutability Protection (Ransomware Defense)...")
+    blobs_found = []
+    for root, dirs, files in os.walk(storage.blobs_dir):
+        for f in files:
+            blobs_found.append(os.path.join(root, f))
+    assert len(blobs_found) > 0, "No blob files found"
+
+    sample_blob = blobs_found[0]
+    # Verify blob file is read-only
+    blob_mode = os.stat(sample_blob).st_mode
+    assert not (blob_mode & stat.S_IWRITE), f"Blob file {sample_blob} should be read-only"
+
+    # Verify tampering attempt throws PermissionError
+    tamper_failed = False
+    try:
+        with open(sample_blob, "ab") as f:
+            f.write(b"RANSOMWARE_ENCRYPTED_DATA")
+    except PermissionError:
+        tamper_failed = True
+    assert tamper_failed, "Tampering with blob should have been blocked by OS read-only lock!"
+
+    # Verify snapshot JSON is also read-only
+    snap_json = os.path.join(storage.snapshots_dir, f"{snap2['id']}.json")
+    snap_mode = os.stat(snap_json).st_mode
+    assert not (snap_mode & stat.S_IWRITE), f"Snapshot JSON {snap_json} should be read-only"
+
+    snap_tamper_failed = False
+    try:
+        with open(snap_json, "a") as f:
+            f.write("tamper")
+    except PermissionError:
+        snap_tamper_failed = True
+    assert snap_tamper_failed, "Tampering with snapshot JSON should have been blocked!"
+    print(" -> WORM lock successfully prevented unauthorized modification of blobs and snapshot manifests!")
+
+    # 11. Test Smart Low-Disk Safeguard (Auto-pruning under low disk space)
+    print("\n[Step 11] Testing Smart Low-Disk Safeguard...")
+    initial_snaps = SnapshotEngine.list_snapshots(repo_dir)
+    assert len(initial_snaps) >= 3
+
+    # Simulate trigger by requesting more free GB than exists
+    pruned_count, freed_gb = SnapshotEngine.ensure_disk_space(repo_dir, min_free_gb=999999.0)
+    print(f" -> Safeguard pruned {pruned_count} old snapshot(s)")
+    remaining_snaps = SnapshotEngine.list_snapshots(repo_dir)
+    # The newest snapshot MUST always be preserved (never pruned)
+    assert len(remaining_snaps) == 1, f"Expected exactly 1 snapshot remaining (newest preserved), got {len(remaining_snaps)}"
+    assert remaining_snaps[0]['id'] == initial_snaps[0]['id'], "Newest snapshot was unexpectedly deleted!"
+    print(" -> Smart Low-Disk Safeguard correctly pruned oldest snapshots and preserved newest snapshot intact!")
+
     # Cleanup test sandbox
-    shutil.rmtree(test_root, ignore_errors=True)
+    safe_rmtree(test_root)
     print("\n=======================================================")
     print(" [SUCCESS] All Integration Tests Passed Successfully!")
     print("=======================================================\n")
 
 if __name__ == "__main__":
     test_full_system_flow()
+

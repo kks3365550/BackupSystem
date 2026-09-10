@@ -9,7 +9,7 @@ import concurrent.futures
 from typing import Dict, List, Any, Optional, Callable, Tuple
 from core.hasher import calculate_sha256, get_file_stat
 from core.filter import PathFilter
-from core.storage import BlobStorage
+from core.storage import BlobStorage, lock_file_immutable, unlock_file_writable, get_disk_free_gb
 
 class SnapshotEngine:
     @staticmethod
@@ -151,28 +151,39 @@ class SnapshotEngine:
         exclude_patterns: Optional[List[str]] = None,
         compress_level: int = 6,
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
-        cancel_event: Optional[Any] = None
+        cancel_event: Optional[Any] = None,
+        min_free_disk_gb: Optional[float] = None
     ) -> Dict[str, Any]:
         start_time = time.time()
         storage = BlobStorage(repo_dir)
         path_filter = PathFilter(exclude_patterns=exclude_patterns)
 
+        # 0. Smart Low-Disk Safeguard: auto prune oldest snapshots if free space < min_free_disk_gb
+        if min_free_disk_gb is None:
+            try:
+                from core.config import ConfigManager
+                settings = ConfigManager.get_settings()
+                min_free_disk_gb = float(settings.get("min_free_disk_gb", 10.0))
+            except Exception:
+                min_free_disk_gb = 10.0
+
+        if min_free_disk_gb > 0:
+            pruned_snaps, freed_space_gb = cls.ensure_disk_space(repo_dir, min_free_gb=min_free_disk_gb)
+            if pruned_snaps > 0 and progress_callback:
+                progress_callback({
+                    "type": "safeguard",
+                    "current_file": f"저장소 용량 확보: 여유 공간 부족(<{min_free_disk_gb}GB)으로 오래된 스냅샷 {pruned_snaps}개 정리 (+{freed_space_gb}GB)",
+                    "processed_files": 0,
+                    "total_files": 0,
+                    "percent": 0
+                })
+
         # 1. Build fast incremental diff cache from existing snapshots in the repository
         existing_snapshots = cls.list_snapshots(repo_dir)
-        prev_snapshot = None
-        for s in existing_snapshots:
-            if s.get("profile_id") == profile_id or s.get("profile_name") == profile_name:
-                prev_snapshot = cls.get_snapshot(repo_dir, s["id"])
-                break
-        
-        # Fallback to the latest available snapshot in repository if profile id differs
-        if not prev_snapshot and existing_snapshots:
-            prev_snapshot = cls.get_snapshot(repo_dir, existing_snapshots[0]["id"])
-
         prev_entries_map = {}
         prev_rel_map = {}
-        # Fix #5: Only load the single most-recent profile-matched snapshot instead of up to 5+.
-        # Each snapshot JSON can be 50MB+ for large repos — loading 5 of them was 250MB+ of I/O per backup.
+
+        # Fix #5: Only load the single most-recent profile-matched snapshot
         best_snapshot = None
         for s in existing_snapshots:
             if s.get("profile_id") == profile_id or s.get("profile_name") == profile_name:
@@ -378,6 +389,7 @@ class SnapshotEngine:
         snapshot_file = os.path.join(storage.snapshots_dir, f"{snapshot_id}.json")
         with open(snapshot_file, "w", encoding="utf-8") as f:
             json.dump(snapshot_manifest, f, indent=None, separators=(',', ':'), ensure_ascii=False)
+        lock_file_immutable(snapshot_file)
 
         # 5. Batch update metadata DB once for all new blobs (Single atomic transaction!)
         # Fix #11: pass new_blobs_count (unique new blobs) not new_files_count (which includes dedup)
@@ -433,6 +445,43 @@ class SnapshotEngine:
             return json.load(f)
 
     @classmethod
+    def ensure_disk_space(cls, repo_dir: str, min_free_gb: float = 10.0) -> Tuple[int, float]:
+        """
+        Smart Low-Disk Safeguard:
+        If free space in the backup repository volume falls below min_free_gb,
+        automatically prunes the oldest snapshots one by one until sufficient space is secured.
+        Returns (pruned_snapshot_count, freed_gb).
+        """
+        free_gb = get_disk_free_gb(repo_dir)
+        if free_gb >= min_free_gb:
+            return 0, 0.0
+
+        initial_free = free_gb
+        pruned_count = 0
+
+        # Load snapshots (sorted newest first)
+        snapshots = cls.list_snapshots(repo_dir)
+        if len(snapshots) <= 1:
+            return 0, 0.0
+
+        # Oldest snapshots are deleted first; keep the newest intact (snapshots[0] is newest)
+        candidates = list(reversed(snapshots[1:]))
+
+        for s in candidates:
+            try:
+                if cls.delete_snapshot(repo_dir, s["id"], prune_orphaned_blobs=True):
+                    pruned_count += 1
+                    current_free = get_disk_free_gb(repo_dir)
+                    if current_free >= min_free_gb:
+                        break
+            except Exception:
+                pass
+
+        final_free = get_disk_free_gb(repo_dir)
+        freed_gb = max(0.0, round(final_free - initial_free, 2))
+        return pruned_count, freed_gb
+
+    @classmethod
     def delete_snapshot(cls, repo_dir: str, snapshot_id: str, prune_orphaned_blobs: bool = True) -> bool:
         storage = BlobStorage(repo_dir)
         snap_path = os.path.join(storage.snapshots_dir, f"{snapshot_id}.json")
@@ -440,14 +489,10 @@ class SnapshotEngine:
             return False
 
         deleted = False
-        import stat as stat_mod
         for attempt in range(4):
             try:
                 if os.path.exists(snap_path):
-                    try:
-                        os.chmod(snap_path, stat_mod.S_IWRITE)
-                    except Exception:
-                        pass
+                    unlock_file_writable(snap_path)
                     os.remove(snap_path)
                     deleted = True
                     break

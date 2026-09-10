@@ -23,6 +23,8 @@ DEFAULT_PROFILE = {
     "retention_count": 30,
     "retention_days": 60,
     "compression_level": 3,
+    "min_free_disk_gb": 10,
+    "enable_ransomware_protection": True,
     "last_run": None,
     "last_status": "never",
     "last_snapshot_id": None
@@ -33,7 +35,9 @@ DEFAULT_SETTINGS = {
     "server_host": "0.0.0.0",
     "auto_open_browser": True,
     "dark_mode": True,
-    "log_level": "INFO"
+    "log_level": "INFO",
+    "min_free_disk_gb": 10,
+    "enable_ransomware_protection": True
 }
 
 class ConfigManager:

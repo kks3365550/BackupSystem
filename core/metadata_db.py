@@ -3,6 +3,7 @@ import time
 import json
 import sqlite3
 import threading
+import contextlib
 from typing import Dict, List, Any, Optional, Tuple
 
 class MetadataDB:
@@ -15,7 +16,8 @@ class MetadataDB:
         self.blobs_dir = os.path.join(self.repo_dir, "blobs")
         self._init_db()
 
-    def _get_connection(self) -> sqlite3.Connection:
+    @contextlib.contextmanager
+    def _get_connection(self):
         conn = sqlite3.connect(self.db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
         try:
@@ -23,7 +25,13 @@ class MetadataDB:
             conn.execute("PRAGMA synchronous=NORMAL;")
         except Exception:
             pass
-        return conn
+        try:
+            yield conn
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def _init_db(self):
         try:
