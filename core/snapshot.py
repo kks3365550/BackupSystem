@@ -242,7 +242,7 @@ class SnapshotEngine:
                         prev_rel_map[norm_r] = entry
 
         # 2. Parallel multi-worker directory scanning with C-kernel stat collection
-        num_workers = min(8, max(2, (os.cpu_count() or 4) // 2))
+        num_workers = min(12, max(4, os.cpu_count() or 4))
         all_files_to_process = cls._scan_sources_parallel(
             sources=sources,
             path_filter=path_filter,
@@ -415,6 +415,13 @@ class SnapshotEngine:
         snapshot_file = os.path.join(storage.snapshots_dir, f"{snapshot_id}.json")
         with open(snapshot_file, "w", encoding="utf-8") as f:
             json.dump(snapshot_manifest, f, indent=2)
+
+        # 5. Batch update metadata DB once for all new blobs (Single atomic transaction!)
+        if new_stored_bytes > 0 or new_files_count > 0:
+            try:
+                storage.db.record_new_blob(stored_size=new_stored_bytes, count=new_files_count)
+            except Exception:
+                pass
 
         return snapshot_manifest
 

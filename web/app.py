@@ -25,7 +25,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
-app = FastAPI(title="Server & System Backup Manager", version="2.1.1")
+app = FastAPI(title="Server & System Backup Manager", version="2.1.2")
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
@@ -438,7 +438,7 @@ def _background_custom_backup_task(params: Dict[str, Any]):
                 "auto_backup_enabled": True,
                 "retention_count": 30,
                 "retention_days": 60,
-                "compression_level": 6
+                "compression_level": 3
             }
             ConfigManager.save_profile(prof)
 
@@ -454,7 +454,7 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             profile_id=profile_id,
             profile_name=profile_name,
             exclude_patterns=excludes,
-            compress_level=6,
+            compress_level=3,
             progress_callback=on_progress,
             cancel_event=cancel_evt
         )

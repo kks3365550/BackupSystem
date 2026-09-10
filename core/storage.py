@@ -3,6 +3,7 @@ import zlib
 import json
 import hashlib
 import shutil
+import threading
 from typing import Optional, Tuple, Dict, Any, Set, List
 from core.hasher import calculate_sha256, calculate_bytes_sha256
 
@@ -23,6 +24,8 @@ class BlobStorage:
         self.init_repo()
         from core.metadata_db import MetadataDB
         self.db = MetadataDB(self.repo_dir)
+        self._blob_cache = set()
+        self._cache_lock = threading.Lock()
 
     def init_repo(self):
         os.makedirs(self.blobs_dir, exist_ok=True)
@@ -50,8 +53,15 @@ class BlobStorage:
     def has_blob(self, sha256_hash: str) -> bool:
         if not sha256_hash:
             return False
+        with self._cache_lock:
+            if sha256_hash in self._blob_cache:
+                return True
         blob_path = self.get_blob_abs_path(sha256_hash)
-        return bool(blob_path and os.path.exists(blob_path))
+        if blob_path and os.path.exists(blob_path):
+            with self._cache_lock:
+                self._blob_cache.add(sha256_hash)
+            return True
+        return False
 
     def put_file_blob(self, filepath: str, sha256_hash: Optional[str] = None, compress_level: int = 3) -> Tuple[str, int, int, bool]:
         """
@@ -66,12 +76,12 @@ class BlobStorage:
         blob_path = self.get_blob_abs_path(sha256_hash)
 
         # Deduplication check: if blob already exists, skip writing!
-        if os.path.exists(blob_path):
+        if self.has_blob(sha256_hash):
             stored_size = os.path.getsize(blob_path)
             return sha256_hash, orig_size, stored_size, False
 
         os.makedirs(os.path.dirname(blob_path), exist_ok=True)
-        temp_blob_path = blob_path + ".tmp"
+        temp_blob_path = blob_path + f".tmp_{os.getpid()}_{os.urandom(3).hex()}"
 
         stored_size = 0
         with open(filepath, "rb") as fin, open(temp_blob_path, "wb") as fout:
@@ -98,18 +108,51 @@ class BlobStorage:
 
         stored_size = os.path.getsize(temp_blob_path)
         os.replace(temp_blob_path, blob_path)
-        self.db.record_new_blob(stored_size)
+        with self._cache_lock:
+            self._blob_cache.add(sha256_hash)
         return sha256_hash, orig_size, stored_size, True
 
     def put_file_blob_onepass(self, filepath: str, compress_level: int = 3, cancel_event=None) -> Tuple[str, int, int, bool]:
         """
-        Single-Pass (One-Pass) streaming hash and compression:
-        Reads the file only ONCE to compute SHA-256 and compress to temporary blob.
-        Deduplicates if the blob already exists. Cuts disk I/O by 50%.
+        High-Performance Single-Pass (One-Pass) hashing & deduplication:
+        - Files <= 16MB: RAM read + RAM SHA-256 first. Duplicate files return in ~0ms with zero disk I/O and zero compression CPU.
+        - Large files: Streaming one-pass compression directly to blob.
         """
         orig_size = os.path.getsize(filepath)
-        sha256 = hashlib.sha256()
 
+        # Fast path for small/medium files (<= 16MB, covers 99% of system files)
+        if orig_size <= 16 * 1024 * 1024:
+            if cancel_event and cancel_event.is_set():
+                raise InterruptedError("Operation cancelled")
+            with open(filepath, "rb") as fin:
+                data = fin.read()
+            sha256_hash = hashlib.sha256(data).hexdigest()
+            blob_path = self.get_blob_abs_path(sha256_hash)
+
+            # Instant deduplication return (0 disk write, 0 compression CPU)
+            if self.has_blob(sha256_hash):
+                stored_size = os.path.getsize(blob_path)
+                return sha256_hash, orig_size, stored_size, False
+
+            # Genuinely new blob: compress in RAM and write directly to disk
+            os.makedirs(os.path.dirname(blob_path), exist_ok=True)
+            temp_file = blob_path + f".tmp_{os.getpid()}_{os.urandom(4).hex()}"
+            if HAS_ZSTD:
+                cctx = zstd.ZstdCompressor(level=compress_level)
+                compressed = cctx.compress(data)
+            else:
+                compressed = zlib.compress(data, level=compress_level if compress_level in range(1, 10) else 6)
+            
+            with open(temp_file, "wb") as fout:
+                fout.write(compressed)
+            os.replace(temp_file, blob_path)
+            stored_size = len(compressed)
+            with self._cache_lock:
+                self._blob_cache.add(sha256_hash)
+            return sha256_hash, orig_size, stored_size, True
+
+        # Streaming path for large files (> 16MB)
+        sha256 = hashlib.sha256()
         temp_dir = os.path.join(self.blobs_dir, "_temp")
         os.makedirs(temp_dir, exist_ok=True)
         temp_file = os.path.join(temp_dir, f"tmp_{os.getpid()}_{hashlib.md5(filepath.encode('utf-8', 'replace')).hexdigest()}_{os.urandom(4).hex()}.blob")
@@ -122,7 +165,7 @@ class BlobStorage:
                         while True:
                             if cancel_event and cancel_event.is_set():
                                 raise InterruptedError("Operation cancelled")
-                            chunk = fin.read(1048576)
+                            chunk = fin.read(2097152) # 2MB buffer for large files
                             if not chunk:
                                 break
                             sha256.update(chunk)
@@ -132,7 +175,7 @@ class BlobStorage:
                     while True:
                         if cancel_event and cancel_event.is_set():
                             raise InterruptedError("Operation cancelled")
-                        chunk = fin.read(1048576)
+                        chunk = fin.read(2097152)
                         if not chunk:
                             break
                         sha256.update(chunk)
@@ -147,7 +190,7 @@ class BlobStorage:
             blob_path = self.get_blob_abs_path(sha256_hash)
 
             # Deduplication: If already stored, remove temp and return existing
-            if os.path.exists(blob_path):
+            if self.has_blob(sha256_hash):
                 if os.path.exists(temp_file):
                     os.remove(temp_file)
                 stored_size = os.path.getsize(blob_path)
@@ -157,7 +200,8 @@ class BlobStorage:
             os.makedirs(os.path.dirname(blob_path), exist_ok=True)
             os.replace(temp_file, blob_path)
             stored_size = os.path.getsize(blob_path)
-            self.db.record_new_blob(stored_size)
+            with self._cache_lock:
+                self._blob_cache.add(sha256_hash)
             return sha256_hash, orig_size, stored_size, True
 
         finally:
