@@ -744,17 +744,19 @@ def get_task_status():
 # --- Restore Execution API ---
 class RunRestoreRequest(BaseModel):
     snapshot_id: str
-    target_dir: str
+    target_dir: Optional[str] = None
     repo_dir: Optional[str] = None
     selected_rel_paths: Optional[List[str]] = None
     overwrite: bool = True
+    in_place: bool = False
 
 def _background_restore_task(params: Dict[str, Any]):
     global current_task
     snap_id = params["snapshot_id"]
-    target_dir = params["target_dir"]
+    target_dir = params.get("target_dir")
     selected = params.get("selected_rel_paths")
     overwrite = params.get("overwrite", True)
+    in_place = params.get("in_place", False)
     cancel_evt = current_task["cancel_event"]
 
     # Fix #9: Use _find_snapshot_repo to auto-discover correct repo instead of blindly using first profile
@@ -765,7 +767,8 @@ def _background_restore_task(params: Dict[str, Any]):
         profiles = ConfigManager.get_profiles()
         repo_dir = profiles[0].get("repo_dir") if profiles else os.path.join(BASE_DIR, "backup_repository")
 
-    append_task_log(f"복원 작업 시작: 스냅샷 '{snap_id}' -> 대상 경로: '{target_dir}'")
+    dest_desc = "백업 당시 원래 위치(In-place 롤백)" if in_place else f"대상 경로 '{target_dir}'"
+    append_task_log(f"복원 작업 시작: 스냅샷 '{snap_id}' -> {dest_desc}")
 
     def on_progress(p_data):
         with task_lock:
@@ -778,6 +781,7 @@ def _background_restore_task(params: Dict[str, Any]):
             target_dir=target_dir,
             selected_rel_paths=selected,
             overwrite=overwrite,
+            in_place=in_place,
             progress_callback=on_progress,
             cancel_event=cancel_evt
         )

@@ -345,8 +345,60 @@ def run_disaster_recovery_simulation():
         assert abs(restored_mtime - sample_mtime) < 1.0, f"mtime 보존 실패 (원문: {sample_mtime}, 복원: {restored_mtime})"
         print(" [OK] [시나리오 7 성공] 150개 전 파일 병렬 고속 복구 및 파일 수정일시(mtime) 완벽 보존!")
 
+        # -------------------------------------------------------------
+        # [시나리오 8] 다중 소스 원위치 복원 (in_place=True Multi-Source In-Place Disaster Recovery)
+        # -------------------------------------------------------------
+        print("\n" + "-" * 60)
+        print(" [시나리오 8] 다중 소스(C:, D: 등) 원위치 롤백 (In-Place Restore)")
+        print("-" * 60)
+        src_alpha = os.path.join(sandbox, "drive_c_data")
+        src_beta = os.path.join(sandbox, "drive_d_projects")
+        os.makedirs(src_alpha, exist_ok=True)
+        os.makedirs(src_beta, exist_ok=True)
+
+        alpha_content = "CRITICAL_DATABASE_ON_C_DRIVE\n"
+        beta_content = "PROJECT_SOURCE_CODE_ON_D_DRIVE\n"
+
+        with open(os.path.join(src_alpha, "db.sqlite"), "w", encoding="utf-8") as f:
+            f.write(alpha_content)
+        with open(os.path.join(src_beta, "main.py"), "w", encoding="utf-8") as f:
+            f.write(beta_content)
+
+        multi_snap = SnapshotEngine.create_snapshot(
+            repo_dir=repo_dir,
+            sources=[src_alpha, src_beta],
+            profile_id="multi_source_test",
+            profile_name="Multi Source Test"
+        )
+        print(f" -> 2개 소스 폴더 백업 완료 (스냅샷 ID: {multi_snap['id']})")
+
+        # 재해 시뮬레이션: 두 폴더의 파일들이 모두 랜섬웨어로 파괴됨
+        with open(os.path.join(src_alpha, "db.sqlite"), "w", encoding="utf-8") as f:
+            f.write("ENCRYPTED_C")
+        with open(os.path.join(src_beta, "main.py"), "w", encoding="utf-8") as f:
+            f.write("ENCRYPTED_D")
+
+        # in_place=True 로 원위치 롤백 복원 실행
+        print(" -> [복구 실행] in_place=True 옵션으로 원위치 자동 분배 복원 실행...")
+        res_inplace = RestoreEngine.restore_snapshot(
+            repo_dir=repo_dir,
+            snapshot_id=multi_snap["id"],
+            in_place=True,
+            overwrite=True
+        )
+        print(f" -> 원위치 복원 완료: {res_inplace['restored_files']}개 파일 복구 (소요 {res_inplace['duration_seconds']}초)")
+        assert res_inplace["restored_files"] == 2
+        assert len(res_inplace["failed_files"]) == 0
+
+        # 각각 원래의 폴더로 정확히 복구되었는지 검증
+        with open(os.path.join(src_alpha, "db.sqlite"), "r", encoding="utf-8") as f:
+            assert f.read() == alpha_content, "src_alpha 복원 실패!"
+        with open(os.path.join(src_beta, "main.py"), "r", encoding="utf-8") as f:
+            assert f.read() == beta_content, "src_beta 복원 실패!"
+        print(" [OK] [시나리오 8 성공] 서로 다른 드라이브/폴더의 파일들이 각자의 원래 위치로 100% 자동 분배 복구되었습니다!")
+
         print("\n" + "=" * 70)
-        print(" [PASS] [최종 결과] 7개 재해 복구 시뮬레이션 시나리오 전체 100% 통과!")
+        print(" [PASS] [최종 결과] 8개 재해 복구 시뮬레이션 시나리오 전체 100% 통과!")
         print("=" * 70 + "\n")
 
     finally:
@@ -354,3 +406,4 @@ def run_disaster_recovery_simulation():
 
 if __name__ == "__main__":
     run_disaster_recovery_simulation()
+

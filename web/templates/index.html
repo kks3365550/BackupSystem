@@ -38,7 +38,7 @@
             <div>
                 <h1 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
                     서버 & 시스템 백업 매니저
-                    <span class="text-[10px] px-2 py-0.5 bg-emerald-900/80 text-emerald-300 rounded-full font-medium border border-emerald-700/60">v2.1.12</span>
+                    <span class="text-[10px] px-2 py-0.5 bg-emerald-900/80 text-emerald-300 rounded-full font-medium border border-emerald-700/60">v2.1.13</span>
                 </h1>
                 <p class="text-[11px] text-slate-400">멀티코어 Zstandard 엔진 & 증분 스냅샷 중복제거</p>
             </div>
@@ -687,32 +687,90 @@
     <div id="restore-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
             <div class="p-4 border-b border-slate-800 flex justify-between items-center">
-                <h3 id="restore-modal-title" class="font-bold text-sm text-slate-100">스냅샷 복원</h3>
+                <h3 id="restore-modal-title" class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                    <i data-lucide="archive-restore" class="w-4 h-4 text-blue-400"></i>
+                    <span>스냅샷 복원</span>
+                </h3>
                 <button onclick="closeModal('restore-modal')" class="text-slate-400 hover:text-slate-200">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
             <div class="p-5 space-y-4 text-xs">
                 <input type="hidden" id="restore-snapshot-id">
+                <input type="hidden" id="restore-selected-paths">
+
+                <!-- Selective Restore Badge (Optional) -->
+                <div id="restore-selective-badge" class="hidden p-2.5 bg-blue-950/60 border border-blue-800/50 rounded-xl text-blue-300 text-xs flex items-center justify-between">
+                    <div class="flex items-center gap-2 truncate">
+                        <i data-lucide="filter" class="w-3.5 h-3.5 text-blue-400 shrink-0"></i>
+                        <span id="restore-selective-text" class="truncate">선택된 특정 항목만 복원합니다.</span>
+                    </div>
+                    <button type="button" onclick="clearSelectiveRestore()" class="text-[10px] px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded shrink-0">
+                        전체 복원으로 전환
+                    </button>
+                </div>
+
+                <!-- Restoration Destination Mode -->
                 <div>
+                    <label class="block text-slate-300 font-semibold mb-2">복원 방식 선택</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <!-- Option 1: In-Place -->
+                        <label class="flex items-start gap-3 p-3 bg-slate-800/60 border border-slate-700/80 rounded-xl cursor-pointer hover:border-amber-500/60 transition group has-[:checked]:border-amber-500 has-[:checked]:bg-amber-950/20">
+                            <input type="radio" name="restore-mode" id="restore-mode-inplace" value="inplace" onchange="toggleRestoreMode()" class="mt-0.5 text-amber-500 focus:ring-0">
+                            <div>
+                                <div class="font-bold text-slate-200 group-hover:text-amber-300 flex items-center gap-1.5">
+                                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-amber-400"></i> 원래 위치에 즉시 복원
+                                </div>
+                                <div class="text-[11px] text-slate-400 mt-0.5">백업 당시의 원래 드라이브/폴더로 원상 롤백합니다.</div>
+                            </div>
+                        </label>
+
+                        <!-- Option 2: Safe Folder -->
+                        <label class="flex items-start gap-3 p-3 bg-slate-800/60 border border-slate-700/80 rounded-xl cursor-pointer hover:border-blue-500/60 transition group has-[:checked]:border-blue-500 has-[:checked]:bg-blue-950/20">
+                            <input type="radio" name="restore-mode" id="restore-mode-safe" value="safe" checked onchange="toggleRestoreMode()" class="mt-0.5 text-blue-500 focus:ring-0">
+                            <div>
+                                <div class="font-bold text-slate-200 group-hover:text-blue-300 flex items-center gap-1.5">
+                                    <i data-lucide="folder-check" class="w-3.5 h-3.5 text-blue-400"></i> 새 폴더에 안전 복원
+                                </div>
+                                <div class="text-[11px] text-slate-400 mt-0.5">현재 파일에 영향 없이 지정한 폴더로 안전하게 풉니다.</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Warning Banner for In-Place Mode -->
+                <div id="restore-inplace-warning" class="hidden p-3 bg-amber-950/40 border border-amber-800/60 rounded-xl text-amber-300 space-y-1.5">
+                    <div class="font-semibold flex items-center gap-1.5 text-xs">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-400 shrink-0"></i>
+                        <span>주의: 현재 폴더의 파일들이 과거 스냅샷 시점 상태로 덮어써집니다.</span>
+                    </div>
+                    <div class="text-[11px] text-slate-400">백업 당시 원본 위치 목록:</div>
+                    <div id="restore-original-sources-list" class="text-[11px] text-amber-200/90 font-mono bg-slate-950/80 p-2 rounded-lg break-all max-h-24 overflow-y-auto space-y-0.5">
+                    </div>
+                </div>
+
+                <!-- Safe Mode Target Directory Input -->
+                <div id="restore-target-dir-container">
                     <label class="block text-slate-300 font-semibold mb-1">복원 대상 디렉토리 경로</label>
                     <div class="flex gap-2">
                         <input type="text" id="restore-target-dir" placeholder="예: C:\Restored_Files" class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 font-mono focus:outline-none focus:border-blue-500">
-                        <button onclick="openDirectoryPicker('restore-target-dir')" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-medium shrink-0">
+                        <button type="button" onclick="openDirectoryPicker('restore-target-dir')" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-medium shrink-0">
                             폴더 선택
                         </button>
                     </div>
-                    <p class="text-[11px] text-slate-400 mt-1">스냅샷 당시의 파일들이 지정한 폴더 안으로 원래 구조 그대로 복원됩니다.</p>
+                    <p class="text-[11px] text-slate-400 mt-1">스냅샷 파일들이 지정한 폴더 안으로 원래 구조 그대로 복원됩니다.</p>
                 </div>
-                <div class="flex items-center gap-2">
+
+                <div class="flex items-center gap-2 pt-1">
                     <input type="checkbox" id="restore-overwrite" checked class="rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-0 w-4 h-4">
                     <label for="restore-overwrite" class="text-slate-300 cursor-pointer">동일한 파일이 존재할 경우 덮어쓰기</label>
                 </div>
             </div>
             <div class="p-4 bg-slate-950 border-t border-slate-800 flex justify-end gap-2">
-                <button onclick="closeModal('restore-modal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold">취소</button>
-                <button onclick="startRestore()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/30">
-                    복원 시작
+                <button type="button" onclick="closeModal('restore-modal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold">취소</button>
+                <button type="button" id="btn-start-restore" onclick="startRestore()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/30 flex items-center gap-1.5">
+                    <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
+                    <span>복원 시작</span>
                 </button>
             </div>
         </div>

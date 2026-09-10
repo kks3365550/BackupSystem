@@ -13,17 +13,18 @@ class RestoreEngine:
         cls,
         repo_dir: str,
         snapshot_id: str,
-        target_dir: str,
+        target_dir: Optional[str] = None,
         selected_rel_paths: Optional[List[str]] = None,
         overwrite: bool = True,
         verify_hash: bool = True,
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
-        cancel_event: Optional[Any] = None
+        cancel_event: Optional[Any] = None,
+        in_place: bool = False
     ) -> Dict[str, Any]:
         """
-        Restores files from a specific snapshot to target_dir.
-        Fix #6: Parallel multi-threaded restoration using ThreadPoolExecutor.
-        Fix #14: Path traversal check — all dest paths must remain under target_dir.
+        Restores files from a specific snapshot.
+        - If in_place=True: restores each file back to its original source_root location (multi-source safe).
+        - If in_place=False: restores all files into specified target_dir.
         """
         start_time = time.time()
         storage = BlobStorage(repo_dir)
@@ -32,8 +33,15 @@ class RestoreEngine:
         if not snapshot:
             raise FileNotFoundError(f"Snapshot {snapshot_id} not found.")
 
-        target_dir = os.path.abspath(target_dir)
-        os.makedirs(target_dir, exist_ok=True)
+        if not in_place:
+            if not target_dir:
+                raise ValueError("target_dir is required when in_place=False")
+            target_dir = os.path.abspath(target_dir)
+            os.makedirs(target_dir, exist_ok=True)
+            norm_target = target_dir
+            norm_target_prefix = norm_target if norm_target.endswith(os.sep) else norm_target + os.sep
+            norm_target_lower = norm_target.lower()
+            norm_target_prefix_lower = norm_target_prefix.lower()
 
         entries = snapshot.get("entries", [])
         to_restore = []
@@ -60,12 +68,6 @@ class RestoreEngine:
 
         num_workers = min(12, max(4, os.cpu_count() or 4))
 
-        # Strict boundary check with trailing separator
-        norm_target = os.path.abspath(target_dir)
-        norm_target_prefix = norm_target if norm_target.endswith(os.sep) else norm_target + os.sep
-        norm_target_lower = norm_target.lower()
-        norm_target_prefix_lower = norm_target_prefix.lower()
-
         def _restore_one(entry):
             if cancel_event and cancel_event.is_set():
                 return "cancelled", 0
@@ -78,12 +80,23 @@ class RestoreEngine:
             if not rel_path or not blob_id:
                 return "skip", 0
 
-            dest_path = os.path.normpath(os.path.join(target_dir, rel_path))
-            dest_lower = dest_path.lower()
-
-            # Fix: Strict case-insensitive path traversal protection with boundary prefix
-            if not (dest_lower == norm_target_lower or dest_lower.startswith(norm_target_prefix_lower)):
-                return ("fail", 0, rel_path, "경로 트래버설 차단: 대상 디렉토리 밖으로 복원 시도")
+            if in_place:
+                src_root = entry.get("source_root")
+                if not src_root:
+                    return ("fail", 0, rel_path, "스냅샷에 원본 경로(source_root) 정보가 없습니다.")
+                file_target_dir = os.path.abspath(src_root)
+                dest_path = os.path.normpath(os.path.join(file_target_dir, rel_path))
+                f_norm_target = file_target_dir
+                f_norm_prefix = f_norm_target if f_norm_target.endswith(os.sep) else f_norm_target + os.sep
+                dest_lower = dest_path.lower()
+                if not (dest_lower == f_norm_target.lower() or dest_lower.startswith(f_norm_prefix.lower())):
+                    return ("fail", 0, rel_path, "경로 트래버설 차단: 원본 디렉토리 밖으로 복원 시도")
+            else:
+                dest_path = os.path.normpath(os.path.join(target_dir, rel_path))
+                dest_lower = dest_path.lower()
+                # Strict case-insensitive path traversal protection with boundary prefix
+                if not (dest_lower == norm_target_lower or dest_lower.startswith(norm_target_prefix_lower)):
+                    return ("fail", 0, rel_path, "경로 트래버설 차단: 대상 디렉토리 밖으로 복원 시도")
 
             if os.path.exists(dest_path) and not overwrite:
                 return "skip", 0
@@ -159,7 +172,7 @@ class RestoreEngine:
         duration = time.time() - start_time
         return {
             "snapshot_id": snapshot_id,
-            "target_dir": target_dir,
+            "target_dir": target_dir if not in_place else "ORIGINAL_LOCATION",
             "total_files": total_files,
             "restored_files": restored_files,
             "skipped_files": skipped_files,

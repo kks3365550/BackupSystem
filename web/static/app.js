@@ -274,16 +274,24 @@ function renderExplorerTree(node, depth = 0) {
         const paddingLeft = d * 18;
         const icon = isDir ? 'folder' : 'file';
         const iconColor = isDir ? 'text-amber-400' : 'text-blue-400';
+        const itemRelPath = (item.rel_path || '').replace(/'/g, "\\'");
+        const itemName = (item.name || '').replace(/'/g, "\\'");
 
         let html = `
-            <div class="tree-node flex items-center justify-between py-1.5 px-3 rounded-lg text-xs cursor-pointer select-none" style="padding-left: ${paddingLeft + 12}px">
-                <div class="flex items-center gap-2 overflow-hidden">
+            <div class="tree-node flex items-center justify-between py-1.5 px-3 rounded-lg text-xs cursor-pointer select-none group" style="padding-left: ${paddingLeft + 12}px">
+                <div class="flex items-center gap-2 overflow-hidden flex-1 mr-2">
                     <i data-lucide="${icon}" class="w-4 h-4 ${iconColor} shrink-0"></i>
                     <span class="truncate font-medium ${isDir ? 'text-slate-200' : 'text-slate-300'}">${item.name}</span>
                 </div>
-                <div class="flex items-center gap-3 shrink-0 text-slate-500 text-[11px]">
+                <div class="flex items-center gap-2 shrink-0 text-slate-500 text-[11px]">
                     ${!isDir ? `<span>${formatBytes(item.size)}</span>` : ''}
                     ${!isDir && item.status ? `<span class="px-1.5 py-0.5 rounded text-[10px] ${item.status === 'new' ? 'bg-emerald-950 text-emerald-400' : item.status === 'modified' ? 'bg-amber-950 text-amber-400' : 'bg-slate-800 text-slate-400'}">${item.status}</span>` : ''}
+                    ${itemRelPath ? `
+                        <button type="button" onclick="event.stopPropagation(); openRestoreModal('${state.selectedSnapshot ? state.selectedSnapshot.id : ''}', '${itemRelPath}', '${itemName}', '${item.type}')" class="opacity-0 group-hover:opacity-100 px-2 py-0.5 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white rounded text-[10px] font-medium transition flex items-center gap-1 shadow" title="${isDir ? '이 폴더만 복원' : '이 파일만 복원'}">
+                            <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                            <span>복원</span>
+                        </button>
+                    ` : ''}
                 </div>
             </div>
         `;
@@ -329,20 +337,104 @@ async function deleteSnapshot(snapshotId) {
     }
 }
 
-// Restore Modal
-function openRestoreModal(snapshotId) {
+// Restore Modal Handler
+function openRestoreModal(snapshotId, targetRelPath = null, targetName = null, targetType = null) {
     document.getElementById('restore-snapshot-id').value = snapshotId;
     document.getElementById('restore-modal-title').innerText = `스냅샷 복원 (${snapshotId})`;
+
+    // Check if snapshot is in state
+    const snap = (state.snapshots || []).find(s => s.id === snapshotId) || state.selectedSnapshot;
+    const sources = (snap && snap.sources) ? snap.sources : [];
+
+    // Render original sources list
+    const sourcesContainer = document.getElementById('restore-original-sources-list');
+    if (sourcesContainer) {
+        if (sources.length > 0) {
+            sourcesContainer.innerHTML = sources.map(s => `<div class="truncate flex items-center gap-1.5"><i data-lucide="folder" class="w-3 h-3 text-amber-400 shrink-0"></i> ${s}</div>`).join('');
+        } else {
+            sourcesContainer.innerHTML = `<div class="text-slate-500">스냅샷에 기록된 원본 경로가 없습니다.</div>`;
+        }
+    }
+
+    // Handle selective restore mode if triggered from explorer
+    const selectivePathsInput = document.getElementById('restore-selected-paths');
+    const badgeEl = document.getElementById('restore-selective-badge');
+    const badgeTextEl = document.getElementById('restore-selective-text');
+
+    if (targetRelPath) {
+        if (selectivePathsInput) selectivePathsInput.value = JSON.stringify([targetRelPath]);
+        if (badgeEl && badgeTextEl) {
+            badgeEl.classList.remove('hidden');
+            const typeLabel = targetType === 'directory' ? '폴더' : '파일';
+            badgeTextEl.innerText = `선택 ${typeLabel} 복원: [${targetRelPath}]`;
+        }
+    } else {
+        clearSelectiveRestore();
+    }
+
+    // Default mode: Safe mode (checked)
+    const radioSafe = document.getElementById('restore-mode-safe');
+    if (radioSafe) {
+        radioSafe.checked = true;
+    }
+    toggleRestoreMode();
+
     openModal('restore-modal');
+    lucide.createIcons();
+}
+
+function clearSelectiveRestore() {
+    const selectivePathsInput = document.getElementById('restore-selected-paths');
+    const badgeEl = document.getElementById('restore-selective-badge');
+    if (selectivePathsInput) selectivePathsInput.value = '';
+    if (badgeEl) badgeEl.classList.add('hidden');
+}
+
+function toggleRestoreMode() {
+    const isInplace = document.getElementById('restore-mode-inplace')?.checked;
+    const warningEl = document.getElementById('restore-inplace-warning');
+    const targetDirContainer = document.getElementById('restore-target-dir-container');
+    const startBtn = document.getElementById('btn-start-restore');
+
+    if (isInplace) {
+        if (warningEl) warningEl.classList.remove('hidden');
+        if (targetDirContainer) targetDirContainer.classList.add('hidden');
+        if (startBtn) {
+            startBtn.classList.remove('bg-blue-600', 'hover:bg-blue-500');
+            startBtn.classList.add('bg-amber-600', 'hover:bg-amber-500');
+            const span = startBtn.querySelector('span');
+            if (span) span.innerText = '원래 위치로 즉시 롤백 시작';
+        }
+    } else {
+        if (warningEl) warningEl.classList.add('hidden');
+        if (targetDirContainer) targetDirContainer.classList.remove('hidden');
+        if (startBtn) {
+            startBtn.classList.remove('bg-amber-600', 'hover:bg-amber-500');
+            startBtn.classList.add('bg-blue-600', 'hover:bg-blue-500');
+            const span = startBtn.querySelector('span');
+            if (span) span.innerText = '새 폴더에 복원 시작';
+        }
+    }
+    lucide.createIcons();
 }
 
 async function startRestore() {
     const snapId = document.getElementById('restore-snapshot-id').value;
+    const isInplace = document.getElementById('restore-mode-inplace')?.checked;
     const targetDir = document.getElementById('restore-target-dir').value.trim();
     const overwrite = document.getElementById('restore-overwrite').checked;
+    const selectedPathsRaw = document.getElementById('restore-selected-paths')?.value;
+    let selectedRelPaths = null;
+    if (selectedPathsRaw) {
+        try {
+            selectedRelPaths = JSON.parse(selectedPathsRaw);
+        } catch (e) {
+            selectedRelPaths = null;
+        }
+    }
 
-    if (!targetDir) {
-        alert('복원할 대상 폴더 경로를 입력하세요.');
+    if (!isInplace && !targetDir) {
+        alert('새 폴더 복원 모드에서는 복원할 대상 폴더 경로를 입력해야 합니다.');
         return;
     }
 
@@ -355,8 +447,10 @@ async function startRestore() {
             method: 'POST',
             body: JSON.stringify({
                 snapshot_id: snapId,
-                target_dir: targetDir,
-                overwrite: overwrite
+                target_dir: isInplace ? null : targetDir,
+                overwrite: overwrite,
+                in_place: !!isInplace,
+                selected_rel_paths: selectedRelPaths
             })
         });
     } catch (e) {

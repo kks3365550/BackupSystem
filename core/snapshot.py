@@ -611,6 +611,7 @@ class SnapshotEngine:
                         curr["children"][part] = {
                             "name": part,
                             "type": "directory",
+                            "rel_path": "/".join(parts[:i+1]),
                             "children": {}
                         }
                     curr = curr["children"][part]
@@ -625,6 +626,7 @@ class SnapshotEngine:
                 return {
                     "name": node["name"],
                     "type": "directory",
+                    "rel_path": node.get("rel_path", ""),
                     "children": children_list
                 }
             return node
