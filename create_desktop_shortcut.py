@@ -19,17 +19,7 @@ if os.path.exists(desktop):
             except Exception:
                 pass
 
-# 2. Create high-reliability Web URL shortcut
-url_path = os.path.join(desktop, "백업시스템 대시보드.url")
-url_content = """[InternetShortcut]
-URL=http://127.0.0.1:8765
-IconIndex=259
-IconFile=C:\\Windows\\System32\\shell32.dll
-"""
-with open(url_path, "w", encoding="utf-8") as f:
-    f.write(url_content)
-
-# 3. Create .lnk batch shortcut via VBS
+# 2. Create single unified .lnk shortcut via VBS
 lnk_path = os.path.join(desktop, "백업시스템 대시보드.lnk")
 vbs = f'''
 Set sh = CreateObject("WScript.Shell")
