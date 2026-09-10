@@ -282,17 +282,18 @@ class BlobStorage:
             self._blob_cache.add(sha256_hash)
         return sha256_hash, orig_size, len(compressed), True
 
-    def extract_blob_to_file(self, sha256_hash: str, dest_filepath: str, verify_hash: bool = True) -> bool:
+    def extract_blob_to_file(self, sha256_hash: str, dest_filepath: str, verify_hash: bool = False, direct_write: bool = True) -> bool:
         """
         Decompresses blob directly to dest_filepath with HYBRID automatic format detection.
         Detects Zstandard vs zlib magic bytes with zero false-positives and fallbacks.
+        High-performance direct write avoids multiple NTFS metadata operations.
         """
         blob_path = self.get_blob_abs_path(sha256_hash)
         if not os.path.exists(blob_path):
             raise FileNotFoundError(f"Blob not found in repository: {sha256_hash}")
 
         os.makedirs(os.path.dirname(dest_filepath), exist_ok=True)
-        temp_dest = dest_filepath + ".restore.tmp"
+        target_dest = dest_filepath if direct_write else (dest_filepath + ".restore.tmp")
 
         # Check first 4 magic bytes
         with open(blob_path, "rb") as f_head:
@@ -303,6 +304,7 @@ class BlobStorage:
         # Decompress with appropriate engine + fallback
         success = False
         sha256 = hashlib.sha256() if verify_hash else None
+        buf_size = 262144
 
         # Attempt 1: primary detected engine
         for engine in ("zstd" if is_zstd else "zlib", "zlib" if is_zstd else "zstd"):
@@ -312,12 +314,12 @@ class BlobStorage:
                 if sha256:
                     sha256 = hashlib.sha256()
 
-                with open(blob_path, "rb") as fin, open(temp_dest, "wb") as fout:
+                with open(blob_path, "rb") as fin, open(target_dest, "wb") as fout:
                     if engine == "zstd":
                         dctx = zstd.ZstdDecompressor()
                         with dctx.stream_reader(fin) as reader:
                             while True:
-                                chunk = reader.read(1048576)
+                                chunk = reader.read(buf_size)
                                 if not chunk:
                                     break
                                 fout.write(chunk)
@@ -326,7 +328,7 @@ class BlobStorage:
                     else:
                         decompressor = zlib.decompressobj()
                         while True:
-                            chunk = fin.read(1048576)
+                            chunk = fin.read(buf_size)
                             if not chunk:
                                 break
                             decompressed_chunk = decompressor.decompress(chunk)
@@ -342,9 +344,9 @@ class BlobStorage:
                 success = True
                 break
             except Exception:
-                if os.path.exists(temp_dest):
+                if not direct_write and os.path.exists(target_dest):
                     try:
-                        os.remove(temp_dest)
+                        os.remove(target_dest)
                     except OSError:
                         pass
                 continue
@@ -353,25 +355,29 @@ class BlobStorage:
             raise RuntimeError(f"Failed to decompress blob '{sha256_hash}' using both zstd and zlib engines.")
 
         if verify_hash and sha256.hexdigest() != sha256_hash:
-            if os.path.exists(temp_dest):
-                os.remove(temp_dest)
+            if os.path.exists(target_dest):
+                try:
+                    os.remove(target_dest)
+                except OSError:
+                    pass
             raise ValueError(f"Hash verification failed for {dest_filepath} (Expected: {sha256_hash}, got {sha256.hexdigest()})")
 
-        import stat as stat_mod
-        if os.path.exists(dest_filepath):
+        if not direct_write:
+            import stat as stat_mod
+            if os.path.exists(dest_filepath):
+                try:
+                    os.chmod(dest_filepath, stat_mod.S_IWRITE)
+                    os.remove(dest_filepath)
+                except OSError:
+                    pass
             try:
-                os.chmod(dest_filepath, stat_mod.S_IWRITE)
-                os.remove(dest_filepath)
-            except OSError:
-                pass
-        try:
-            os.replace(temp_dest, dest_filepath)
-        except PermissionError:
-            try:
-                os.chmod(dest_filepath, stat_mod.S_IWRITE)
-                os.replace(temp_dest, dest_filepath)
-            except Exception:
-                raise
+                os.replace(target_dest, dest_filepath)
+            except PermissionError:
+                try:
+                    os.chmod(dest_filepath, stat_mod.S_IWRITE)
+                    os.replace(target_dest, dest_filepath)
+                except Exception:
+                    raise
         return True
 
     def read_blob_bytes(self, sha256_hash: str) -> bytes:

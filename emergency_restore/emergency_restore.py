@@ -44,13 +44,11 @@ def get_blob_path(repo_dir: str, sha256_hash: str) -> str:
     prefix = sha256_hash[:2]
     return os.path.join(repo_dir, "blobs", prefix, f"{sha256_hash}.blob")
 
-def extract_blob(blob_path: str, dest_path: str, expected_sha256: str, verify_hash: bool = True) -> bool:
+def extract_blob(blob_path: str, dest_path: str, expected_sha256: str, verify_hash: bool = False) -> bool:
     if not os.path.exists(blob_path):
         raise FileNotFoundError(f"Blob file not found: {blob_path}")
 
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-    temp_dest = dest_path + f".restore_tmp_{os.getpid()}_{os.urandom(3).hex()}"
-
     sha256 = hashlib.sha256() if verify_hash else None
 
     # Check magic byte for zstd (0x28 0xB5 0x2F 0xFD)
@@ -59,10 +57,10 @@ def extract_blob(blob_path: str, dest_path: str, expected_sha256: str, verify_ha
 
     is_zstd = (header == b"\x28\xb5\x2f\xfd")
 
-    # High speed 1MB streaming buffer
-    buf_size = 1048576
+    # Optimal streaming buffer
+    buf_size = 262144
 
-    with open(blob_path, "rb") as fin, open(temp_dest, "wb") as fout:
+    with open(blob_path, "rb") as fin, open(dest_path, "wb") as fout:
         if is_zstd:
             if zstd is None:
                 raise RuntimeError("이 백업 블롭은 Zstandard(zstd)로 압축되었습니다. 'pip install zstandard'를 실행해 주세요.")
@@ -93,20 +91,12 @@ def extract_blob(blob_path: str, dest_path: str, expected_sha256: str, verify_ha
                     sha256.update(tail)
 
     if verify_hash and sha256.hexdigest() != expected_sha256:
-        if os.path.exists(temp_dest):
-            try:
-                os.remove(temp_dest)
-            except OSError:
-                pass
-        raise ValueError(f"Hash mismatch for {dest_path}")
-
-    if os.path.exists(dest_path):
         try:
             os.remove(dest_path)
         except OSError:
             pass
+        raise ValueError(f"Hash mismatch for {dest_path}")
 
-    os.replace(temp_dest, dest_path)
     return True
 
 def get_candidate_repositories() -> List[str]:
@@ -181,7 +171,7 @@ def run_emergency_restore(
     target_override: Optional[str] = None,
     remap_user: bool = True,
     overwrite: bool = True,
-    verify_hash: bool = True,
+    verify_hash: bool = False,
     filter_keyword: Optional[str] = None
 ):
     print("=" * 70)
@@ -277,6 +267,7 @@ def run_emergency_restore(
         except Exception:
             return "fail", 0, None
 
+    last_print_time = 0.0
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
         futures = {executor.submit(_worker_restore, e): e for e in entries}
         for fut in concurrent.futures.as_completed(futures):
@@ -293,11 +284,14 @@ def run_emergency_restore(
                 elif status == "fail":
                     failed_count += 1
 
-                if processed_count % 100 == 0 or processed_count == total_to_process:
-                    elapsed = time.time() - start_time
+                now = time.time()
+                if (now - last_print_time >= 0.25) or (processed_count == total_to_process):
+                    last_print_time = now
+                    elapsed = now - start_time
                     speed = (restored_bytes / elapsed) if elapsed > 0 else 0
                     pct = (processed_count / total_to_process) * 100
-                    print(f"\r진행률: [{pct:5.1f}%] {processed_count:,}/{total_to_process:,} 파일 | 복원: {restored_count:,}건 ({format_bytes(restored_bytes)}) | 속도: {format_bytes(int(speed))}/s", end="", flush=True)
+                    sys.stdout.write(f"\r진행률: [{pct:5.1f}%] {processed_count:,}/{total_to_process:,} | {format_bytes(restored_bytes)} ({format_bytes(int(speed))}/s)   ")
+                    sys.stdout.flush()
 
     print()
     total_elapsed = time.time() - start_time
@@ -337,6 +331,7 @@ def main():
     parser.add_argument("--snapshot", "-s", type=str, default=None, help="복원할 스냅샷 ID 또는 파일 경로")
     parser.add_argument("--target", "-t", type=str, default=None, help="복원 대상 디렉토리 (미지정 시 백업 당시 원본 위치)")
     parser.add_argument("--filter", "-f", type=str, default=None, help="특정 파일/폴더 키워드 필터링 복원")
+    parser.add_argument("--verify", "-v", action="store_true", help="SHA-256 암호화 무결성 전수 검증 활성화 (기본값: False, 고속 모드)")
     args = parser.parse_args()
 
     candidates = get_candidate_repositories()
@@ -362,6 +357,7 @@ def main():
             repo_dir=repo_dir,
             snapshot_path=selected_snap["path"],
             target_override=args.target,
+            verify_hash=args.verify,
             filter_keyword=args.filter
         )
         return
@@ -391,6 +387,7 @@ def main():
         repo_dir=repo_dir,
         snapshot_path=selected_snap["path"],
         target_override=target,
+        verify_hash=args.verify,
         filter_keyword=args.filter
     )
 
