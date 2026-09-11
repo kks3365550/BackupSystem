@@ -13,9 +13,13 @@ echo ============================================================
 echo.
 
 set "PY_EXE="
-if exist "%~dp0.venv\Scripts\python.exe" set "PY_EXE=%~dp0.venv\Scripts\python.exe"
-if exist "%LOCALAPPDATA%\Python\pythoncore-3.14-64\python.exe" set "PY_EXE=%LOCALAPPDATA%\Python\pythoncore-3.14-64\python.exe"
-if exist "%LOCALAPPDATA%\Python\bin\python.exe" set "PY_EXE=%LOCALAPPDATA%\Python\bin\python.exe"
+if exist "%~dp0.venv\Scripts\python.exe" (
+    set "PY_EXE=%~dp0.venv\Scripts\python.exe"
+) else if exist "%LOCALAPPDATA%\Python\pythoncore-3.14-64\python.exe" (
+    set "PY_EXE=%LOCALAPPDATA%\Python\pythoncore-3.14-64\python.exe"
+) else if exist "%LOCALAPPDATA%\Python\bin\python.exe" (
+    set "PY_EXE=%LOCALAPPDATA%\Python\bin\python.exe"
+)
 
 if "!PY_EXE!"=="" (
     py -3 --version >nul 2>&1
@@ -30,6 +34,12 @@ if "!PY_EXE!"=="" (
     echo [!] 오류: Python 실행기를 찾을 수 없습니다.
     pause
     exit /b 1
+)
+
+"!PY_EXE!" -c "import uvicorn" >nul 2>&1
+if errorlevel 1 (
+    echo [*] 필수 패키지(uvicorn 등)를 자동으로 설치합니다...
+    "!PY_EXE!" -m pip install -r "%~dp0requirements.txt" --quiet --no-warn-script-location
 )
 
 echo [*] 기존 백그라운드 서버가 있다면 먼저 정리합니다...

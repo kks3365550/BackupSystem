@@ -8,7 +8,20 @@ import threading
 import subprocess
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-import uvicorn
+try:
+    import uvicorn
+except ImportError:
+    req_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
+    if os.path.exists(req_file):
+        print("[*] 필수 패키지(uvicorn 등)가 누락되어 자동으로 설치합니다...")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", req_file, "--quiet"])
+            import uvicorn
+        except Exception as e:
+            print(f"[!] 필수 패키지 자동 설치 실패: {e}")
+            raise
+    else:
+        raise
 from core.config import ConfigManager
 
 # Handle headless execution where stdin/stdout/stderr are None
