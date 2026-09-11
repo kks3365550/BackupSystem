@@ -44,11 +44,6 @@ finally:
         except Exception:
             pass
 
-# 4. Register in Windows Startup folder so dashboard daemon runs on boot automatically!
-startup_folder = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup")
-if os.path.exists(startup_folder) and os.path.exists(start_vbs):
-    shutil.copy2(start_vbs, os.path.join(startup_folder, "start_backup_daemon.vbs"))
-
-print("성공: 바탕화면에 '백업시스템 대시보드' 바로가기 및 부팅 시 자동실행 등록을 완료했습니다.")
+print("성공: 바탕화면에 '백업시스템 대시보드' 바로가기를 생성했습니다.")
 
 
