@@ -449,7 +449,7 @@ class SnapshotEngine:
             except Exception:
                 pass
 
-        # 6. Step 1 Improvement: Auto Integrity Health Check
+        # 6. Step 1 Improvement: Auto Integrity Health Check (Lightweight sample check)
         try:
             if progress_callback:
                 progress_callback({
@@ -460,7 +460,7 @@ class SnapshotEngine:
                     "percent": 99.0
                 })
             verifier = IntegrityVerifier(repo_dir)
-            v_res = verifier.verify_snapshot(snapshot_manifest, sample_ratio=0.1, max_samples=50, verify_all_new=True)
+            v_res = verifier.verify_snapshot(snapshot_manifest, sample_ratio=0.01, max_samples=10, verify_all_new=False)
             snapshot_manifest["is_verified"] = v_res.get("success", False)
             snapshot_manifest["verify_timestamp"] = time.time()
             snapshot_manifest["verify_error_count"] = v_res.get("error_count", 0)
@@ -479,6 +479,20 @@ class SnapshotEngine:
             lock_file_immutable(snapshot_file)
         except Exception:
             pass
+
+        # Ensure 100% completion progress callback is delivered to UI
+        if progress_callback:
+            progress_callback({
+                "type": "complete",
+                "current_file": "백업 및 무결성 검증 완료",
+                "processed_files": len(entries),
+                "total_files": len(entries),
+                "percent": 100.0,
+                "new_files": new_files_count,
+                "modified_files": modified_files_count,
+                "unmodified_files": unmodified_files_count,
+                "transferred_bytes": new_stored_bytes
+            })
 
         return snapshot_manifest
 

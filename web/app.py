@@ -480,15 +480,27 @@ def _background_custom_backup_task(params: Dict[str, Any]):
         # Save as profile if requested
         profile_id = "prof_custom_selected"
         if params.get("save_as_profile", True):
+            is_desktop = False
+            try:
+                import socket
+                hname = socket.gethostname().lower()
+                if "desktop" in hname or "r2pfnfp" in hname:
+                    is_desktop = True
+            except Exception:
+                pass
+
+            auto_enable = False if is_desktop else params.get("auto_backup_enabled", False)
+            sched_type = "manual" if is_desktop else params.get("schedule_type", "manual")
+
             prof = {
                 "id": profile_id,
                 "name": profile_name,
                 "sources": all_sources,
                 "repo_dir": repo_dir,
                 "exclude_patterns": excludes,
-                "schedule_type": "interval_hours",
-                "schedule_value": "12",
-                "auto_backup_enabled": True,
+                "schedule_type": sched_type,
+                "schedule_value": params.get("schedule_value", "12"),
+                "auto_backup_enabled": auto_enable,
                 "retention_count": 30,
                 "retention_days": 60,
                 "compression_level": 3
@@ -553,6 +565,9 @@ def _background_custom_backup_task(params: Dict[str, Any]):
         with task_lock:
             current_task["result"] = manifest_summary
             current_task["error"] = None
+            if current_task.get("progress"):
+                current_task["progress"]["percent"] = 100.0
+                current_task["progress"]["current_file"] = "선택 백업 작업 완료"
 
     except InterruptedError:
         append_task_log("사용자에 의해 백업 작업이 취소되었습니다.", level="WARNING")

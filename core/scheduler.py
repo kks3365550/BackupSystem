@@ -166,6 +166,7 @@ class BackupScheduler:
         except Exception as e:
             self._log(profile_name, f"백업 중 오류 발생: {str(e)}", level="ERROR")
             profile["last_status"] = "failed"
+            profile["last_run"] = time.time()
             ConfigManager.save_profile(profile)
             # Fix #4: Send KakaoTalk failure notification for scheduled auto-backup
             try:
