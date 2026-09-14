@@ -138,7 +138,10 @@ def export_universal_app_registry(app_name: str, publisher: str = "", dest_dir: 
                 idx += 1
                 cmd = ["reg", "export", full_reg_key, out_file, "/y"]
                 try:
-                    res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                    kwargs = {"capture_output": True, "text": True, "timeout": 5}
+                    if sys.platform.startswith("win"):
+                        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+                    res = subprocess.run(cmd, **kwargs)
                     if res.returncode == 0 and os.path.exists(out_file) and os.path.getsize(out_file) > 0:
                         exported_files.append(out_file)
                 except Exception:
@@ -162,7 +165,10 @@ def export_universal_app_registry(app_name: str, publisher: str = "", dest_dir: 
             out_file = os.path.join(dest, f"{file_prefix}_{clean_t}_{hive_tag}.reg")
             cmd = ["reg", "export", full_reg_key, out_file, "/y"]
             try:
-                res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                kwargs = {"capture_output": True, "text": True, "timeout": 5}
+                if sys.platform.startswith("win"):
+                    kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+                res = subprocess.run(cmd, **kwargs)
                 if res.returncode == 0 and os.path.exists(out_file) and os.path.getsize(out_file) > 0:
                     seen.add(full_reg_key)
                     exported_files.append(out_file)
@@ -176,7 +182,10 @@ def import_registry_file(reg_filepath: str) -> bool:
         return False
     cmd = ["reg", "import", os.path.abspath(reg_filepath)]
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True, encoding="cp949", errors="replace", timeout=15)
+        kwargs = {"capture_output": True, "text": True, "encoding": "cp949", "errors": "replace", "timeout": 15}
+        if sys.platform.startswith("win"):
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        res = subprocess.run(cmd, **kwargs)
         return res.returncode == 0
     except Exception:
         return False

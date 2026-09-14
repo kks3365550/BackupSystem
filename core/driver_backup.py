@@ -60,7 +60,10 @@ def export_windows_drivers(dest_dir: str, force: bool = False) -> Dict[str, Any]
 
     cmd = ["pnputil", "/export-driver", "*", dest_dir]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="cp949", errors="replace", timeout=180)
+        kwargs = {"capture_output": True, "text": True, "encoding": "cp949", "errors": "replace", "timeout": 180}
+        if sys.platform.startswith("win"):
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        proc = subprocess.run(cmd, **kwargs)
         
         driver_count = 0
         total_size = 0
@@ -104,7 +107,10 @@ def install_windows_drivers(drivers_dir: str) -> Dict[str, Any]:
     pattern = os.path.join(drivers_dir, "*.inf")
     cmd = ["pnputil", "/add-driver", pattern, "/subdirs", "/install"]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="cp949", errors="replace", timeout=300)
+        kwargs = {"capture_output": True, "text": True, "encoding": "cp949", "errors": "replace", "timeout": 300}
+        if sys.platform.startswith("win"):
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        proc = subprocess.run(cmd, **kwargs)
         success = proc.returncode in (0, 259, 3010)
         return {
             "success": success,

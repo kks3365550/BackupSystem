@@ -36,7 +36,10 @@ with open(tmp, "w", encoding="utf-16") as f:
     f.write(vbs.strip())
 
 try:
-    subprocess.run(["cscript", "//nologo", tmp], check=True)
+    kwargs = {"check": True}
+    if sys.platform.startswith("win"):
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+    subprocess.run(["cscript", "//nologo", tmp], **kwargs)
 finally:
     if os.path.exists(tmp):
         try:

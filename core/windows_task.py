@@ -27,7 +27,10 @@ def get_python_executable() -> str:
 def _run_schtasks_cmd(cmd_list: list, timeout: int = 15) -> tuple[int, str, str]:
     """Safely executes schtasks with robust byte-level cp949/utf-8 decoding."""
     try:
-        proc = subprocess.run(cmd_list, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+        kwargs = {"stdout": subprocess.PIPE, "stderr": subprocess.PIPE, "timeout": timeout}
+        if sys.platform.startswith("win"):
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        proc = subprocess.run(cmd_list, **kwargs)
         out_bytes = proc.stdout or b""
         err_bytes = proc.stderr or b""
 
