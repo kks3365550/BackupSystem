@@ -350,30 +350,68 @@ class SnapshotEngine:
                 }, False, 0, "error", str(ex)
 
         if files_to_process_parallel:
+            # --- SOLUTION 3: Sliding Window Batch Scheduler ---
+            # Instead of dumping all 220,000 futures into memory at once (causing massive GIL/memory pressure),
+            # maintain a sliding window of active futures (up to 4000 items).
+            BATCH_WINDOW_SIZE = 4000
+            last_progress_report = 0.0
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-                futures = {executor.submit(_worker_process_file, it): it for it in files_to_process_parallel}
-                for fut in concurrent.futures.as_completed(futures):
+                items_iter = iter(files_to_process_parallel)
+                active_futures = {}
+
+                # Pre-fill sliding window
+                for item in items_iter:
+                    fut = executor.submit(_worker_process_file, item)
+                    active_futures[fut] = item
+                    if len(active_futures) >= BATCH_WINDOW_SIZE:
+                        break
+
+                while active_futures:
                     if cancel_event and cancel_event.is_set():
                         executor.shutdown(wait=False, cancel_futures=True)
                         raise InterruptedError("Backup operation was cancelled by user.")
 
-                    entry, is_new, stored_sz, st, err = fut.result()
-                    with lock:
-                        processed_files_count += 1
-                        entries.append(entry)
-                        if is_new:
-                            new_stored_bytes += stored_sz
-                            new_blobs_count += 1  # Fix #11: only count genuinely new unique blobs
-                        if st == "new":
-                            new_files_count += 1
-                        elif st == "modified":
-                            modified_files_count += 1
+                    # Wait for at least one worker to finish
+                    done, _ = concurrent.futures.wait(
+                        active_futures.keys(),
+                        return_when=concurrent.futures.FIRST_COMPLETED
+                    )
 
-                        if progress_callback and (processed_files_count % 5 == 0 or processed_files_count == total_files_count):
+                    # Consume completed futures and feed next batch items into window
+                    for fut in done:
+                        del active_futures[fut]
+                        try:
+                            next_item = next(items_iter)
+                            new_fut = executor.submit(_worker_process_file, next_item)
+                            active_futures[new_fut] = next_item
+                        except StopIteration:
+                            pass
+
+                        entry, is_new, stored_sz, st, err = fut.result()
+                        with lock:
+                            processed_files_count += 1
+                            entries.append(entry)
+                            if is_new:
+                                new_stored_bytes += stored_sz
+                                new_blobs_count += 1
+                            if st == "new":
+                                new_files_count += 1
+                            elif st == "modified":
+                                modified_files_count += 1
+
+                        # Throttled progress callback (every 100 files or 0.15s interval, and 100% completion)
+                        now = time.time()
+                        should_report = (
+                            processed_files_count == total_files_count or
+                            (processed_files_count % 100 == 0 and now - last_progress_report >= 0.15)
+                        )
+                        if progress_callback and should_report:
+                            last_progress_report = now
                             pct = round((processed_files_count / max(1, total_files_count)) * 100, 1)
                             progress_callback({
                                 "type": "progress",
-                                "current_file": f"[{num_workers}코어 병렬가속] {entry.get('rel_path', '')}",
+                                "current_file": f"[{num_workers}코어 슬라이딩윈도우] {entry.get('rel_path', '')}",
                                 "processed_files": processed_files_count,
                                 "total_files": total_files_count,
                                 "percent": pct,
