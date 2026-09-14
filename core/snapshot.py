@@ -87,12 +87,32 @@ class SnapshotEngine:
                     with os.scandir(curr_dir) as it:
                         for entry in it:
                             try:
+                                is_reparse = False
+                                st = None
+                                try:
+                                    st = entry.stat(follow_symlinks=False)
+                                    attrs = getattr(st, 'st_file_attributes', 0)
+                                    is_reparse = bool(attrs & 0x400) or entry.is_symlink()
+                                except OSError:
+                                    pass
+
                                 if entry.is_dir(follow_symlinks=False):
-                                    if not path_filter.is_excluded(entry.path, is_dir=True):
-                                        sub_dirs.append(entry.path)
+                                    if is_reparse:
+                                        # Directory Junction or Symlink: do not recurse into it to prevent circular loops
+                                        if not path_filter.is_excluded(entry.path, is_dir=True):
+                                            if entry.path.startswith(src_root):
+                                                rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')
+                                            else:
+                                                rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')
+                                            mtime = st.st_mtime if st else time.time()
+                                            found_files.append((entry.path, src_root, rel_path, 0, mtime))
+                                    else:
+                                        if not path_filter.is_excluded(entry.path, is_dir=True):
+                                            sub_dirs.append(entry.path)
                                 elif entry.is_file(follow_symlinks=False):
                                     if not path_filter.is_excluded(entry.path, is_dir=False):
-                                        st = entry.stat(follow_symlinks=False)
+                                        if st is None:
+                                            st = entry.stat(follow_symlinks=False)
                                         # Fix: Fast prefix slicing instead of expensive os.path.relpath
                                         if entry.path.startswith(src_root):
                                             rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')

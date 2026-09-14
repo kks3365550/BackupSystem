@@ -368,6 +368,21 @@ def run_emergency_restore(
         else:
             print("    (필요 시 'pnputil /add-driver <경로>\\*.inf /subdirs /install' 명령으로 설치 가능)")
 
+    # Post-restore: Refresh desktop shortcuts & links so they connect validly without breaking
+    try:
+        candidates = [
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "create_desktop_shortcut.py"),
+            r"C:\Users\kksjmj\Desktop\ai\백업시스템\create_desktop_shortcut.py"
+        ]
+        for cs in candidates:
+            if os.path.exists(cs):
+                import subprocess
+                subprocess.run([sys.executable, cs], capture_output=True, timeout=10)
+                print("[*] 바탕화면 바로가기 링크 복원 및 유효성 재연결 완료!")
+                break
+    except Exception:
+        pass
+
 
 def main():
     import argparse

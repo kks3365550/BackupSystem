@@ -190,6 +190,16 @@ class RestoreEngine:
             except Exception:
                 pass
 
+        # Post-restore: Refresh desktop shortcuts & links to guarantee no broken links
+        try:
+            proj_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            shortcut_script = os.path.join(proj_dir, "create_desktop_shortcut.py")
+            if os.path.exists(shortcut_script):
+                import subprocess, sys
+                subprocess.run([sys.executable, shortcut_script], capture_output=True, timeout=10)
+        except Exception:
+            pass
+
         duration = time.time() - start_time
         return {
             "snapshot_id": snapshot_id,

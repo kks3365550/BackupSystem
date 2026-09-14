@@ -3,8 +3,9 @@ import os
 from typing import List, Optional, Set
 
 DEFAULT_EXCLUDE_PATTERNS = [
-    # Windows system files and caches
+    # 1. Windows system files & OS memory/swap
     "$RECYCLE.BIN",
+    "$Recycle.Bin",
     "System Volume Information",
     "pagefile.sys",
     "hiberfil.sys",
@@ -12,28 +13,68 @@ DEFAULT_EXCLUDE_PATTERNS = [
     "DumpStack.log.tmp",
     "Thumbs.db",
     "desktop.ini",
-    # Temp files and lock files
+    "*.etl",
+    "LiveKernelReports",
+
+    # 2. Backup repositories & recursion guards (CRITICAL)
+    "WindowsImageBackup",
+    "MyBackup_Repository",
+    "backup_repository",
+    "emergency_restore",
+    "*.blob",
+
+    # 3. Temp files, locks, and incomplete downloads
     "*.tmp",
     "*.temp",
     "*.lock",
     "*~*",
+    "~$*",              # Office temporary lock files (e.g. ~$Document.docx)
+    "*.crdownload",     # Chrome incomplete download
+    "*.part",           # Firefox incomplete download
+    "*.swp",
+    "*.swo",
+
+    # 4. Crash reports & memory dumps
     "*.dmp",
-    # Crash reports and telemetry
+    "*.mdmp",
+    "*.hdmp",
+    "CrashDumps",
     "*Crashpad*",
     "*CrashReporting*",
     "*crash_reports*",
-    # Browser / App caches
+
+    # 5. Windows Update & System Caches
+    "SoftwareDistribution",
+    "DeliveryOptimization",
+    "INetCache",
+    "*thumbcache*.db",
+
+    # 6. Browser & Application Caches
     "*Cache*",
     "*GPUCache*",
     "*Code Cache*",
     "*ShaderCache*",
-    # Development / Cache folders
+    "*CacheStorage*",
+    "*Service Worker*",
+    "*blob_storage*",
+
+    # 7. Package manager & build caches
+    "pip/cache",
+    "npm-cache",
+    "yarn-cache",
+    "Package Cache",
+    ".gradle/caches",
+    ".m2/repository",
+    ".nuget/packages",
     "__pycache__",
     "*.pyc",
+    "*.pyo",
     ".git",
     "node_modules",
     ".cache",
     ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
     ".venv",
     "venv",
     "env",
@@ -41,10 +82,17 @@ DEFAULT_EXCLUDE_PATTERNS = [
     "build",
     ".next",
     ".nuxt",
-    # Massive VM / Disk images that should be excluded from file-level backup
+    ".turbo",
+    ".parcel-cache",
+
+    # 8. Massive VM / Disk images & installer ISOs
+    "*.iso",
     "*.vhdx",
     "*.vmdk",
-    "*.vdi"
+    "*.vdi",
+    "*.qcow2",
+    "*userdata*.img",
+    "*system*.img"
 ]
 
 class PathFilter:
