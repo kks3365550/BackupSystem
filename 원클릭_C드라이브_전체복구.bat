@@ -1,48 +1,41 @@
 @echo off
-setlocal
-title [±ä±Þ ºñ»ó ÀçÇØ º¹±¸] ¿øÅ¬¸¯ Cµå¶óÀÌºê ÀüÃ¼ ÀÚµ¿ º¹±¸
+chcp 65001 > nul
+title ê¸´ê¸‰ ë¹„ìƒ ìž¬í•´ ë³µêµ¬ - ì›í´ë¦­ Cë“œë¼ì´ë¸Œ ì „ì²´ ë³µêµ¬
 
-:: °ü¸®ÀÚ ±ÇÇÑ È®ÀÎ ¹× ÀÚµ¿ ½Â°Ý
+:: ê´€ë¦¬ìž ê¶Œí•œ í™•ì¸ ë° ìžë™ ìŠ¹ê²©
 openfiles >nul 2>&1
 if '%errorlevel%' NEQ '0' (
-    echo [¾È³»] Cµå¶óÀÌºê ½Ã½ºÅÛ ¹× »ç¿ëÀÚ Æú´õ º¹±¸¸¦ À§ÇØ °ü¸®ÀÚ ±ÇÇÑÀ¸·Î ½Â°ÝÇÕ´Ï´Ù...
+    echo [ì•ˆë‚´] Cë“œë¼ì´ë¸Œ ì‹œìŠ¤í…œ ë° ì‚¬ìš©ìž í´ë” ë³µêµ¬ë¥¼ ìœ„í•´ ê´€ë¦¬ìž ê¶Œí•œìœ¼ë¡œ ìŠ¹ê²©í•©ë‹ˆë‹¤...
     powershell -Command "Start-Process '%~f0' -Verb RunAs"
     exit /b
 )
 
 cd /d "%~dp0"
-set "PY_EXE="
-if exist "%~dp0.venv\Scripts\python.exe" set "PY_EXE=%~dp0.venv\Scripts\python.exe"
-if exist "%~dp0emergency_restore\python\python.exe" set "PY_EXE=%~dp0emergency_restore\python\python.exe"
-if "%PY_EXE%"=="" (
+set "REPO_DIR=%~dp0"
+set "EMERGENCY_DIR=%REPO_DIR%emergency_restore"
+set "PY_EXE=%EMERGENCY_DIR%\python\python.exe"
+
+if not exist "%PY_EXE%" (
     where python >nul 2>&1
-    if not errorlevel 1 (
+    if '%errorlevel%' EQU '0' (
         set "PY_EXE=python"
     ) else (
-        echo [¿À·ù] ÆÄÀÌ½ã È¯°æÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù. ÆÄÀÌ½ãÀÌ ¼³Ä¡µÇ¾î ÀÖ´ÂÁö È®ÀÎÇÏ¼¼¿ä.
+        echo [ì˜¤ë¥˜] ë…ë¦½ íŒŒì´ì¬ í™˜ê²½ì„ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤: %PY_EXE%
         pause
         exit /b 1
     )
 )
 
-set "PY_SCRIPT=%~dp0emergency_restore.py"
-if not exist "%PY_SCRIPT%" (
-    if exist "%~dp0emergency_restore\emergency_restore.py" (
-        set "PY_SCRIPT=%~dp0emergency_restore\emergency_restore.py"
-    )
-)
-
 echo ======================================================================
-echo   [*] ¿øÅ¬¸¯ Cµå¶óÀÌºê ÀüÃ¼ ÀÚµ¿ º¹±¸
+echo   ðŸ›¡ï¸  ì›í´ë¦­ Cë“œë¼ì´ë¸Œ ì „ì²´ ìžë™ ë³µêµ¬
 echo ======================================================================
-echo  - ¹é¾÷ ÀúÀå¼ÒÀÇ °¡Àå ÃÖ½Å ½º³À¼¦À» ¿øº» Cµå¶óÀÌºê °æ·Î·Î º¹¿øÇÕ´Ï´Ù.
-echo  - ÇÁ·Î±×·¥, ¼Ò½ºÄÚµå, µå¶óÀÌ¹ö, ·¹Áö½ºÆ®¸®, ¹ÙÅÁÈ­¸é ÆÄÀÏÀÌ º¹±¸µË´Ï´Ù.
+echo  - ë°±ì—… ì €ìž¥ì†Œì˜ ê°€ìž¥ ìµœì‹  ìŠ¤ëƒ…ìƒ·ì„ ì›ë³¸ Cë“œë¼ì´ë¸Œ ê²½ë¡œë¡œ ë³µì›í•©ë‹ˆë‹¤.
+echo  - í”„ë¡œê·¸ëž¨, ì†ŒìŠ¤ì½”ë“œ, ë“œë¼ì´ë²„, ë ˆì§€ìŠ¤íŠ¸ë¦¬, ë°”íƒ•í™”ë©´ íŒŒì¼ì´ ë³µêµ¬ë©ë‹ˆë‹¤.
 echo ======================================================================
 echo.
 
-"%PY_EXE%" "%PY_SCRIPT%" --auto
+"%PY_EXE%" "%EMERGENCY_DIR%\emergency_restore.py" --auto
 
 echo.
-echo º¹±¸ ÀÛ¾÷ÀÌ Á¾·áµÇ¾ú½À´Ï´Ù.
+echo ë³µêµ¬ ìž‘ì—…ì´ ì¢…ë£Œë˜ì—ˆìŠµë‹ˆë‹¤.
 pause
-

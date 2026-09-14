@@ -115,6 +115,29 @@ def sync_install_directories():
                     pass
         print(f"      Synced to: {target}")
 
+    # Also sync emergency disaster recovery kit to D:\MyBackup_Repository if it exists
+    repo_backup = r"D:\MyBackup_Repository"
+    if os.path.exists(repo_backup):
+        emerg_src = os.path.join(BASE_DIR, 'emergency_restore')
+        if os.path.exists(emerg_src):
+            subprocess.run(['robocopy', emerg_src, os.path.join(repo_backup, 'emergency_restore'), '/E', '/MIR'], capture_output=True)
+        recovery_files = [
+            "원클릭_C드라이브_전체복구.bat",
+            "선택복구_대화형.bat",
+            "Restore_Full_C_Drive.bat",
+            "Restore_Interactive.bat",
+            "README_재해복구_가이드.txt"
+        ]
+        for rf in recovery_files:
+            rf_src = os.path.join(BASE_DIR, rf)
+            if os.path.exists(rf_src):
+                try:
+                    with open(rf_src, 'rb') as f_in, open(os.path.join(repo_backup, rf), 'wb') as f_out:
+                        f_out.write(f_in.read())
+                except Exception:
+                    pass
+        print(f"      Synced Disaster Recovery Kit to: {repo_backup}")
+
 def build_self_extracting_updater(version: str) -> str:
     print("[4/5] Building standalone self-extracting updater...")
     buf = io.BytesIO()
