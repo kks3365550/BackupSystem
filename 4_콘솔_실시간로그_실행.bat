@@ -38,7 +38,7 @@ if "!PY_EXE!"=="" (
 
 "!PY_EXE!" -c "import uvicorn" >nul 2>&1
 if errorlevel 1 (
-    echo [*] 필수 패키지(uvicorn 등)를 자동으로 설치합니다...
+    echo [*] 필수 패키지 [uvicorn 등] 를 자동으로 설치합니다...
     "!PY_EXE!" -m pip install -r "%~dp0requirements.txt" --quiet --no-warn-script-location
 )
 

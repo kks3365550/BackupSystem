@@ -18,16 +18,27 @@ if '%errorlevel%' NEQ '0' (
 cd /d "%~dp0"
 set "REPO_DIR=%~dp0"
 set "EMERGENCY_DIR=%REPO_DIR%emergency_restore"
-set "PY_EXE=%EMERGENCY_DIR%\\python\\python.exe"
 
-if not exist "%PY_EXE%" (
+set "PY_EXE="
+if exist "%EMERGENCY_DIR%\\python\\python.exe" (
+    set "PY_EXE=%EMERGENCY_DIR%\\python\\python.exe"
+) else if exist "%REPO_DIR%.venv\\Scripts\\python.exe" (
+    set "PY_EXE=%REPO_DIR%.venv\\Scripts\\python.exe"
+) else (
     where python >nul 2>&1
     if '%errorlevel%' EQU '0' (
         set "PY_EXE=python"
     ) else (
-        echo [오류] 독립 파이썬 환경을 찾을 수 없습니다: %PY_EXE%
+        echo [오류] 파이썬 실행기를 찾을 수 없습니다.
         pause
         exit /b 1
+    )
+)
+
+set "PY_SCRIPT=%EMERGENCY_DIR%\\emergency_restore.py"
+if not exist "%PY_SCRIPT%" (
+    if exist "%REPO_DIR%emergency_restore.py" (
+        set "PY_SCRIPT=%REPO_DIR%emergency_restore.py"
     )
 )
 
@@ -39,7 +50,7 @@ echo  - 프로그램, 소스코드, 드라이버, 레지스트리, 바탕화면 
 echo ======================================================================
 echo.
 
-"%PY_EXE%" "%EMERGENCY_DIR%\\emergency_restore.py" --auto
+"%PY_EXE%" "%PY_SCRIPT%" --auto
 
 echo.
 echo 복구 작업이 종료되었습니다.
@@ -61,21 +72,35 @@ if '%errorlevel%' NEQ '0' (
 cd /d "%~dp0"
 set "REPO_DIR=%~dp0"
 set "EMERGENCY_DIR=%REPO_DIR%emergency_restore"
-set "PY_EXE=%EMERGENCY_DIR%\\python\\python.exe"
 
-if not exist "%PY_EXE%" (
+set "PY_EXE="
+if exist "%EMERGENCY_DIR%\\python\\python.exe" (
+    set "PY_EXE=%EMERGENCY_DIR%\\python\\python.exe"
+) else if exist "%REPO_DIR%.venv\\Scripts\\python.exe" (
+    set "PY_EXE=%REPO_DIR%.venv\\Scripts\\python.exe"
+) else (
     where python >nul 2>&1
     if '%errorlevel%' EQU '0' (
         set "PY_EXE=python"
     ) else (
-        echo [오류] 독립 파이썬 환경을 찾을 수 없습니다: %PY_EXE%
+        echo [오류] 파이썬 실행기를 찾을 수 없습니다.
         pause
         exit /b 1
     )
 )
 
-"%PY_EXE%" "%EMERGENCY_DIR%\\emergency_restore.py"
+set "PY_SCRIPT=%EMERGENCY_DIR%\\emergency_restore.py"
+if not exist "%PY_SCRIPT%" (
+    if exist "%REPO_DIR%emergency_restore.py" (
+        set "PY_SCRIPT=%REPO_DIR%emergency_restore.py"
+    )
+)
 
+"%PY_EXE%" "%PY_SCRIPT%"
+
+echo.
+echo 복구 작업이 종료되었습니다.
+pause
 """
 
 readme_text = """======================================================================
@@ -109,11 +134,12 @@ C드라이브 포맷 및 윈도우 재설치 시 다음과 같이 복구하시�
 """
 
 for target_dir in [repo_dir, proj_dir]:
-    with open(os.path.join(target_dir, "원클릭_C드라이브_전체복구.bat"), "w", encoding="utf-8") as f:
-        f.write(bat_auto)
-    with open(os.path.join(target_dir, "선택복구_대화형.bat"), "w", encoding="utf-8") as f:
-        f.write(bat_interactive)
-    with open(os.path.join(target_dir, "README_재해복구_가이드.txt"), "w", encoding="utf-8") as f:
-        f.write(readme_text)
+    if os.path.exists(target_dir):
+        with open(os.path.join(target_dir, "원클릭_C드라이브_전체복구.bat"), "w", encoding="utf-8") as f:
+            f.write(bat_auto)
+        with open(os.path.join(target_dir, "선택복구_대화형.bat"), "w", encoding="utf-8") as f:
+            f.write(bat_interactive)
+        with open(os.path.join(target_dir, "README_재해복구_가이드.txt"), "w", encoding="utf-8") as f:
+            f.write(readme_text)
 
 print("Emergency restore bat files and guides generated successfully!")

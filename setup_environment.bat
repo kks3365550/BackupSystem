@@ -30,7 +30,7 @@ if "!PY_CMD!"=="" (
 )
 
 if "!PY_CMD!"=="" (
-    echo [오류] 파이썬(Python 3.9 이상)이 시스템에 설치되어 있지 않습니다.
+    echo [오류] 파이썬 [Python 3.9 이상] 이 시스템에 설치되어 있지 않습니다.
     echo 파이썬 공식 다운로드 페이지를 엽니다...
     start https://www.python.org/downloads/
     echo.
@@ -45,16 +45,16 @@ if "!PY_CMD!"=="" (
 echo [1/3] 파이썬 감지 완료: !PY_CMD!
 echo.
 
-:: 2. 가상환경 (.venv) 확인 및 생성 시도
+:: 2. 가상환경 [.venv] 확인 및 생성 시도
 set "TARGET_PY="
 if exist ".venv\Scripts\python.exe" (
-    echo [2/3] 가상환경(.venv)이 이미 준비되어 있습니다.
+    echo [2/3] 가상환경 [.venv] 이 이미 준비되어 있습니다.
     set "TARGET_PY=%~dp0.venv\Scripts\python.exe"
 ) else (
-    echo [2/3] 독립 가상환경(.venv) 생성 시도 중...
+    echo [2/3] 독립 가상환경 [.venv] 생성 시도 중...
     !PY_CMD! -m venv .venv >nul 2>&1
     if exist ".venv\Scripts\python.exe" (
-        echo     가상환경(.venv) 생성 성공!
+        echo     가상환경 [.venv] 생성 성공!
         set "TARGET_PY=%~dp0.venv\Scripts\python.exe"
     ) else (
         echo     [알림] 가상환경 생성을 건너뛰고 시스템 파이썬을 직접 사용합니다.
