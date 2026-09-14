@@ -10,6 +10,9 @@ from typing import Dict, List, Any, Optional, Callable, Tuple
 from core.hasher import calculate_sha256, get_file_stat
 from core.filter import PathFilter
 from core.storage import BlobStorage, lock_file_immutable, unlock_file_writable, get_disk_free_gb
+from core.lock import BackupLock, BackupAlreadyRunningError
+from core.verify import IntegrityVerifier
+from core.retention import RetentionManager
 
 class SnapshotEngine:
     @staticmethod
@@ -163,6 +166,33 @@ class SnapshotEngine:
 
     @classmethod
     def create_snapshot(
+        cls,
+        repo_dir: str,
+        sources: List[str],
+        profile_id: str = "default",
+        profile_name: str = "Default Backup",
+        exclude_patterns: Optional[List[str]] = None,
+        compress_level: int = 6,
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+        cancel_event: Optional[Any] = None,
+        min_free_disk_gb: Optional[float] = None
+    ) -> Dict[str, Any]:
+        # 0. Acquire repository lock to prevent concurrent backup runs
+        with BackupLock(repo_dir, timeout_sec=1.0, process_desc=f"{profile_name} ({profile_id})"):
+            return cls._create_snapshot_internal(
+                repo_dir=repo_dir,
+                sources=sources,
+                profile_id=profile_id,
+                profile_name=profile_name,
+                exclude_patterns=exclude_patterns,
+                compress_level=compress_level,
+                progress_callback=progress_callback,
+                cancel_event=cancel_event,
+                min_free_disk_gb=min_free_disk_gb
+            )
+
+    @classmethod
+    def _create_snapshot_internal(
         cls,
         repo_dir: str,
         sources: List[str],
@@ -419,6 +449,37 @@ class SnapshotEngine:
             except Exception:
                 pass
 
+        # 6. Step 1 Improvement: Auto Integrity Health Check
+        try:
+            if progress_callback:
+                progress_callback({
+                    "type": "verify",
+                    "current_file": "백업 무결성 자동 검증(Health Check) 수행 중...",
+                    "processed_files": len(entries),
+                    "total_files": len(entries),
+                    "percent": 99.0
+                })
+            verifier = IntegrityVerifier(repo_dir)
+            v_res = verifier.verify_snapshot(snapshot_manifest, sample_ratio=0.1, max_samples=50, verify_all_new=True)
+            snapshot_manifest["is_verified"] = v_res.get("success", False)
+            snapshot_manifest["verify_timestamp"] = time.time()
+            snapshot_manifest["verify_error_count"] = v_res.get("error_count", 0)
+
+            # Update DB with verified status
+            storage.db.update_snapshot_verification(
+                snapshot_id=snapshot_id,
+                is_verified=v_res.get("success", False),
+                error_count=v_res.get("error_count", 0)
+            )
+
+            # Re-save manifest with verification tag
+            unlock_file_writable(snapshot_file)
+            with open(snapshot_file, "w", encoding="utf-8") as f:
+                json.dump(snapshot_manifest, f, indent=None, separators=(',', ':'), ensure_ascii=False)
+            lock_file_immutable(snapshot_file)
+        except Exception:
+            pass
+
         return snapshot_manifest
 
     @classmethod
@@ -533,46 +594,24 @@ class SnapshotEngine:
         return deleted
 
     @classmethod
-    def prune_snapshots(cls, repo_dir: str, retention_count: Optional[int] = None, max_age_days: Optional[int] = None) -> List[str]:
-        """Prunes old snapshots based on retention policy and deletes unreferenced blobs."""
+    def prune_snapshots(
+        cls,
+        repo_dir: str,
+        retention_count: Optional[int] = None,
+        max_age_days: Optional[int] = None,
+        min_free_gb: Optional[float] = None
+    ) -> List[str]:
+        """Prunes old snapshots based on retention policy and deletes unreferenced blobs using RetentionManager."""
         try:
-            snapshots = cls.list_snapshots(repo_dir)
+            mgr = RetentionManager(repo_dir)
+            res = mgr.apply_policy(
+                retention_count=retention_count or 30,
+                retention_days=max_age_days or 60,
+                min_free_gb=min_free_gb
+            )
+            return res.get("deleted_snapshots", [])
         except Exception:
             return []
-
-        deleted_ids = []
-
-        if retention_count and len(snapshots) > retention_count:
-            # list is sorted newest first, so anything beyond retention_count should be removed
-            to_delete = snapshots[retention_count:]
-            for s in to_delete:
-                try:
-                    if cls.delete_snapshot(repo_dir, s["id"], prune_orphaned_blobs=False):
-                        deleted_ids.append(s["id"])
-                except Exception:
-                    pass
-
-        if max_age_days:
-            cutoff_ts = time.time() - (max_age_days * 86400)
-            try:
-                remaining_snapshots = cls.list_snapshots(repo_dir)
-                for s in remaining_snapshots:
-                    if s.get("created_at", 0) < cutoff_ts:
-                        try:
-                            if cls.delete_snapshot(repo_dir, s["id"], prune_orphaned_blobs=False):
-                                deleted_ids.append(s["id"])
-                        except Exception:
-                            pass
-            except Exception:
-                pass
-
-        if deleted_ids:
-            try:
-                cls.prune_storage(repo_dir)
-            except Exception:
-                pass
-
-        return deleted_ids
 
     @classmethod
     def prune_storage(cls, repo_dir: str) -> Dict[str, int]:

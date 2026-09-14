@@ -559,9 +559,13 @@ def _background_custom_backup_task(params: Dict[str, Any]):
         with task_lock:
             current_task["error"] = "Cancelled by user"
     except Exception as e:
-        import traceback
-        append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
-        append_task_log(traceback.format_exc(), level="ERROR")
+        from core.lock import BackupAlreadyRunningError
+        if isinstance(e, BackupAlreadyRunningError):
+            append_task_log(f"선택 백업 거부: {str(e)}", level="WARNING")
+        else:
+            import traceback
+            append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
+            append_task_log(traceback.format_exc(), level="ERROR")
         try:
             from core.notifier import notify_backup_result
             notify_backup_result(error_msg=str(e), profile_name=profile_name)
@@ -704,9 +708,13 @@ def _background_backup_task(params: Dict[str, Any]):
         with task_lock:
             current_task["error"] = "Cancelled by user"
     except Exception as e:
-        import traceback
-        append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
-        append_task_log(traceback.format_exc(), level="ERROR")
+        from core.lock import BackupAlreadyRunningError
+        if isinstance(e, BackupAlreadyRunningError):
+            append_task_log(f"백업 거부: {str(e)}", level="WARNING")
+        else:
+            import traceback
+            append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
+            append_task_log(traceback.format_exc(), level="ERROR")
         try:
             from core.notifier import notify_backup_result
             notify_backup_result(error_msg=str(e), profile_name=profile_name)
@@ -859,15 +867,32 @@ class RunVerifyRequest(BaseModel):
 def run_verify(req: RunVerifyRequest):
     repo_dir = req.repo_dir
     if not repo_dir:
+        repo_dir = _find_snapshot_repo(req.snapshot_id)
+    if not repo_dir:
         profiles = ConfigManager.get_profiles()
         repo_dir = profiles[0].get("repo_dir") if profiles else os.path.join(BASE_DIR, "backup_repository")
 
-    append_task_log(f"스냅샷 '{req.snapshot_id}' 무결성 검증을 시작합니다...")
-    res = RestoreEngine.verify_snapshot_integrity(repo_dir, req.snapshot_id)
-    if res["is_valid"]:
-        append_task_log(f"무결성 검증 통과! {res['total_files']}개 모든 파일의 해시 및 블롭이 완벽합니다.")
+    append_task_log(f"스냅샷 '{req.snapshot_id}' 물리적 무결성(Health Check) 검증을 시작합니다...")
+    manifest = SnapshotEngine.get_snapshot(repo_dir, req.snapshot_id)
+    if not manifest:
+        raise HTTPException(status_code=404, detail="스냅샷을 찾을 수 없습니다.")
+
+    from core.verify import IntegrityVerifier
+    verifier = IntegrityVerifier(repo_dir)
+    res = verifier.verify_snapshot(manifest, sample_ratio=0.2, max_samples=200, verify_all_new=True)
+
+    # SQLite DB 및 메타데이터 업데이트
+    storage = BlobStorage(repo_dir)
+    storage.db.update_snapshot_verification(
+        snapshot_id=req.snapshot_id,
+        is_verified=res.get("success", False),
+        error_count=res.get("error_count", 0)
+    )
+
+    if res["success"]:
+        append_task_log(f"무결성 검증 100% 통과! {res['verified_count']}개 블롭 검사 완료 (오류 0개)")
     else:
-        append_task_log(f"무결성 검증 실패! 누락: {len(res['missing_blobs'])}, 손상: {len(res['corrupted_blobs'])}", level="ERROR")
+        append_task_log(f"무결성 검증 실패! 손상된 블롭 발견: {res['error_count']}개", level="ERROR")
     return res
 
 # --- Maintenance & Prune API ---

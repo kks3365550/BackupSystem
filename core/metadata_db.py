@@ -62,9 +62,21 @@ class MetadataDB:
                         dedup_saved_bytes INTEGER DEFAULT 0,
                         duration_seconds REAL DEFAULT 0,
                         sources_json TEXT,
-                        file_mtime REAL
+                        file_mtime REAL,
+                        is_verified INTEGER DEFAULT 0,
+                        verify_timestamp REAL DEFAULT 0,
+                        verify_error_count INTEGER DEFAULT 0
                     );
                 """)
+                # Auto migration: check if is_verified column exists
+                cursor = conn.execute("PRAGMA table_info(snapshots_meta);")
+                columns = [row[1] for row in cursor.fetchall()]
+                if "is_verified" not in columns:
+                    conn.execute("ALTER TABLE snapshots_meta ADD COLUMN is_verified INTEGER DEFAULT 0;")
+                if "verify_timestamp" not in columns:
+                    conn.execute("ALTER TABLE snapshots_meta ADD COLUMN verify_timestamp REAL DEFAULT 0;")
+                if "verify_error_count" not in columns:
+                    conn.execute("ALTER TABLE snapshots_meta ADD COLUMN verify_error_count INTEGER DEFAULT 0;")
                 conn.commit()
         except Exception:
             pass
@@ -178,13 +190,17 @@ class MetadataDB:
                             data = json.load(fp)
                             summary = data.get("summary", {})
                             sources = json.dumps(data.get("sources", []), ensure_ascii=False)
+                            is_ver = 1 if data.get("is_verified") else 0
+                            ver_ts = data.get("verify_timestamp", 0.0)
+                            ver_err = data.get("verify_error_count", 0)
                             conn.execute("""
                                 INSERT OR REPLACE INTO snapshots_meta (
                                     id, created_at, iso_time, profile_id, profile_name,
                                     backup_type, base_snapshot_id, total_files, total_bytes,
                                     new_files, modified_files, unmodified_files,
-                                    dedup_saved_bytes, duration_seconds, sources_json, file_mtime
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                                    dedup_saved_bytes, duration_seconds, sources_json, file_mtime,
+                                    is_verified, verify_timestamp, verify_error_count
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                             """, (
                                 sid,
                                 data.get("created_at", 0),
@@ -201,7 +217,10 @@ class MetadataDB:
                                 summary.get("dedup_saved_bytes", 0),
                                 summary.get("duration_seconds", 0),
                                 sources,
-                                mtime
+                                mtime,
+                                is_ver,
+                                ver_ts,
+                                ver_err
                             ))
                     except Exception:
                         pass
@@ -209,6 +228,21 @@ class MetadataDB:
             conn.commit()
 
         return self.list_snapshots()
+
+    def update_snapshot_verification(self, snapshot_id: str, is_verified: bool, error_count: int = 0):
+        """Updates verification status for a specific snapshot in SQLite."""
+        try:
+            with self._lock, self._get_connection() as conn:
+                conn.execute("""
+                    UPDATE snapshots_meta
+                    SET is_verified = ?,
+                        verify_timestamp = ?,
+                        verify_error_count = ?
+                    WHERE id = ?;
+                """, (1 if is_verified else 0, time.time(), error_count, snapshot_id))
+                conn.commit()
+        except Exception:
+            pass
 
     def list_snapshots(self) -> List[Dict[str, Any]]:
         """Returns snapshot metadata summaries in under 1ms."""
@@ -219,7 +253,8 @@ class MetadataDB:
                     SELECT id, created_at, iso_time, profile_id, profile_name,
                            backup_type, base_snapshot_id, total_files, total_bytes,
                            new_files, modified_files, unmodified_files,
-                           dedup_saved_bytes, duration_seconds, sources_json
+                           dedup_saved_bytes, duration_seconds, sources_json,
+                           is_verified, verify_timestamp, verify_error_count
                     FROM snapshots_meta
                     ORDER BY created_at DESC;
                 """).fetchall()
@@ -239,6 +274,9 @@ class MetadataDB:
                         "backup_type": r["backup_type"],
                         "base_snapshot_id": r["base_snapshot_id"],
                         "sources": sources,
+                        "is_verified": bool(r["is_verified"]),
+                        "verify_timestamp": r["verify_timestamp"],
+                        "verify_error_count": r["verify_error_count"],
                         "summary": {
                             "total_files": r["total_files"],
                             "total_bytes": r["total_bytes"],

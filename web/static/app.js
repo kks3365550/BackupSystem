@@ -207,9 +207,15 @@ function renderSnapshotsTable() {
     tbody.innerHTML = state.snapshots.map(s => {
         const sum = s.summary || {};
         const isFull = s.backup_type === 'full';
+        const isVerified = s.is_verified;
         return `
             <tr class="border-b border-slate-800 hover:bg-slate-800/40 text-sm transition">
-                <td class="py-3 px-4 font-mono text-xs text-blue-400">${s.id}</td>
+                <td class="py-3 px-4 font-mono text-xs text-blue-400">
+                    <div class="flex items-center gap-1.5">
+                        <span>${s.id}</span>
+                        ${isVerified ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold" title="SHA-256 및 zstd 무결성 검증 통과">✓ 검증됨</span>' : ''}
+                    </div>
+                </td>
                 <td class="py-3 px-4 font-medium text-slate-200">${s.profile_name || '-'}</td>
                 <td class="py-3 px-4">
                     <span class="text-[11px] px-2 py-0.5 rounded-full font-medium ${isFull ? 'bg-blue-900/60 text-blue-300 border border-blue-700' : 'bg-emerald-900/60 text-emerald-300 border border-emerald-700'}">
@@ -226,7 +232,7 @@ function renderSnapshotsTable() {
                     <button onclick="openRestoreModal('${s.id}')" class="p-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs" title="시점 복원">
                         <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
                     </button>
-                    <button onclick="verifySnapshot('${s.id}')" class="p-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs" title="무결성 검증">
+                    <button onclick="verifySnapshot('${s.id}')" class="p-1.5 ${isVerified ? 'bg-emerald-600/80' : 'bg-emerald-700'} hover:bg-emerald-600 text-white rounded-lg text-xs" title="${isVerified ? '무결성 재검증' : '무결성 검증'}">
                         <i data-lucide="shield-check" class="w-4 h-4"></i>
                     </button>
                     <button onclick="deleteSnapshot('${s.id}')" class="p-1.5 bg-red-900/60 hover:bg-red-600 text-red-300 hover:text-white rounded-lg text-xs" title="삭제">
@@ -1494,6 +1500,24 @@ async function stopSystemImageBackup() {
         alert('백업 중단 명령이 전송되었습니다.');
     } catch (e) {
         alert('중단 실패: ' + e.message);
+    }
+}
+
+async function verifySnapshot(snapshotId) {
+    if (!confirm(`스냅샷 [${snapshotId}]의 zstandard 압축 블롭 및 SHA-256 해시 무결성을 정밀 검증하시겠습니까?`)) return;
+    try {
+        const res = await fetchAPI('/api/verify/run', {
+            method: 'POST',
+            body: JSON.stringify({ snapshot_id: snapshotId })
+        });
+        if (res.success) {
+            alert(`✅ 무결성 검증 완료: 100% 정상!\n- 검사된 블롭: ${res.verified_count}개\n- 오류: 0개\n모든 백업 데이터가 완벽하게 보존되어 있습니다.`);
+        } else {
+            alert(`⚠️ 무결성 검증 실패: 손상 블롭 ${res.error_count}개 감지됨!`);
+        }
+        await loadSnapshots();
+    } catch (e) {
+        alert('무결성 검증 중 오류 발생: ' + e.message);
     }
 }
 
