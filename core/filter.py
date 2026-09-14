@@ -51,12 +51,21 @@ DEFAULT_EXCLUDE_PATTERNS = [
 
     # 6. Browser & Application Caches
     "*Cache*",
+    "*caches*",
     "*GPUCache*",
     "*Code Cache*",
     "*ShaderCache*",
+    "*DawnCache*",
+    "*D3DSCache*",
+    "*GrShaderCache*",
+    "*DirectXShaderCache*",
     "*CacheStorage*",
     "*Service Worker*",
     "*blob_storage*",
+    "*SquirrelTemp*",
+    "*Crashpad*",
+    "*CrashReporting*",
+    "*crash_reports*",
 
     # 7. Package manager & build caches
     "pip/cache",
@@ -127,9 +136,11 @@ class PathFilter:
                 self.exact_names.add(p)
 
     def is_dir_excluded(self, dirname: str) -> bool:
-        """Fast O(1) check for directory exclusion using dirname only."""
+        """Fast O(1) check for directory exclusion using dirname only (Prunes entire directory trees)."""
         dn = dirname.lower()
         if dn in self.exact_names:
+            return True
+        if dn in ("cache", "caches", "gpucache", "shadercache", "code cache", "temp", "tmp", "crashpad", "crashreporting", "logs", "log", "deliveryoptimization"):
             return True
         for sub in self.substrs:
             if sub in dn:

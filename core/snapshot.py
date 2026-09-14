@@ -257,8 +257,9 @@ class SnapshotEngine:
             # Pre-populate blob cache from previous snapshot to make storage.has_blob O(1) in-memory
             storage.bulk_add_blob_cache(e.get("blob_id") or e.get("sha256") for e in best_snapshot["entries"])
 
-        # 2. Parallel multi-worker directory scanning with C-kernel stat collection
-        num_workers = min(12, max(4, os.cpu_count() or 4))
+        # 2. High-Performance Full-Thread Parallel Allocation (Ryzen 9800X3D 16-thread & MiniPC full power)
+        cpu_cnt = os.cpu_count() or 8
+        num_workers = max(4, min(32, cpu_cnt))
         all_files_to_process = cls._scan_sources_parallel(
             sources=sources,
             path_filter=path_filter,
