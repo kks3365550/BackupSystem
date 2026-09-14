@@ -105,37 +105,78 @@ class PathFilter:
                     raw_excludes.append(p)
         self.include_patterns = include_patterns or []
 
-        # Fix: Pre-split patterns into O(1) exact match set and wildcard patterns
+        # High-performance categorized structures
         self.exact_names: Set[str] = set()
-        self.wildcard_patterns: List[str] = []
+        self.exts: Set[str] = set()
+        self.substrs: List[str] = []
+        self.complex_patterns: List[str] = []
 
         for pattern in raw_excludes:
             p = pattern.strip().lower()
             if not p or p.startswith('#'):
                 continue
-            if '*' in p or '?' in p or '[' in p:
-                self.wildcard_patterns.append(p)
+            if p.startswith('*.'):
+                # e.g. *.tmp -> .tmp
+                self.exts.add(p[1:])
+            elif p.startswith('*') and p.endswith('*') and len(p) > 2 and '?' not in p and '[' not in p:
+                # e.g. *cache* -> cache
+                self.substrs.append(p[1:-1])
+            elif '*' in p or '?' in p or '[' in p:
+                self.complex_patterns.append(p)
             else:
                 self.exact_names.add(p)
 
-    def is_excluded(self, path: str, is_dir: bool = False) -> bool:
-        norm_path = os.path.normpath(path).replace('\\', '/').lower()
-        basename = os.path.basename(norm_path)
-
-        # 1. Fast O(1) exact name lookup for basename (covers ~90% of hits: .git, node_modules, desktop.ini, etc.)
-        if basename in self.exact_names:
+    def is_dir_excluded(self, dirname: str) -> bool:
+        """Fast O(1) check for directory exclusion using dirname only."""
+        dn = dirname.lower()
+        if dn in self.exact_names:
             return True
-
-        # 2. Fast O(1) ancestor directory name lookup
-        path_parts = set(norm_path.split('/'))
-        if not self.exact_names.isdisjoint(path_parts):
-            return True
-
-        # 3. Wildcard matching for remainder patterns (*.tmp, *.pyc, *cache*, etc.)
-        for pattern in self.wildcard_patterns:
-            if fnmatch.fnmatch(basename, pattern):
+        for sub in self.substrs:
+            if sub in dn:
                 return True
-            if fnmatch.fnmatch(norm_path, pattern) or fnmatch.fnmatch(norm_path, f"*/{pattern}/*") or fnmatch.fnmatch(norm_path, f"*/{pattern}"):
+        for cp in self.complex_patterns:
+            if fnmatch.fnmatch(dn, cp):
+                return True
+        return False
+
+    def is_file_excluded(self, filename: str) -> bool:
+        """Fast O(1) check for file exclusion using filename only."""
+        fn = filename.lower()
+        if fn in self.exact_names:
+            return True
+        dot_idx = fn.rfind('.')
+        if dot_idx != -1 and fn[dot_idx:] in self.exts:
+            return True
+        for sub in self.substrs:
+            if sub in fn:
+                return True
+        for cp in self.complex_patterns:
+            if fnmatch.fnmatch(fn, cp):
+                return True
+        return False
+
+    def is_excluded(self, path: str, is_dir: bool = False) -> bool:
+        # Extract basename quickly without os.path.basename overhead
+        slash_idx = max(path.rfind('\\'), path.rfind('/'))
+        basename = path[slash_idx + 1:] if slash_idx != -1 else path
+
+        if is_dir:
+            if self.is_dir_excluded(basename):
+                return True
+        else:
+            if self.is_file_excluded(basename):
+                return True
+
+        # Check ancestor directories if full path is passed
+        norm_path = path.replace('\\', '/').lower()
+        parts = norm_path.split('/')
+        if not self.exact_names.isdisjoint(parts):
+            return True
+
+        # Fallback for complex relative path wildcard patterns
+        for cp in self.complex_patterns:
+            if fnmatch.fnmatch(norm_path, cp) or fnmatch.fnmatch(norm_path, f"*/{cp}/*") or fnmatch.fnmatch(norm_path, f"*/{cp}"):
                 return True
 
         return False
+

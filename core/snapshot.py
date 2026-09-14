@@ -45,15 +45,16 @@ class SnapshotEngine:
             src = os.path.abspath(src)
             if not os.path.exists(src):
                 continue
+            src_base = os.path.basename(src)
             if os.path.isfile(src):
-                if not path_filter.is_excluded(src, is_dir=False):
+                if not path_filter.is_file_excluded(src_base):
                     try:
                         st = os.stat(src)
-                        all_files.append((src, os.path.dirname(src), os.path.basename(src), st.st_size, st.st_mtime))
+                        all_files.append((src, os.path.dirname(src), src_base, st.st_size, st.st_mtime))
                     except (PermissionError, OSError):
                         pass
             else:
-                if not path_filter.is_excluded(src, is_dir=True):
+                if not path_filter.is_dir_excluded(src_base):
                     with lock:
                         dir_queue.put((src, src))
 
@@ -90,33 +91,24 @@ class SnapshotEngine:
                     with os.scandir(curr_dir) as it:
                         for entry in it:
                             try:
-                                is_reparse = False
-                                st = None
-                                try:
-                                    st = entry.stat(follow_symlinks=False)
-                                    attrs = getattr(st, 'st_file_attributes', 0)
-                                    is_reparse = bool(attrs & 0x400) or entry.is_symlink()
-                                except OSError:
-                                    pass
-
                                 if entry.is_dir(follow_symlinks=False):
-                                    if is_reparse:
-                                        # Directory Junction or Symlink: do not recurse into it to prevent circular loops
-                                        if not path_filter.is_excluded(entry.path, is_dir=True):
-                                            if entry.path.startswith(src_root):
-                                                rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')
-                                            else:
-                                                rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')
-                                            mtime = st.st_mtime if st else time.time()
-                                            found_files.append((entry.path, src_root, rel_path, 0, mtime))
+                                    # Fast O(1) directory exclusion
+                                    if path_filter.is_dir_excluded(entry.name):
+                                        continue
+                                    if entry.is_symlink():
+                                        # Junction or Symlink directory: do not recurse to avoid loops
+                                        if entry.path.startswith(src_root):
+                                            rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')
+                                        else:
+                                            rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')
+                                        st = entry.stat()
+                                        found_files.append((entry.path, src_root, rel_path, 0, st.st_mtime))
                                     else:
-                                        if not path_filter.is_excluded(entry.path, is_dir=True):
-                                            sub_dirs.append(entry.path)
+                                        sub_dirs.append(entry.path)
                                 elif entry.is_file(follow_symlinks=False):
-                                    if not path_filter.is_excluded(entry.path, is_dir=False):
-                                        if st is None:
-                                            st = entry.stat(follow_symlinks=False)
-                                        # Fix: Fast prefix slicing instead of expensive os.path.relpath
+                                    # Fast O(1) file exclusion
+                                    if not path_filter.is_file_excluded(entry.name):
+                                        st = entry.stat()
                                         if entry.path.startswith(src_root):
                                             rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')
                                         else:
@@ -125,6 +117,8 @@ class SnapshotEngine:
                             except (PermissionError, OSError):
                                 continue
 
+                    report_progress = False
+                    total_count_report = 0
                     with cond:
                         for sd in sub_dirs:
                             dir_queue.put((sd, src_root))
@@ -132,19 +126,22 @@ class SnapshotEngine:
                         total_found = len(all_files)
                         active_tasks -= 1
                         cond.notify_all()
+                        if progress_callback and (total_found % 500 == 0 or total_found == 1):
+                            report_progress = True
+                            total_count_report = total_found
 
-                        if progress_callback and (total_found % 200 == 0 or total_found == 1):
-                            progress_callback({
-                                "type": "scanning",
-                                "current_file": f"파일 탐색 중... ({total_found:,}개 발견: {os.path.basename(curr_dir)})",
-                                "processed_files": 0,
-                                "total_files": total_found,
-                                "percent": 0,
-                                "new_files": 0,
-                                "modified_files": 0,
-                                "unmodified_files": 0,
-                                "transferred_bytes": 0
-                            })
+                    if report_progress and progress_callback:
+                        progress_callback({
+                            "type": "scanning",
+                            "current_file": f"파일 탐색 중... ({total_count_report:,}개 발견: {os.path.basename(curr_dir)})",
+                            "processed_files": 0,
+                            "total_files": total_count_report,
+                            "percent": 0,
+                            "new_files": 0,
+                            "modified_files": 0,
+                            "unmodified_files": 0,
+                            "transferred_bytes": 0
+                        })
                 except (PermissionError, OSError):
                     with cond:
                         active_tasks -= 1
@@ -257,6 +254,9 @@ class SnapshotEngine:
                 if norm_r not in prev_rel_map:
                     prev_rel_map[norm_r] = entry
 
+            # Pre-populate blob cache from previous snapshot to make storage.has_blob O(1) in-memory
+            storage.bulk_add_blob_cache(e.get("blob_id") or e.get("sha256") for e in best_snapshot["entries"])
+
         # 2. Parallel multi-worker directory scanning with C-kernel stat collection
         num_workers = min(12, max(4, os.cpu_count() or 4))
         all_files_to_process = cls._scan_sources_parallel(
@@ -292,8 +292,8 @@ class SnapshotEngine:
             norm_rel = rel_path.replace('\\', '/').lower()
             prev_entry = prev_entries_map.get(norm_full_path) or prev_entries_map.get(key) or prev_rel_map.get(norm_rel)
 
-            # Check unmodified fast path
-            if prev_entry and prev_entry.get("sha256") and prev_entry.get("size") == f_size and abs(prev_entry.get("mtime", 0) - f_mtime) < 0.001:
+            # Check unmodified fast path (size identical and mtime within 1.0s tolerance for FAT32/NTFS precision)
+            if prev_entry and prev_entry.get("sha256") and prev_entry.get("size") == f_size and abs(prev_entry.get("mtime", 0) - f_mtime) < 1.0:
                 blob_id = prev_entry.get("blob_id", prev_entry.get("sha256"))
                 if blob_id and storage.has_blob(blob_id):
                     unmodified_files_count += 1

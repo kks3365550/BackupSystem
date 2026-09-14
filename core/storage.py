@@ -98,6 +98,13 @@ class BlobStorage:
             return True
         return False
 
+    def bulk_add_blob_cache(self, blob_ids) -> None:
+        """Pre-populates the in-memory blob cache to eliminate disk syscalls (os.path.exists) during diffing."""
+        valid_ids = {b for b in blob_ids if b}
+        if valid_ids:
+            with self._cache_lock:
+                self._blob_cache.update(valid_ids)
+
     def put_file_blob(self, filepath: str, sha256_hash: Optional[str] = None, compress_level: int = 3) -> Tuple[str, int, int, bool]:
         """
         Compresses and saves a file as a content-addressed blob.
