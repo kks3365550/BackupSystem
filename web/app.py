@@ -997,13 +997,14 @@ async def self_update(request: Request):
         f.write(body)
 
     updater_bat = os.path.join(tempfile.gettempdir(), f"run_updater_{int(time.time())}.bat")
-    py_exe = sys.executable
+    pyw_candidate = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+    launch_py = pyw_candidate if os.path.exists(pyw_candidate) else sys.executable
 
     bat_content = f"""@echo off
 timeout /t 1 >nul
 tar -xf "{temp_zip}" -C "{BASE_DIR}"
 cd /d "{BASE_DIR}"
-start "" "{py_exe}" run.py
+start "" "{launch_py}" run.py
 del "{temp_zip}" >nul 2>&1
 del "%~f0" >nul 2>&1
 """
@@ -1012,9 +1013,14 @@ del "%~f0" >nul 2>&1
 
     def _trigger_update_and_restart():
         time.sleep(0.8)
+        flags = 0x00000200
+        if sys.platform.startswith("win") and hasattr(subprocess, "CREATE_NO_WINDOW"):
+            flags |= subprocess.CREATE_NO_WINDOW
+        else:
+            flags |= 0x00000008
         subprocess.Popen(
             ["cmd.exe", "/c", updater_bat],
-            creationflags=0x00000008 | 0x00000200,
+            creationflags=flags,
             close_fds=True
         )
         time.sleep(0.2)

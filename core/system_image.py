@@ -134,9 +134,12 @@ class SystemImageManager:
                     cls.append_log("관리자 권한 승격(UAC)을 요청하여 백업을 백그라운드에서 실행합니다...", level="WARNING")
                     # Run via elevated PowerShell script that redirects output to log file
                     log_file = os.path.join(target_drive + "\\", "system_image_backup.log")
-                    ps_cmd = f"Start-Process cmd -ArgumentList '/c chcp 65001 >nul && wbadmin start backup -backupTarget:{target_drive} -include:C: -allCritical -quiet > \"{log_file}\" 2>&1' -Verb RunAs -Wait"
+                    ps_cmd = f"Start-Process cmd -ArgumentList '/c chcp 65001 >nul && wbadmin start backup -backupTarget:{target_drive} -include:C: -allCritical -quiet > \"{log_file}\" 2>&1' -WindowStyle Hidden -Verb RunAs -Wait"
                     
-                    p = subprocess.Popen(["powershell", "-NoProfile", "-Command", ps_cmd])
+                    p_flags = 0
+                    if sys.platform.startswith("win") and hasattr(subprocess, "CREATE_NO_WINDOW"):
+                        p_flags = subprocess.CREATE_NO_WINDOW
+                    p = subprocess.Popen(["powershell", "-NoProfile", "-Command", ps_cmd], creationflags=p_flags)
                     cls._process = p
                     
                     # Monitor log file while running
@@ -162,13 +165,18 @@ class SystemImageManager:
                     cls.append_log(f"백업 작업 프로세스 종료 코드: {ret_code}")
                 else:
                     # Run directly
+                    popen_kwargs = {
+                        "stdout": subprocess.PIPE,
+                        "stderr": subprocess.STDOUT,
+                        "text": True,
+                        "encoding": "utf-8",
+                        "errors": "replace"
+                    }
+                    if sys.platform.startswith("win") and hasattr(subprocess, "CREATE_NO_WINDOW"):
+                        popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
                     p = subprocess.Popen(
                         ["wbadmin", "start", "backup", f"-backupTarget:{target_drive}", "-include:C:", "-allCritical", "-quiet"],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        encoding="utf-8",
-                        errors="replace"
+                        **popen_kwargs
                     )
                     cls._process = p
                     for line in p.stdout:
@@ -235,7 +243,10 @@ class SystemImageManager:
     def stop_backup(cls) -> Dict[str, Any]:
         cls.append_log("백업 중단 명령을 전송합니다...")
         try:
-            subprocess.run(["wbadmin", "stop", "job", "-quiet"], capture_output=True, text=True)
+            kwargs = {"capture_output": True, "text": True}
+            if sys.platform.startswith("win") and hasattr(subprocess, "CREATE_NO_WINDOW"):
+                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+            subprocess.run(["wbadmin", "stop", "job", "-quiet"], **kwargs)
             with cls._lock:
                 if cls._process:
                     cls._process.terminate()

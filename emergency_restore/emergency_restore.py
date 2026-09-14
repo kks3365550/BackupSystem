@@ -338,9 +338,12 @@ def run_emergency_restore(
         if "--auto" in sys.argv or "-a" in sys.argv:
             print("\n[*] [자동 모드] 복원된 레지스트리 키를 윈도우에 일괄 적용합니다...")
             import subprocess
+            kwargs = {"capture_output": True, "text": True, "timeout": 10}
+            if sys.platform.startswith("win") and hasattr(subprocess, "CREATE_NO_WINDOW"):
+                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
             for rf in reg_files_to_import:
                 try:
-                    subprocess.run(["reg.exe", "import", rf], capture_output=True, text=True, timeout=10)
+                    subprocess.run(["reg.exe", "import", rf], **kwargs)
                 except Exception:
                     pass
             print("[*] 레지스트리 일괄 적용 완료!")
@@ -354,11 +357,14 @@ def run_emergency_restore(
         if "--auto" in sys.argv or "-a" in sys.argv:
             print("\n[*] [자동 모드] Windows DriverStore에 하드웨어 드라이버 일괄 설치/등록 진행...")
             import subprocess
+            pnp_kwargs = {"capture_output": True, "text": True, "encoding": "cp949", "errors": "replace", "timeout": 300}
+            if sys.platform.startswith("win") and hasattr(subprocess, "CREATE_NO_WINDOW"):
+                pnp_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
             for dd in driver_dirs_to_install:
                 try:
                     pattern = os.path.join(dd, "*.inf")
                     cmd = ["pnputil", "/add-driver", pattern, "/subdirs", "/install"]
-                    proc = subprocess.run(cmd, capture_output=True, text=True, encoding="cp949", errors="replace", timeout=300)
+                    proc = subprocess.run(cmd, **pnp_kwargs)
                     if proc.returncode in (0, 259, 3010):
                         print(f"[*] 드라이버 일괄 설치 완료! (상태 코드: {proc.returncode})")
                     else:
@@ -374,10 +380,13 @@ def run_emergency_restore(
             os.path.join(os.path.dirname(os.path.abspath(__file__)), "create_desktop_shortcut.py"),
             r"C:\Users\kksjmj\Desktop\ai\백업시스템\create_desktop_shortcut.py"
         ]
+        cs_kwargs = {"capture_output": True, "timeout": 10}
+        if sys.platform.startswith("win") and hasattr(subprocess, "CREATE_NO_WINDOW"):
+            cs_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         for cs in candidates:
             if os.path.exists(cs):
                 import subprocess
-                subprocess.run([sys.executable, cs], capture_output=True, timeout=10)
+                subprocess.run([sys.executable, cs], **cs_kwargs)
                 print("[*] 바탕화면 바로가기 링크 복원 및 유효성 재연결 완료!")
                 break
     except Exception:

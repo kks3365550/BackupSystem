@@ -96,13 +96,17 @@ def sync_install_directories():
             continue
         os.makedirs(target, exist_ok=True)
         
+        robo_kwargs = {'capture_output': True}
+        if sys.platform.startswith('win') and hasattr(subprocess, 'CREATE_NO_WINDOW'):
+            robo_kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
+
         # Sync core and web
-        subprocess.run(['robocopy', os.path.join(BASE_DIR, 'core'), os.path.join(target, 'core'), '/E', '/MIR'], capture_output=True)
-        subprocess.run(['robocopy', os.path.join(BASE_DIR, 'web'), os.path.join(target, 'web'), '/E', '/MIR'], capture_output=True)
+        subprocess.run(['robocopy', os.path.join(BASE_DIR, 'core'), os.path.join(target, 'core'), '/E', '/MIR'], **robo_kwargs)
+        subprocess.run(['robocopy', os.path.join(BASE_DIR, 'web'), os.path.join(target, 'web'), '/E', '/MIR'], **robo_kwargs)
         
         # Sync emergency_restore (with embedded python)
         if os.path.exists(os.path.join(BASE_DIR, 'emergency_restore')):
-            subprocess.run(['robocopy', os.path.join(BASE_DIR, 'emergency_restore'), os.path.join(target, 'emergency_restore'), '/E', '/MIR'], capture_output=True)
+            subprocess.run(['robocopy', os.path.join(BASE_DIR, 'emergency_restore'), os.path.join(target, 'emergency_restore'), '/E', '/MIR'], **robo_kwargs)
         
         # Sync root py and bat files
         for item in os.listdir(BASE_DIR):
@@ -120,7 +124,7 @@ def sync_install_directories():
     if os.path.exists(repo_backup):
         emerg_src = os.path.join(BASE_DIR, 'emergency_restore')
         if os.path.exists(emerg_src):
-            subprocess.run(['robocopy', emerg_src, os.path.join(repo_backup, 'emergency_restore'), '/E', '/MIR'], capture_output=True)
+            subprocess.run(['robocopy', emerg_src, os.path.join(repo_backup, 'emergency_restore'), '/E', '/MIR'], **robo_kwargs)
         recovery_files = [
             "원클릭_C드라이브_전체복구.bat",
             "선택복구_대화형.bat",
@@ -209,13 +213,18 @@ exit /b 0
     return out_bat
 
 def remote_deploy_if_online(remote_ip: str, bat_path: str):
-    print(f"[5/5] Checking remote desktop connection ({remote_ip})...")
+    ts_kwargs = {'capture_output': True, 'timeout': 5}
+    if sys.platform.startswith('win') and hasattr(subprocess, 'CREATE_NO_WINDOW'):
+        ts_kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
+
     try:
-        ping_res = subprocess.run(['tailscale', 'ping', '-c', '1', remote_ip], capture_output=True, text=True, timeout=5)
+        ping_res = subprocess.run(['tailscale', 'ping', '-c', '1', remote_ip], text=True, **ts_kwargs)
         if ping_res.returncode == 0 and 'pong' in ping_res.stdout:
             print(f"      Remote host {remote_ip} is ONLINE (Tailscale)!")
             print(f"      Dispatching standalone updater to {remote_ip} via Taildrop...")
-            subprocess.run(['tailscale', 'file', 'cp', bat_path, f"{remote_ip}:"], capture_output=True, timeout=15)
+            cp_kwargs = dict(ts_kwargs)
+            cp_kwargs['timeout'] = 15
+            subprocess.run(['tailscale', 'file', 'cp', bat_path, f"{remote_ip}:"], **cp_kwargs)
             print("      Taildrop dispatch complete!")
         else:
             print(f"      Remote host {remote_ip} is offline or unreachable via Tailscale. Remote deploy skipped.")

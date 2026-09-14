@@ -196,7 +196,10 @@ class RestoreEngine:
             shortcut_script = os.path.join(proj_dir, "create_desktop_shortcut.py")
             if os.path.exists(shortcut_script):
                 import subprocess, sys
-                subprocess.run([sys.executable, shortcut_script], capture_output=True, timeout=10)
+                kwargs = {"capture_output": True, "timeout": 10}
+                if sys.platform.startswith("win") and hasattr(subprocess, "CREATE_NO_WINDOW"):
+                    kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+                subprocess.run([sys.executable, shortcut_script], **kwargs)
         except Exception:
             pass
 
