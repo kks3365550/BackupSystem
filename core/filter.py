@@ -135,36 +135,32 @@ class PathFilter:
             else:
                 self.exact_names.add(p)
 
-    def is_dir_excluded(self, dirname: str) -> bool:
-        """Fast O(1) check for directory exclusion using dirname only (Prunes entire directory trees)."""
-        dn = dirname.lower()
-        if dn in self.exact_names:
-            return True
-        if dn in ("cache", "caches", "gpucache", "shadercache", "code cache", "temp", "tmp", "crashpad", "crashreporting", "logs", "log", "deliveryoptimization"):
+    def _matches_common(self, name_lower: str) -> bool:
+        """Helper to match exact names, substrings, and complex patterns cleanly."""
+        if name_lower in self.exact_names:
             return True
         for sub in self.substrs:
-            if sub in dn:
+            if sub in name_lower:
                 return True
         for cp in self.complex_patterns:
-            if fnmatch.fnmatch(dn, cp):
+            if fnmatch.fnmatch(name_lower, cp):
                 return True
         return False
 
-    def is_file_excluded(self, filename: str) -> bool:
-        """Fast O(1) check for file exclusion using filename only."""
-        fn = filename.lower()
-        if fn in self.exact_names:
+    def is_dir_excluded(self, dirname: str) -> bool:
+        """Fast O(1) check for directory exclusion (Prunes entire directory trees)."""
+        dn = dirname.lower()
+        if dn in ("cache", "caches", "gpucache", "shadercache", "code cache", "temp", "tmp", "crashpad", "crashreporting", "logs", "log", "deliveryoptimization"):
             return True
+        return self._matches_common(dn)
+
+    def is_file_excluded(self, filename: str) -> bool:
+        """Fast O(1) check for file exclusion."""
+        fn = filename.lower()
         dot_idx = fn.rfind('.')
         if dot_idx != -1 and fn[dot_idx:] in self.exts:
             return True
-        for sub in self.substrs:
-            if sub in fn:
-                return True
-        for cp in self.complex_patterns:
-            if fnmatch.fnmatch(fn, cp):
-                return True
-        return False
+        return self._matches_common(fn)
 
     def is_excluded(self, path: str, is_dir: bool = False) -> bool:
         # Extract basename quickly without os.path.basename overhead

@@ -478,8 +478,16 @@ class SnapshotEngine:
             with open(snapshot_file, "w", encoding="utf-8") as f:
                 json.dump(snapshot_manifest, f, indent=None, separators=(',', ':'), ensure_ascii=False)
             lock_file_immutable(snapshot_file)
-        except Exception:
-            pass
+        except Exception as e_hc:
+            lock_file_immutable(snapshot_file)
+            if progress_callback:
+                progress_callback({
+                    "type": "verify_warning",
+                    "current_file": f"무결성 검증 경고 (스킵): {e_hc}",
+                    "processed_files": len(entries),
+                    "total_files": len(entries),
+                    "percent": 99.0
+                })
 
         # Ensure 100% completion progress callback is delivered to UI
         if progress_callback:

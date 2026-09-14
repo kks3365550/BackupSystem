@@ -88,9 +88,9 @@ class BlobStorage:
     def has_blob(self, sha256_hash: str) -> bool:
         if not sha256_hash:
             return False
-        with self._cache_lock:
-            if sha256_hash in self._blob_cache:
-                return True
+        # Fast lock-free lookup for existing in-memory cache
+        if sha256_hash in self._blob_cache:
+            return True
         blob_path = self.get_blob_abs_path(sha256_hash)
         if blob_path and os.path.exists(blob_path):
             with self._cache_lock:
@@ -189,6 +189,12 @@ class BlobStorage:
                 
                 with open(temp_file, "wb") as fout:
                     fout.write(compressed)
+
+                # Concurrency double check: if another parallel worker just finished storing this blob
+                if self.has_blob(sha256_hash):
+                    stored_size = os.path.getsize(blob_path)
+                    return sha256_hash, orig_size, stored_size, False
+
                 os.replace(temp_file, blob_path)
                 lock_file_immutable(blob_path)
                 stored_size = len(compressed)
@@ -244,6 +250,11 @@ class BlobStorage:
             if self.has_blob(sha256_hash):
                 if os.path.exists(temp_file):
                     os.remove(temp_file)
+                stored_size = os.path.getsize(blob_path)
+                return sha256_hash, orig_size, stored_size, False
+
+            # Concurrency double check before replacing
+            if self.has_blob(sha256_hash):
                 stored_size = os.path.getsize(blob_path)
                 return sha256_hash, orig_size, stored_size, False
 
