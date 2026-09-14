@@ -126,7 +126,8 @@ def sync_install_directories():
             "선택복구_대화형.bat",
             "Restore_Full_C_Drive.bat",
             "Restore_Interactive.bat",
-            "README_재해복구_가이드.txt"
+            "README_재해복구_가이드.txt",
+            "5_베어메탈_시스템이미지_백업(OS+오피스).bat"
         ]
         for rf in recovery_files:
             rf_src = os.path.join(BASE_DIR, rf)
