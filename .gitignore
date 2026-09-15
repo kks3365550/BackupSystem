@@ -18,8 +18,9 @@ emergency_restore/python/
 *.temp
 *.log
 
-# Sensitive credentials
+# Sensitive credentials & runtime states
 data/kakao_token.json
+config/deep_scan_state.json
 
 # OS specific
 Thumbs.db

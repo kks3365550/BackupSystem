@@ -8,23 +8,30 @@ import threading
 import subprocess
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-try:
-    import uvicorn
-except ImportError:
-    req_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
-    if os.path.exists(req_file):
-        print("[*] 필수 패키지(uvicorn 등)가 누락되어 자동으로 설치합니다...")
+def ensure_dependencies():
+    required = ["uvicorn", "fastapi", "cryptography", "psutil", "jinja2", "requests", "pydantic", "zstandard"]
+    missing = []
+    for mod in required:
         try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", req_file, "--quiet"])
-            import uvicorn
-        except Exception as e:
-            print(f"[!] 필수 패키지 자동 설치 실패: {e}")
-            raise
-    else:
-        raise
+            __import__(mod)
+        except ImportError:
+            missing.append(mod)
+    
+    if missing:
+        req_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
+        if os.path.exists(req_file):
+            print(f"[*] 필수 패키지({', '.join(missing)})가 누락되어 자동으로 설치합니다...")
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", req_file, "--quiet"])
+            except Exception as e:
+                print(f"[!] 필수 패키지 자동 설치 실패: {e}")
+                raise
+
+ensure_dependencies()
+import uvicorn
 from core.config import ConfigManager
 
-# Handle headless execution where stdin/stdout/stderr are None
+# Handle headless execution where stdio might be None
 if sys.stdin is None:
     try:
         sys.stdin = open(os.devnull, 'r')
@@ -38,21 +45,6 @@ if sys.stdout is None:
 if sys.stderr is None:
     try:
         sys.stderr = open(os.devnull, 'w', encoding='utf-8')
-    except Exception:
-        pass
-
-if sys.platform.startswith("win"):
-    # Fix 100% CPU spinning on Windows headless background event loop
-    try:
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    except Exception:
-        pass
-
-    try:
-        if sys.stdout:
-            sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-        if sys.stderr:
-            sys.stderr.reconfigure(encoding='utf-8', errors='replace')
     except Exception:
         pass
 
@@ -111,12 +103,36 @@ def main():
         "web.app:app",
         host=host,
         port=port,
-        log_level="warning",
-        access_log=False,
-        loop="asyncio"
+        log_level="info",
+        access_log=False
     )
     server = uvicorn.Server(config)
     server.run()
 
+def show_error_dialog(title: str, message: str):
+    try:
+        if sys.platform.startswith("win"):
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, message, title, 0x10 | 0x10000)
+    except Exception:
+        pass
+
+def log_startup_error(err_str: str):
+    try:
+        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, "startup_error.log")
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {err_str}\n")
+    except Exception:
+        pass
+
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        import traceback
+        err_msg = traceback.format_exc()
+        log_startup_error(err_msg)
+        show_error_dialog("백업시스템 시작 오류", f"백업시스템 기동 중 오류가 발생했습니다:\n\n{e}\n\n자세한 내용은 logs/startup_error.log를 확인하세요.")
+        sys.exit(1)
