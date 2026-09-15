@@ -20,6 +20,7 @@ from core.verify import (
 )
 from core.retention import RetentionManager
 from core.vss_manager import VSSContext, VSSRequiredError
+from core.crypto_sign import Ed25519Signer
 
 class SnapshotEngine:
     @staticmethod
@@ -513,6 +514,7 @@ class SnapshotEngine:
             "vss_enabled": vss_ctx.vss_active if vss_ctx else False,
             "vss_warnings": vss_ctx.warnings if vss_ctx else [],
             "manifest_signature": generate_manifest_signature(entries),
+            "ed25519_signature": None,
             "sources": sources,
             "summary": {
                 "total_files": len(entries),
@@ -528,13 +530,7 @@ class SnapshotEngine:
             "entries": entries
         }
 
-        # 4. Save snapshot manifest — Fix #7: compact JSON (no indent) saves 60% space & 2x faster write/load
-        snapshot_file = os.path.join(storage.snapshots_dir, f"{snapshot_id}.json")
-        with open(snapshot_file, "w", encoding="utf-8") as f:
-            json.dump(snapshot_manifest, f, indent=None, separators=(',', ':'), ensure_ascii=False)
-        lock_file_immutable(snapshot_file)
-
-        # 5. Batch update metadata DB once for all new blobs (Single atomic transaction!)
+        # 4. Batch update metadata DB once for all new blobs (Single atomic transaction!)
         # Fix #11: pass new_blobs_count (unique new blobs) not new_files_count (which includes dedup)
         if new_stored_bytes > 0 or new_blobs_count > 0:
             try:
@@ -542,7 +538,7 @@ class SnapshotEngine:
             except Exception:
                 pass
 
-        # 6. Automated Restore Verification (실제 디컴프레스 및 바이트 단위 전수 복원 검증)
+        # 5. Automated Restore Verification (실제 디컴프레스 및 바이트 단위 전수 복원 검증)
         try:
             if progress_callback:
                 progress_callback({
@@ -565,17 +561,9 @@ class SnapshotEngine:
                 is_verified=True,
                 error_count=0
             )
-
-            # Re-save manifest with verification tag
-            unlock_file_writable(snapshot_file)
-            with open(snapshot_file, "w", encoding="utf-8") as f:
-                json.dump(snapshot_manifest, f, indent=None, separators=(',', ':'), ensure_ascii=False)
-            lock_file_immutable(snapshot_file)
         except RestoreVerificationError as e_rv:
-            lock_file_immutable(snapshot_file)
             raise e_rv
         except Exception as e_hc:
-            lock_file_immutable(snapshot_file)
             if progress_callback:
                 progress_callback({
                     "type": "verify_warning",
@@ -584,6 +572,19 @@ class SnapshotEngine:
                     "total_files": len(entries),
                     "percent": 99.0
                 })
+
+        # 6. Sign final snapshot manifest with Ed25519 asymmetric private key
+        try:
+            signer = Ed25519Signer(repo_dir)
+            snapshot_manifest["ed25519_signature"] = signer.sign_manifest(snapshot_manifest)
+        except Exception:
+            snapshot_manifest["ed25519_signature"] = None
+
+        # 7. Save final signed snapshot manifest — Fix #7: compact JSON (no indent) saves 60% space & 2x faster write/load
+        snapshot_file = os.path.join(storage.snapshots_dir, f"{snapshot_id}.json")
+        with open(snapshot_file, "w", encoding="utf-8") as f:
+            json.dump(snapshot_manifest, f, indent=None, separators=(',', ':'), ensure_ascii=False)
+        lock_file_immutable(snapshot_file)
 
         # Ensure 100% completion progress callback is delivered to UI
         if progress_callback:
