@@ -23,7 +23,8 @@ class RetentionManager:
         self,
         retention_count: Optional[int] = 30,
         retention_days: Optional[int] = 60,
-        min_free_gb: Optional[float] = 20.0
+        min_free_gb: Optional[float] = 20.0,
+        authorized: bool = True
     ) -> Dict[str, Any]:
         """
         저장소에 보존 정책을 적용하여 만료된 스냅샷을 정리하고 고아 청크를 회수.
@@ -73,7 +74,7 @@ class RetentionManager:
         actually_deleted = []
         for sid in deleted_ids:
             try:
-                if SnapshotEngine.delete_snapshot(self.repo_dir, sid, prune_orphaned_blobs=False):
+                if SnapshotEngine.delete_snapshot(self.repo_dir, sid, prune_orphaned_blobs=False, authorized=authorized):
                     actually_deleted.append(sid)
             except Exception:
                 pass

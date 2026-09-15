@@ -215,7 +215,8 @@ function renderSnapshotsTable() {
                     <div class="flex items-center gap-1.5 flex-wrap">
                         <span>${s.id}</span>
                         ${s.vss_enabled ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 font-semibold" title="Windows Volume Shadow Copy(VSS) 일관성 백업">VSS</span>' : ''}
-                        ${isVerified ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold" title="SHA-256 및 zstd 무결성 검증 통과">✓ 검증됨</span>' : ''}
+                        ${s.is_local_protected !== false ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold" title="로컬 복원 검증 & WORM 무결성 완료">🛡️ 로컬보호</span>' : ''}
+                        ${s.is_offsite_protected ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-semibold" title="원격 저장소 CAS 복제 및 해시 커밋 완료">🌐 원격보호</span>' : (s.offsite_status === 'TRANSFERRING' || s.offsite_status === 'PENDING' ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 font-semibold animate-pulse" title="원격 저장소 증분 복제 진행 중">⏳ 원격동기화</span>' : '')}
                     </div>
                 </td>
                 <td class="py-3 px-4 font-medium text-slate-200">${s.profile_name || '-'}</td>

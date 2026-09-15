@@ -20,6 +20,11 @@ IS_WINDOWS = sys.platform.startswith('win')
 SID_EVERYONE = "*S-1-1-0"
 
 
+class WORMAuthorizationError(PermissionError):
+    """Raised when an unauthorized process attempts to unprotect WORM-protected repository files."""
+    pass
+
+
 class WORMManager:
     """
     저장소 파일 및 디렉토리에 대해 OS 및 파일시스템 수준의 WORM 보호를 강제하는 엔진.
@@ -81,10 +86,14 @@ class WORMManager:
 
         return success
 
-    def unprotect_file(self, filepath: str) -> bool:
+    def unprotect_file(self, filepath: str, authorized: bool = True) -> bool:
         """
         정당한 삭제나 정리를 위해 WORM 보호를 해제합니다.
+        명시적 관리자 권한(authorized=True)이 필요하며, 인가되지 않은 호출은 차단됩니다.
         """
+        if not authorized:
+            raise WORMAuthorizationError(f"WORM 보호 해제 거부: {filepath} (명시적 관리자 승인 권한 필요)")
+
         if not os.path.exists(filepath):
             return False
 
@@ -117,10 +126,14 @@ class WORMManager:
             return self._run_icacls(dirpath, ["/deny", f"{SID_EVERYONE}:(DC)"])
         return True
 
-    def unprotect_directory(self, dirpath: str) -> bool:
+    def unprotect_directory(self, dirpath: str, authorized: bool = True) -> bool:
         """
         디렉토리의 Delete Child 거부 ACL을 해제합니다.
+        명시적 관리자 권한(authorized=True)이 필요합니다.
         """
+        if not authorized:
+            raise WORMAuthorizationError(f"WORM 디렉토리 보호 해제 거부: {dirpath} (명시적 관리자 승인 권한 필요)")
+
         if not os.path.isdir(dirpath):
             return False
 
@@ -167,6 +180,6 @@ def lock_file_immutable(filepath: str, use_ntfs_acl: bool = False) -> bool:
     """하위 호환성을 지원하는 WORM 잠금 함수"""
     return _default_worm_manager.protect_file(filepath, use_ntfs_acl=use_ntfs_acl)
 
-def unlock_file_writable(filepath: str) -> bool:
-    """하위 호환성을 지원하는 WORM 해제 함수"""
-    return _default_worm_manager.unprotect_file(filepath)
+def unlock_file_writable(filepath: str, authorized: bool = True) -> bool:
+    """하위 호환성을 지원하는 WORM 해제 함수 (명시적 권한 검증)"""
+    return _default_worm_manager.unprotect_file(filepath, authorized=authorized)

@@ -62,11 +62,22 @@ def append_task_log(msg: str, level: str = "INFO"):
 
 scheduler.register_log_callback(append_task_log)
 
-# Fix #15: Replace deprecated @app.on_event with modern lifespan context manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     scheduler.start()
     append_task_log("백업 스케줄러 서비스가 시작되었습니다.")
+    # Durable Replication Queue: auto-resume interrupted tasks on startup
+    try:
+        from core.replication_queue import ReplicationQueueManager
+        candidate_repos = _get_all_candidate_repos()
+        for cand in candidate_repos:
+            rq = ReplicationQueueManager(cand)
+            resumed = rq.resume_all_interrupted()
+            if resumed > 0:
+                append_task_log(f"[Durable Queue] 미완료 오프사이트 복제 {resumed}건 자동 재개 (저장소: {os.path.basename(cand)})")
+            rq.start_background_worker()
+    except Exception as e_rq:
+        append_task_log(f"[Durable Queue] 초기화 알림: {e_rq}", level="WARN")
     yield
     scheduler.stop()
 
@@ -278,6 +289,23 @@ def list_snapshots(repo_dir: Optional[str] = None):
             if sid and sid not in seen_ids:
                 seen_ids.add(sid)
                 s["repo_dir"] = r
+                s["is_local_protected"] = s.get("is_verified", True)
+
+                # Query Durable Replication Queue status
+                try:
+                    from core.replication_queue import ReplicationQueueManager
+                    rq = ReplicationQueueManager(r)
+                    q_info = rq.get_status(sid)
+                    if q_info:
+                        s["offsite_status"] = q_info.get("state", "NONE")
+                        s["is_offsite_protected"] = (q_info.get("state") == "COMMITTED")
+                    else:
+                        s["offsite_status"] = "NONE"
+                        s["is_offsite_protected"] = False
+                except Exception:
+                    s["offsite_status"] = "NONE"
+                    s["is_offsite_protected"] = False
+
                 all_snaps.append(s)
 
     all_snaps.sort(key=lambda x: x.get("created_at", 0), reverse=True)
@@ -341,7 +369,7 @@ def delete_snapshot(snapshot_id: str, repo_dir: Optional[str] = None):
     r = _find_snapshot_repo(snapshot_id, repo_dir)
     if not r:
         raise HTTPException(status_code=404, detail="Snapshot not found")
-    success = SnapshotEngine.delete_snapshot(r, snapshot_id)
+    success = SnapshotEngine.delete_snapshot(r, snapshot_id, authorized=True)
     if not success:
         raise HTTPException(status_code=404, detail="Snapshot not found")
     append_task_log(f"스냅샷 '{snapshot_id}'이 삭제되었습니다.")
@@ -524,7 +552,7 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             cancel_event=cancel_evt
         )
 
-        pruned = SnapshotEngine.prune_snapshots(repo_dir, 30, 60)
+        pruned = SnapshotEngine.prune_snapshots(repo_dir, 30, 60, authorized=True)
 
         # Update profile
         prof = ConfigManager.get_profile(profile_id)
@@ -686,7 +714,7 @@ def _background_backup_task(params: Dict[str, Any]):
         # Retention check
         retention_count = profile.get("retention_count", 30)
         retention_days = profile.get("retention_days", 60)
-        pruned = SnapshotEngine.prune_snapshots(repo_dir, retention_count, retention_days)
+        pruned = SnapshotEngine.prune_snapshots(repo_dir, retention_count, retention_days, authorized=True)
 
         if profile_id:
             profile["last_run"] = time.time()

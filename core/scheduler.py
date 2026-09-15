@@ -137,7 +137,8 @@ class BackupScheduler:
             pruned = SnapshotEngine.prune_snapshots(
                 repo_dir=repo_dir,
                 retention_count=retention_count,
-                max_age_days=retention_days
+                max_age_days=retention_days,
+                authorized=True
             )
 
             # Update profile info

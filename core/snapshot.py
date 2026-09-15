@@ -604,30 +604,26 @@ class SnapshotEngine:
             except Exception:
                 pass
 
-        # 9. Asynchronous Offsite Replication Hook (오프사이트 원격 CAS 증분 복제)
+        # 9. Durable Offsite Replication Queue Registration (Durable Queue + Auto Worker)
         if offsite_repo_dir:
-            def _async_replicate_task():
-                try:
-                    from core.replication import ReplicationManager
-                    rm = ReplicationManager(repo_dir, offsite_repo_dir)
-                    repl_stats = rm.replicate_snapshot(snapshot_id)
-                    if progress_callback:
-                        progress_callback({
-                            "type": "replication_complete",
-                            "stats": repl_stats
-                        })
-                except Exception as e_repl:
-                    if progress_callback:
-                        progress_callback({
-                            "type": "replication_error",
-                            "error": str(e_repl)
-                        })
-
-            threading.Thread(
-                target=_async_replicate_task,
-                daemon=True,
-                name=f"Replication_{snapshot_id}"
-            ).start()
+            try:
+                from core.replication_queue import ReplicationQueueManager
+                rq = ReplicationQueueManager(repo_dir)
+                rq.enqueue(snapshot_id, repo_dir, offsite_repo_dir)
+                rq.start_background_worker()
+            except Exception as e_rq:
+                def _async_replicate_task():
+                    try:
+                        from core.replication import ReplicationManager
+                        rm = ReplicationManager(repo_dir, offsite_repo_dir)
+                        rm.replicate_snapshot(snapshot_id)
+                    except Exception:
+                        pass
+                threading.Thread(
+                    target=_async_replicate_task,
+                    daemon=True,
+                    name=f"ReplicationFallback_{snapshot_id}"
+                ).start()
 
         # Ensure 100% completion progress callback is delivered to UI
         if progress_callback:
@@ -701,7 +697,11 @@ class SnapshotEngine:
         return 0, 0.0
 
     @classmethod
-    def delete_snapshot(cls, repo_dir: str, snapshot_id: str, prune_orphaned_blobs: bool = True) -> bool:
+    def delete_snapshot(cls, repo_dir: str, snapshot_id: str, prune_orphaned_blobs: bool = True, authorized: bool = False) -> bool:
+        if not authorized:
+            from core.worm import WORMAuthorizationError
+            raise WORMAuthorizationError(f"스냅샷 삭제 거부: {snapshot_id} (WORM 권한 분리: 명시적 관리자 승인 권한 필요)")
+
         storage = BlobStorage(repo_dir)
         snap_path = os.path.join(storage.snapshots_dir, f"{snapshot_id}.json")
         if not os.path.exists(snap_path):
@@ -711,7 +711,7 @@ class SnapshotEngine:
         for attempt in range(4):
             try:
                 if os.path.exists(snap_path):
-                    unlock_file_writable(snap_path)
+                    unlock_file_writable(snap_path, authorized=True)
                     os.remove(snap_path)
                     deleted = True
                     break
@@ -737,15 +737,20 @@ class SnapshotEngine:
         repo_dir: str,
         retention_count: Optional[int] = None,
         max_age_days: Optional[int] = None,
-        min_free_gb: Optional[float] = None
+        min_free_gb: Optional[float] = None,
+        authorized: bool = False
     ) -> List[str]:
         """Prunes old snapshots based on retention policy and deletes unreferenced blobs using RetentionManager."""
+        if not authorized:
+            from core.worm import WORMAuthorizationError
+            raise WORMAuthorizationError("스냅샷 보존 정리(Prune) 거부: WORM 권한 분리 (명시적 관리자 승인 권한 필요)")
         try:
             mgr = RetentionManager(repo_dir)
             res = mgr.apply_policy(
                 retention_count=retention_count or 30,
                 retention_days=max_age_days or 60,
-                min_free_gb=min_free_gb
+                min_free_gb=min_free_gb,
+                authorized=authorized
             )
             return res.get("deleted_snapshots", [])
         except Exception:
