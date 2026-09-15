@@ -51,9 +51,9 @@ class TestVSSManager(unittest.TestCase):
         self.assertEqual(ctx.get_shadow_path("D:\\Other\\file.txt"), "D:\\Other\\file.txt")
 
     def test_fallback_when_not_admin(self):
-        """관리자 권한이 없을 때 예외 없이 직접 읽기 모드로 graceful fallback하는지 검증"""
+        """관리자 권한이 없을 때 strict=False인 경우 예외 없이 직접 읽기 모드로 graceful fallback하는지 검증"""
         with patch("core.vss_manager.is_admin", return_value=False):
-            with VSSContext(["C:\\Users\\admin"]) as ctx:
+            with VSSContext(["C:\\Users\\admin"], strict=False) as ctx:
                 self.assertFalse(ctx.vss_active)
                 self.assertTrue(any("관리자 권한" in w for w in ctx.warnings))
                 # 섀도 경로 변환 시 원본 경로 반환
@@ -61,7 +61,7 @@ class TestVSSManager(unittest.TestCase):
 
     def test_cleanup_on_exception(self):
         """컨텍스트 블록 내에서 예외가 발생하더라도 _delete_shadow가 반드시 호출되어 리소스가 정리되는지 검증"""
-        ctx = VSSContext(["C:\\Users\\admin"], enabled=True)
+        ctx = VSSContext(["C:\\Users\\admin"], enabled=True, strict=False)
         ctx.vss_active = True
         ctx.shadows["C:"] = ShadowCopyRecord(
             drive="C:",

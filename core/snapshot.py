@@ -14,9 +14,12 @@ from core.storage import (
     verify_disk_space_or_fail, InsufficientDiskSpaceError
 )
 from core.lock import BackupLock, BackupAlreadyRunningError
-from core.verify import IntegrityVerifier
+from core.verify import (
+    IntegrityVerifier, RestoreVerificationError,
+    generate_manifest_signature, verify_manifest_signature
+)
 from core.retention import RetentionManager
-from core.vss_manager import VSSContext
+from core.vss_manager import VSSContext, VSSRequiredError
 
 class SnapshotEngine:
     @staticmethod
@@ -177,7 +180,8 @@ class SnapshotEngine:
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
         cancel_event: Optional[Any] = None,
         min_free_disk_gb: Optional[float] = None,
-        use_vss: bool = True
+        use_vss: bool = True,
+        strict_vss: bool = False
     ) -> Dict[str, Any]:
         # 0. Acquire repository lock to prevent concurrent backup runs
         with BackupLock(repo_dir, timeout_sec=1.0, process_desc=f"{profile_name} ({profile_id})"):
@@ -191,7 +195,8 @@ class SnapshotEngine:
                 progress_callback=progress_callback,
                 cancel_event=cancel_event,
                 min_free_disk_gb=min_free_disk_gb,
-                use_vss=use_vss
+                use_vss=use_vss,
+                strict_vss=strict_vss
             )
 
     @classmethod
@@ -206,7 +211,8 @@ class SnapshotEngine:
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
         cancel_event: Optional[Any] = None,
         min_free_disk_gb: Optional[float] = None,
-        use_vss: bool = True
+        use_vss: bool = True,
+        strict_vss: bool = False
     ) -> Dict[str, Any]:
         start_time = time.time()
         storage = BlobStorage(repo_dir)
@@ -226,7 +232,7 @@ class SnapshotEngine:
             verify_disk_space_or_fail(repo_dir, min_free_gb=min_free_disk_gb)
 
         # 1. Initialize VSS Volume Shadow Copy Context (Crash-Consistent Locked File Access)
-        with VSSContext(sources, enabled=use_vss) as vss_ctx:
+        with VSSContext(sources, enabled=use_vss, strict=strict_vss) as vss_ctx:
             if vss_ctx.warnings and progress_callback:
                 for w in vss_ctx.warnings:
                     progress_callback({
@@ -506,6 +512,7 @@ class SnapshotEngine:
             "base_snapshot_id": best_snapshot["id"] if best_snapshot else None,
             "vss_enabled": vss_ctx.vss_active if vss_ctx else False,
             "vss_warnings": vss_ctx.warnings if vss_ctx else [],
+            "manifest_signature": generate_manifest_signature(entries),
             "sources": sources,
             "summary": {
                 "total_files": len(entries),
@@ -535,27 +542,28 @@ class SnapshotEngine:
             except Exception:
                 pass
 
-        # 6. Step 1 Improvement: Auto Integrity Health Check (Lightweight sample check)
+        # 6. Automated Restore Verification (실제 디컴프레스 및 바이트 단위 전수 복원 검증)
         try:
             if progress_callback:
                 progress_callback({
                     "type": "verify",
-                    "current_file": "백업 무결성 자동 검증(Health Check) 수행 중...",
+                    "current_file": "자동 복원 무결성 검증(Automated Restore Verification) 수행 중...",
                     "processed_files": len(entries),
                     "total_files": len(entries),
                     "percent": 99.0
                 })
             verifier = IntegrityVerifier(repo_dir)
-            v_res = verifier.verify_snapshot(snapshot_manifest, sample_ratio=0.01, max_samples=10, verify_all_new=False)
-            snapshot_manifest["is_verified"] = v_res.get("success", False)
+            restore_res = verifier.verify_restore_sampling(snapshot_manifest, sample_count=20)
+            snapshot_manifest["restore_verification"] = restore_res
+            snapshot_manifest["is_verified"] = (restore_res.get("status") == "passed")
             snapshot_manifest["verify_timestamp"] = time.time()
-            snapshot_manifest["verify_error_count"] = v_res.get("error_count", 0)
+            snapshot_manifest["verify_error_count"] = 0
 
             # Update DB with verified status
             storage.db.update_snapshot_verification(
                 snapshot_id=snapshot_id,
-                is_verified=v_res.get("success", False),
-                error_count=v_res.get("error_count", 0)
+                is_verified=True,
+                error_count=0
             )
 
             # Re-save manifest with verification tag
@@ -563,12 +571,15 @@ class SnapshotEngine:
             with open(snapshot_file, "w", encoding="utf-8") as f:
                 json.dump(snapshot_manifest, f, indent=None, separators=(',', ':'), ensure_ascii=False)
             lock_file_immutable(snapshot_file)
+        except RestoreVerificationError as e_rv:
+            lock_file_immutable(snapshot_file)
+            raise e_rv
         except Exception as e_hc:
             lock_file_immutable(snapshot_file)
             if progress_callback:
                 progress_callback({
                     "type": "verify_warning",
-                    "current_file": f"무결성 검증 경고 (스킵): {e_hc}",
+                    "current_file": f"자동 복원 검증 비치명적 경고: {e_hc}",
                     "processed_files": len(entries),
                     "total_files": len(entries),
                     "percent": 99.0

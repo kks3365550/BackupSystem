@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-core/verify.py: 백업 무결성 자동 검증 엔진 (Health Check Engine)
+core/verify.py: 백업 무결성 자동 검증 및 복원 시뮬레이션 엔진 (v2.3.9)
 - zstandard / zlib 압축 블롭 스트림 및 해시 무결성 검증
-- 스냅샷 저장 직후 신규 청크 및 샘플 청크 물리적 무결성 검사
-- 손상된 블롭(Bit Rot / Bad Block) 조기 감지
+- Automated Restore Verification: 계층화 샘플링(소형/대형/유니코드/신규) 기반 엔드투엔드 실제 복원 대조
+- Merkle/Hash 기반 Manifest SHA-256 서명 생성 및 위변조 검증
 """
 
 import os
@@ -15,6 +15,41 @@ from core.storage import BlobStorage, ZSTD_MAGIC, HAS_ZSTD
 
 if HAS_ZSTD:
     import zstandard as zstd
+
+
+class RestoreVerificationError(Exception):
+    """자동 복원 검증 실패 시 발생하는 커스텀 예외 (Crash-Consistent / Data Integrity 위반)."""
+    pass
+
+
+def generate_manifest_signature(entries: List[Dict[str, Any]]) -> str:
+    """
+    전체 파일 엔트리의 sha256들을 정렬 결합하여 최종 SHA-256 서명 해시를 생성.
+    스냅샷 메타데이터(manifest.json)의 위변조나 잘림(Truncation)을 즉각 탐지.
+    """
+    if not entries:
+        return hashlib.sha256(b"").hexdigest()
+
+    hashes = []
+    for entry in entries:
+        h = entry.get("sha256") or entry.get("blob_id")
+        if h:
+            hashes.append(h.lower())
+
+    hashes.sort()
+    combined = "\n".join(hashes).encode('utf-8')
+    return hashlib.sha256(combined).hexdigest()
+
+
+def verify_manifest_signature(manifest: Dict[str, Any]) -> bool:
+    """manifest의 manifest_signature와 엔트리들로부터 재계산한 서명이 일치하는지 검증."""
+    stored_sig = manifest.get("manifest_signature")
+    if not stored_sig:
+        return False
+
+    entries = manifest.get("entries", [])
+    calculated_sig = generate_manifest_signature(entries)
+    return stored_sig.lower() == calculated_sig.lower()
 
 
 class IntegrityVerifier:
@@ -50,7 +85,6 @@ class IntegrityVerifier:
                                 break
                             decompressed_hasher.update(chunk)
                 else:
-                    # zlib 또는 zstd 미지원 환경 폴백
                     decomp = zlib.decompressobj()
                     while True:
                         raw = f_in.read(262144)
@@ -77,9 +111,9 @@ class IntegrityVerifier:
         verify_all_new: bool = True
     ) -> Dict[str, Any]:
         """
-        스냅샷 내 블롭들의 무결성을 검증.
+        스냅샷 내 블롭들의 물리적 무결성 검증.
         - verify_all_new=True: 이번 백업에서 신규/수정 생성된 블롭은 100% 전수 검증
-        - 기존 블롭은 sample_ratio(기본 10%, 최대 max_samples개) 무작위 표본 검증
+        - 기존 블롭은 sample_ratio 무작위 표본 검증
         """
         entries = snapshot_manifest.get("entries", [])
         if not entries:
@@ -108,7 +142,6 @@ class IntegrityVerifier:
         if verify_all_new:
             targets_to_verify.update(new_hashes)
 
-        # 기존 블롭 샘플링
         if existing_hashes:
             sample_size = min(len(existing_hashes), max(10, int(len(existing_hashes) * sample_ratio)))
             sample_size = min(sample_size, max_samples)
@@ -134,4 +167,176 @@ class IntegrityVerifier:
             "errors": errors,
             "new_verified": len(new_hashes),
             "sample_verified": len(targets_to_verify) - len(new_hashes)
+        }
+
+    def _decompress_and_hash_blob(self, blob_path: str) -> Tuple[int, str]:
+        """블롭 파일을 스트리밍 압축 해제하며 크기와 SHA-256을 실시간 계산."""
+        with open(blob_path, "rb") as f:
+            magic = f.read(4)
+
+        is_zstd = (magic == ZSTD_MAGIC)
+        hasher = hashlib.sha256()
+        total_size = 0
+
+        with open(blob_path, "rb") as f_in:
+            if is_zstd and HAS_ZSTD:
+                dctx = zstd.ZstdDecompressor()
+                with dctx.stream_reader(f_in) as reader:
+                    while True:
+                        chunk = reader.read(262144)
+                        if not chunk:
+                            break
+                        hasher.update(chunk)
+                        total_size += len(chunk)
+            else:
+                decomp = zlib.decompressobj()
+                while True:
+                    raw = f_in.read(262144)
+                    if not raw:
+                        break
+                    chunk = decomp.decompress(raw)
+                    if chunk:
+                        hasher.update(chunk)
+                        total_size += len(chunk)
+
+        return total_size, hasher.hexdigest()
+
+    def _has_special_chars(self, path: str) -> bool:
+        """경로에 한글, 공백, 유니코드 문자가 포함되어 있는지 검사."""
+        if not path:
+            return False
+        if ' ' in path or '\t' in path:
+            return True
+        for ch in path:
+            if ord(ch) > 127:
+                return True
+        return False
+
+    def verify_restore_sampling(
+        self,
+        snapshot_manifest: Dict[str, Any],
+        sample_count: int = 20
+    ) -> Dict[str, Any]:
+        """
+        🔴 Automated Restore Verification (자동 복원 검증):
+        - 계층화 샘플링:
+          * 소형 파일 (< 100KB) 최대 5개
+          * 대형 파일 (>= 5MB) 최대 5개
+          * 한글/공백/유니코드 경로 파일 최대 5개
+          * 신규/수정된 파일 최대 5개
+          * 부족분은 전체 항목에서 무작위 표본 보충 (최대 sample_count개)
+        - 각 샘플 파일의 블롭을 실제로 스트리밍 디컴프레스하여 크기와 SHA-256을 바이트 단위로 전수 대조.
+        - 단 1개 파일이라도 불일치/누락 시 RestoreVerificationError 발생 (Fail-Closed).
+        """
+        entries = snapshot_manifest.get("entries", [])
+        if not entries:
+            return {
+                "status": "passed",
+                "samples_verified": 0,
+                "total_verified_bytes": 0,
+                "sample_paths": []
+            }
+
+        small_files = []
+        large_files = []
+        special_path_files = []
+        new_modified_files = []
+
+        SMALL_THRESHOLD = 100 * 1024       # 100KB
+        LARGE_THRESHOLD = 5 * 1024 * 1024  # 5MB
+
+        for entry in entries:
+            size = entry.get("size", 0)
+            rel_path = entry.get("rel_path", "")
+            status = entry.get("status", "")
+
+            if size < SMALL_THRESHOLD:
+                small_files.append(entry)
+            elif size >= LARGE_THRESHOLD:
+                large_files.append(entry)
+
+            if self._has_special_chars(rel_path):
+                special_path_files.append(entry)
+
+            if status in ("new", "modified"):
+                new_modified_files.append(entry)
+
+        selected_entries = []
+        selected_keys = set()
+
+        def _add_sample(pool: List[Dict[str, Any]], max_count: int):
+            if not pool:
+                return
+            actual_count = min(len(pool), max_count)
+            sampled = random.sample(pool, actual_count)
+            for entry in sampled:
+                key = (entry.get("rel_path", ""), entry.get("blob_id") or entry.get("sha256", ""))
+                if key not in selected_keys:
+                    selected_keys.add(key)
+                    selected_entries.append(entry)
+
+        _add_sample(small_files, 5)
+        _add_sample(large_files, 5)
+        _add_sample(special_path_files, 5)
+        _add_sample(new_modified_files, 5)
+
+        # 목표 수량 부족 시 전체 항목에서 보충
+        if len(selected_entries) < sample_count:
+            remaining_needed = sample_count - len(selected_entries)
+            unselected = [
+                e for e in entries
+                if (e.get("rel_path", ""), e.get("blob_id") or e.get("sha256", "")) not in selected_keys
+            ]
+            if unselected:
+                actual_fill = min(len(unselected), remaining_needed)
+                filled = random.sample(unselected, actual_fill)
+                for entry in filled:
+                    key = (entry.get("rel_path", ""), entry.get("blob_id") or entry.get("sha256", ""))
+                    if key not in selected_keys:
+                        selected_keys.add(key)
+                        selected_entries.append(entry)
+
+        total_verified_bytes = 0
+
+        for entry in selected_entries:
+            rel_path = entry.get("rel_path", "unknown")
+            blob_id = entry.get("blob_id") or entry.get("sha256")
+            expected_size = entry.get("size", -1)
+            expected_sha256 = entry.get("sha256")
+
+            if not blob_id:
+                raise RestoreVerificationError(
+                    f"자동 복원 검증 실패: {rel_path} (블롭 ID 또는 SHA-256 누락)"
+                )
+
+            blob_path = self.storage.get_blob_abs_path(blob_id)
+            if not os.path.exists(blob_path):
+                raise RestoreVerificationError(
+                    f"자동 복원 검증 실패: {rel_path} (저장소 내 블롭 파일 누락: {blob_id})"
+                )
+
+            try:
+                actual_size, actual_sha256 = self._decompress_and_hash_blob(blob_path)
+            except Exception as e:
+                raise RestoreVerificationError(
+                    f"자동 복원 검증 실패: {rel_path} (압축 해제 스트림 에러: {str(e)})"
+                )
+
+            if expected_size >= 0 and actual_size != expected_size:
+                raise RestoreVerificationError(
+                    f"자동 복원 검증 실패: {rel_path} (크기 불일치 - 기대값: {expected_size}, 복원값: {actual_size})"
+                )
+
+            if expected_sha256 and actual_sha256.lower() != expected_sha256.lower():
+                raise RestoreVerificationError(
+                    f"자동 복원 검증 실패: {rel_path} (해시 불일치 - 기대값: {expected_sha256}, 복원값: {actual_sha256})"
+                )
+
+            total_verified_bytes += actual_size
+
+        return {
+            "status": "passed",
+            "samples_verified": len(selected_entries),
+            "total_verified_bytes": total_verified_bytes,
+            "sample_paths": [e.get("rel_path") for e in selected_entries]
         }

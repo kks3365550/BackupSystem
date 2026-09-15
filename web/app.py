@@ -578,10 +578,16 @@ def _background_custom_backup_task(params: Dict[str, Any]):
     except Exception as e:
         from core.lock import BackupAlreadyRunningError
         from core.storage import InsufficientDiskSpaceError
+        from core.vss_manager import VSSRequiredError
+        from core.verify import RestoreVerificationError
         if isinstance(e, BackupAlreadyRunningError):
             append_task_log(f"선택 백업 거부: {str(e)}", level="WARNING")
         elif isinstance(e, InsufficientDiskSpaceError):
             append_task_log(f"[안전 보호(Fail-Closed) 작동] {str(e)}", level="ERROR")
+        elif isinstance(e, VSSRequiredError):
+            append_task_log(f"[VSS Strict 차단] {str(e)}", level="ERROR")
+        elif isinstance(e, RestoreVerificationError):
+            append_task_log(f"[복원 무결성 검증 실패(DEGRADED)] {str(e)}", level="ERROR")
         else:
             import traceback
             append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
@@ -732,10 +738,16 @@ def _background_backup_task(params: Dict[str, Any]):
     except Exception as e:
         from core.lock import BackupAlreadyRunningError
         from core.storage import InsufficientDiskSpaceError
+        from core.vss_manager import VSSRequiredError
+        from core.verify import RestoreVerificationError
         if isinstance(e, BackupAlreadyRunningError):
             append_task_log(f"백업 거부: {str(e)}", level="WARNING")
         elif isinstance(e, InsufficientDiskSpaceError):
             append_task_log(f"[안전 보호(Fail-Closed) 작동] {str(e)}", level="ERROR")
+        elif isinstance(e, VSSRequiredError):
+            append_task_log(f"[VSS Strict 차단] {str(e)}", level="ERROR")
+        elif isinstance(e, RestoreVerificationError):
+            append_task_log(f"[복원 무결성 검증 실패(DEGRADED)] {str(e)}", level="ERROR")
         else:
             import traceback
             append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
