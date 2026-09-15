@@ -7,6 +7,8 @@ core/verify.py: 백업 무결성 자동 검증 및 복원 시뮬레이션 엔진
 """
 
 import os
+import json
+import time
 import zlib
 import hashlib
 import random
@@ -340,3 +342,148 @@ class IntegrityVerifier:
             "total_verified_bytes": total_verified_bytes,
             "sample_paths": [e.get("rel_path") for e in selected_entries]
         }
+
+    def audit_entire_repository(self, progress_callback=None) -> Dict[str, Any]:
+        """
+        저장소 전체에 대한 심층 무결성 전수 검증 (Deep Scan & Bit Rot Audit).
+        1. 모든 스냅샷 매니페스트의 JSON 유효성, Ed25519 서명, SHA-256 지문 및 누락 블롭(Missing) 전수 검사.
+        2. 모든 물리적 블롭 파일의 압축 해제 스트림 및 언팩 SHA-256 해시 대조 (Bit Rot / 물리적 비트 손상 탐지).
+        3. 어떤 매니페스트에도 참조되지 않는 고아 블롭(Orphaned Blobs) 집계.
+        """
+        start_time = time.time()
+        snapshots_dir = os.path.join(self.repo_dir, "snapshots")
+        blobs_dir = os.path.join(self.repo_dir, "blobs")
+
+        snapshot_files = []
+        if os.path.exists(snapshots_dir):
+            for fname in os.listdir(snapshots_dir):
+                if fname.endswith(".json"):
+                    snapshot_files.append(os.path.join(snapshots_dir, fname))
+
+        blob_files = []
+        if os.path.exists(blobs_dir):
+            for root, _, files in os.walk(blobs_dir):
+                for f in files:
+                    if f.endswith(".blob"):
+                        blob_files.append(os.path.join(root, f))
+
+        total_tasks = len(snapshot_files) + len(blob_files)
+        current_task = 0
+
+        def _report(msg: str):
+            if progress_callback:
+                progress_callback({
+                    "type": "audit_progress",
+                    "current": current_task,
+                    "total": total_tasks,
+                    "percent": round((current_task / max(1, total_tasks)) * 100, 1),
+                    "message": msg
+                })
+
+        results = {
+            "status": "healthy",
+            "scanned_snapshots": len(snapshot_files),
+            "valid_snapshots": 0,
+            "corrupted_snapshots": [],
+            "total_blobs": len(blob_files),
+            "valid_blobs": 0,
+            "corrupted_blobs": [],
+            "missing_blobs": [],
+            "orphaned_blobs": [],
+            "total_scanned_bytes": 0,
+            "duration_seconds": 0.0
+        }
+
+        referenced_blob_ids = set()
+
+        # Phase 1: 스냅샷 매니페스트 검증
+        from core.crypto_sign import Ed25519Signer
+        signer = Ed25519Signer(self.repo_dir)
+
+        for snap_path in snapshot_files:
+            current_task += 1
+            snap_name = os.path.basename(snap_path)
+            if current_task % 50 == 0 or current_task == total_tasks:
+                _report(f"스냅샷 검증 중: {snap_name}")
+
+            try:
+                with open(snap_path, "r", encoding="utf-8") as f:
+                    manifest = json.load(f)
+
+                # 1. Ed25519 비대칭키 전자서명 검증 (서명이 존재할 경우)
+                if manifest.get("ed25519_signature"):
+                    if not signer.verify_manifest(manifest):
+                        results["corrupted_snapshots"].append({
+                            "snapshot": snap_name,
+                            "error": "Ed25519 비대칭키 디지털 전자서명 위변조 감지"
+                        })
+                        continue
+
+                # 2. Manifest SHA-256 서명 지문 검증
+                if not verify_manifest_signature(manifest):
+                    results["corrupted_snapshots"].append({
+                        "snapshot": snap_name,
+                        "error": "Manifest SHA-256 결합 지문 불일치 (엔트리 변조)"
+                    })
+                    continue
+
+                # 3. 매니페스트 내 참조 블롭 수집 및 누락 여부 확인
+                for entry in manifest.get("entries", []):
+                    b_id = entry.get("blob_id") or entry.get("sha256")
+                    if b_id:
+                        b_id_lower = b_id.lower()
+                        referenced_blob_ids.add(b_id_lower)
+                        b_abs = self.storage.get_blob_abs_path(b_id_lower)
+                        if not os.path.exists(b_abs):
+                            if b_id_lower not in results["missing_blobs"]:
+                                results["missing_blobs"].append(b_id_lower)
+
+                results["valid_snapshots"] += 1
+
+            except Exception as e:
+                results["corrupted_snapshots"].append({
+                    "snapshot": snap_name,
+                    "error": f"매니페스트 파싱/검증 오류: {str(e)}"
+                })
+
+        # Phase 2: 블롭 파일 전수 바이트 검증 (Bit Rot 탐지)
+        for blob_path in blob_files:
+            current_task += 1
+            fname = os.path.basename(blob_path)
+            blob_id = fname[:-5].lower() if fname.endswith(".blob") else fname.lower()
+
+            if current_task % 100 == 0 or current_task == total_tasks:
+                _report(f"블롭 바이트 검증 중: {fname}")
+
+            try:
+                actual_size, calculated_sha = self._decompress_and_hash_blob(blob_path)
+                if calculated_sha.lower() != blob_id:
+                    results["corrupted_blobs"].append({
+                        "blob_id": blob_id,
+                        "error": f"Bit Rot 해시 불일치 (기대값: {blob_id}, 실제해시: {calculated_sha})"
+                    })
+                else:
+                    results["valid_blobs"] += 1
+                    results["total_scanned_bytes"] += actual_size
+
+                if blob_id not in referenced_blob_ids:
+                    results["orphaned_blobs"].append(blob_id)
+
+            except Exception as e:
+                results["corrupted_blobs"].append({
+                    "blob_id": blob_id,
+                    "error": f"압축 스트림 손상: {str(e)}"
+                })
+
+        results["duration_seconds"] = round(time.time() - start_time, 2)
+
+        if results["corrupted_snapshots"] or results["corrupted_blobs"]:
+            results["status"] = "corrupted"
+        elif results["missing_blobs"]:
+            results["status"] = "warning"
+        else:
+            results["status"] = "healthy"
+
+        _report(f"감사 완료 (상태: {results['status']})")
+        return results
+

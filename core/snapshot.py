@@ -182,7 +182,9 @@ class SnapshotEngine:
         cancel_event: Optional[Any] = None,
         min_free_disk_gb: Optional[float] = None,
         use_vss: bool = True,
-        strict_vss: bool = False
+        strict_vss: bool = False,
+        offsite_repo_dir: Optional[str] = None,
+        worm_protect: bool = False
     ) -> Dict[str, Any]:
         # 0. Acquire repository lock to prevent concurrent backup runs
         with BackupLock(repo_dir, timeout_sec=1.0, process_desc=f"{profile_name} ({profile_id})"):
@@ -197,7 +199,9 @@ class SnapshotEngine:
                 cancel_event=cancel_event,
                 min_free_disk_gb=min_free_disk_gb,
                 use_vss=use_vss,
-                strict_vss=strict_vss
+                strict_vss=strict_vss,
+                offsite_repo_dir=offsite_repo_dir,
+                worm_protect=worm_protect
             )
 
     @classmethod
@@ -213,7 +217,9 @@ class SnapshotEngine:
         cancel_event: Optional[Any] = None,
         min_free_disk_gb: Optional[float] = None,
         use_vss: bool = True,
-        strict_vss: bool = False
+        strict_vss: bool = False,
+        offsite_repo_dir: Optional[str] = None,
+        worm_protect: bool = False
     ) -> Dict[str, Any]:
         start_time = time.time()
         storage = BlobStorage(repo_dir)
@@ -256,7 +262,9 @@ class SnapshotEngine:
                 start_time=start_time,
                 storage=storage,
                 path_filter=path_filter,
-                vss_ctx=vss_ctx
+                vss_ctx=vss_ctx,
+                offsite_repo_dir=offsite_repo_dir,
+                worm_protect=worm_protect
             )
 
     @classmethod
@@ -273,7 +281,9 @@ class SnapshotEngine:
         start_time: float,
         storage: BlobStorage,
         path_filter: PathFilter,
-        vss_ctx: Optional[VSSContext] = None
+        vss_ctx: Optional[VSSContext] = None,
+        offsite_repo_dir: Optional[str] = None,
+        worm_protect: bool = False
     ) -> Dict[str, Any]:
         # 1. Build fast incremental diff cache from existing snapshots in the repository
         existing_snapshots = cls.list_snapshots(repo_dir)
@@ -585,6 +595,39 @@ class SnapshotEngine:
         with open(snapshot_file, "w", encoding="utf-8") as f:
             json.dump(snapshot_manifest, f, indent=None, separators=(',', ':'), ensure_ascii=False)
         lock_file_immutable(snapshot_file)
+
+        # 8. WORM Protection (NTFS ACL Deny Delete/Overwrite)
+        if worm_protect:
+            try:
+                from core.worm import WORMManager
+                WORMManager().protect_file(snapshot_file, use_ntfs_acl=True)
+            except Exception:
+                pass
+
+        # 9. Asynchronous Offsite Replication Hook (오프사이트 원격 CAS 증분 복제)
+        if offsite_repo_dir:
+            def _async_replicate_task():
+                try:
+                    from core.replication import ReplicationManager
+                    rm = ReplicationManager(repo_dir, offsite_repo_dir)
+                    repl_stats = rm.replicate_snapshot(snapshot_id)
+                    if progress_callback:
+                        progress_callback({
+                            "type": "replication_complete",
+                            "stats": repl_stats
+                        })
+                except Exception as e_repl:
+                    if progress_callback:
+                        progress_callback({
+                            "type": "replication_error",
+                            "error": str(e_repl)
+                        })
+
+            threading.Thread(
+                target=_async_replicate_task,
+                daemon=True,
+                name=f"Replication_{snapshot_id}"
+            ).start()
 
         # Ensure 100% completion progress callback is delivered to UI
         if progress_callback:

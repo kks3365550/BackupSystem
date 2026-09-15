@@ -19,21 +19,7 @@ class InsufficientDiskSpaceError(Exception):
     """Raised when repository disk free space is below the safety threshold (Fail-Closed safeguard)."""
     pass
 
-def lock_file_immutable(filepath: str):
-    """Protects file from ransomware tampering by setting OS read-only attribute (WORM)."""
-    try:
-        if os.path.exists(filepath):
-            os.chmod(filepath, stat_mod.S_IREAD)
-    except Exception:
-        pass
-
-def unlock_file_writable(filepath: str):
-    """Unlocks file to allow authorized backup engine deletion/pruning."""
-    try:
-        if os.path.exists(filepath):
-            os.chmod(filepath, stat_mod.S_IWRITE)
-    except Exception:
-        pass
+from core.worm import lock_file_immutable, unlock_file_writable, WORMManager
 
 def get_disk_free_gb(path: str) -> float:
     """Returns free disk space in gigabytes for the volume containing path."""
