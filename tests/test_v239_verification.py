@@ -133,10 +133,10 @@ class TestV239Verification(unittest.TestCase):
         with open(blob_path, "wb") as f:
             f.write(b"CORRUPTED_GARBAGE_BYTES")
 
-        # 손상된 상태에서 복원 샘플링 검증 실행 시 RestoreVerificationError 발생해야 함
+        # 손상된 상태에서 복원 샘플링 검증 실행 시 RestoreVerificationError 발생해야 함 (자가 치유 비활성화 모드)
         verifier = IntegrityVerifier(self.repo_dir)
         with self.assertRaises(RestoreVerificationError):
-            verifier.verify_restore_sampling(snap, sample_count=20)
+            verifier.verify_restore_sampling(snap, sample_count=20, self_heal=False)
 
 
 if __name__ == "__main__":

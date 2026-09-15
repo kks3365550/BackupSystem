@@ -13,7 +13,7 @@ import zlib
 import hashlib
 import random
 from typing import Dict, Any, List, Optional, Tuple
-from core.storage import BlobStorage, ZSTD_MAGIC, HAS_ZSTD
+from core.storage import BlobStorage, ZSTD_MAGIC, HAS_ZSTD, unlock_file_writable
 
 if HAS_ZSTD:
     import zstandard as zstd
@@ -240,7 +240,8 @@ class IntegrityVerifier:
     def verify_restore_sampling(
         self,
         snapshot_manifest: Dict[str, Any],
-        sample_count: int = 20
+        sample_count: int = 20,
+        self_heal: bool = True
     ) -> Dict[str, Any]:
         """
         🔴 Automated Restore Verification (자동 복원 검증):
@@ -322,6 +323,7 @@ class IntegrityVerifier:
                         selected_entries.append(entry)
 
         total_verified_bytes = 0
+        healed_count = 0
 
         for entry in selected_entries:
             rel_path = entry.get("rel_path", "unknown")
@@ -340,21 +342,56 @@ class IntegrityVerifier:
                     f"자동 복원 검증 실패: {rel_path} (저장소 내 블롭 파일 누락: {blob_id})"
                 )
 
+            corrupted = False
+            corruption_reason = ""
+            actual_size = 0
+            actual_sha256 = ""
+
             try:
                 actual_size, actual_sha256 = self._decompress_and_hash_blob(blob_path)
+                if expected_size >= 0 and actual_size != expected_size:
+                    corrupted = True
+                    corruption_reason = f"크기 불일치 (기대값: {expected_size}, 복원값: {actual_size})"
+                elif expected_sha256 and actual_sha256.lower() != expected_sha256.lower():
+                    corrupted = True
+                    corruption_reason = f"해시 불일치 (기대값: {expected_sha256}, 복원값: {actual_sha256})"
             except Exception as e:
-                raise RestoreVerificationError(
-                    f"자동 복원 검증 실패: {rel_path} (압축 해제 스트림 에러: {str(e)})"
-                )
+                corrupted = True
+                corruption_reason = f"압축 해제 스트림 에러: {str(e)}"
 
-            if expected_size >= 0 and actual_size != expected_size:
-                raise RestoreVerificationError(
-                    f"자동 복원 검증 실패: {rel_path} (크기 불일치 - 기대값: {expected_size}, 복원값: {actual_size})"
-                )
+            if corrupted:
+                healed = False
+                # 🔴 자가 치유(Self-Healing): self_heal=True이고 원본 소스 파일이 존재하는 경우 정상 블롭 재생성
+                if self_heal:
+                    source_root = entry.get("source_root")
+                    if source_root and os.path.isdir(source_root) and expected_sha256:
+                        candidate_src = os.path.join(source_root, rel_path)
+                        if os.path.isfile(candidate_src):
+                            try:
+                                # 원본 파일 무결성 우선 확인
+                                with open(candidate_src, "rb") as f_src:
+                                    src_bytes = f_src.read()
+                                if hashlib.sha256(src_bytes).hexdigest().lower() == expected_sha256.lower():
+                                    unlock_file_writable(blob_path)
+                                    if os.path.exists(blob_path):
+                                        os.remove(blob_path)
+                                    with self.storage._cache_lock:
+                                        self.storage._blob_cache.discard(expected_sha256)
+                                    self.storage.put_file_blob_onepass(candidate_src)
+                                    # 재검증
+                                    actual_size, actual_sha256 = self._decompress_and_hash_blob(blob_path)
+                                    if actual_sha256.lower() == expected_sha256.lower():
+                                        healed = True
+                            except Exception:
+                                pass
 
-            if expected_sha256 and actual_sha256.lower() != expected_sha256.lower():
+                if healed:
+                    healed_count += 1
+                    total_verified_bytes += actual_size
+                    continue
+
                 raise RestoreVerificationError(
-                    f"자동 복원 검증 실패: {rel_path} (해시 불일치 - 기대값: {expected_sha256}, 복원값: {actual_sha256})"
+                    f"자동 복원 검증 실패: {rel_path} ({corruption_reason})"
                 )
 
             total_verified_bytes += actual_size
@@ -362,6 +399,7 @@ class IntegrityVerifier:
         return {
             "status": "passed",
             "samples_verified": len(selected_entries),
+            "healed_count": healed_count,
             "total_verified_bytes": total_verified_bytes,
             "sample_paths": [e.get("rel_path") for e in selected_entries]
         }

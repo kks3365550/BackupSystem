@@ -581,6 +581,16 @@ class SnapshotEngine:
             snapshot_manifest["verify_timestamp"] = time.time()
             snapshot_manifest["verify_error_count"] = 0
 
+            healed_count = restore_res.get("healed_count", 0)
+            if healed_count > 0 and progress_callback:
+                progress_callback({
+                    "type": "verify_healed",
+                    "current_file": f"[자가 치유(Self-Healed)] 과거 손상 블롭 {healed_count}개를 원본 소스로부터 정상 복구 완료",
+                    "processed_files": len(entries),
+                    "total_files": len(entries),
+                    "percent": 99.5
+                })
+
             # Update DB with verified status
             storage.db.update_snapshot_verification(
                 snapshot_id=snapshot_id,
