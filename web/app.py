@@ -535,8 +535,9 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             ConfigManager.save_profile(prof)
 
         summary = manifest.get("summary", {})
+        vss_mode = "VSS 볼륨 섀도 복사본(Crash-Consistent 일관성 보장)" if manifest.get("vss_enabled") else "일반 직접 읽기"
         append_task_log(
-            f"선택 백업 완료! ID: {manifest['id']} | 파일: {summary.get('total_files')}개 "
+            f"선택 백업 완료! ID: {manifest['id']} | [{vss_mode}] | 파일: {summary.get('total_files')}개 "
             f"({round(summary.get('total_bytes', 0)/(1024*1024), 2)}MB) | "
             f"신규/수정: {summary.get('new_files', 0) + summary.get('modified_files', 0)}개 | "
             f"중복제거 절감: {round(summary.get('dedup_saved_bytes', 0)/(1024*1024), 2)}MB | "
@@ -556,6 +557,7 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             "profile_id": manifest.get("profile_id"),
             "profile_name": manifest.get("profile_name"),
             "repo_dir": manifest.get("repo_dir"),
+            "vss_enabled": manifest.get("vss_enabled", False),
             "summary": manifest.get("summary")
         }
         del manifest
@@ -575,8 +577,11 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             current_task["error"] = "Cancelled by user"
     except Exception as e:
         from core.lock import BackupAlreadyRunningError
+        from core.storage import InsufficientDiskSpaceError
         if isinstance(e, BackupAlreadyRunningError):
             append_task_log(f"선택 백업 거부: {str(e)}", level="WARNING")
+        elif isinstance(e, InsufficientDiskSpaceError):
+            append_task_log(f"[안전 보호(Fail-Closed) 작동] {str(e)}", level="ERROR")
         else:
             import traceback
             append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
@@ -684,8 +689,9 @@ def _background_backup_task(params: Dict[str, Any]):
             ConfigManager.save_profile(profile)
 
         summary = manifest.get("summary", {})
+        vss_mode = "VSS 볼륨 섀도 복사본(Crash-Consistent 일관성 보장)" if manifest.get("vss_enabled") else "일반 직접 읽기"
         append_task_log(
-            f"백업 성공 완료! ID: {manifest['id']} | 파일: {summary.get('total_files')}개 "
+            f"백업 성공 완료! ID: {manifest['id']} | [{vss_mode}] | 파일: {summary.get('total_files')}개 "
             f"({round(summary.get('total_bytes', 0)/(1024*1024), 2)}MB) | "
             f"신규/수정: {summary.get('new_files', 0) + summary.get('modified_files', 0)}개 | "
             f"중복제거 절감: {round(summary.get('dedup_saved_bytes', 0)/(1024*1024), 2)}MB | "
@@ -708,6 +714,7 @@ def _background_backup_task(params: Dict[str, Any]):
             "profile_id": manifest.get("profile_id"),
             "profile_name": manifest.get("profile_name"),
             "repo_dir": manifest.get("repo_dir"),
+            "vss_enabled": manifest.get("vss_enabled", False),
             "summary": manifest.get("summary")
         }
         del manifest
@@ -724,8 +731,11 @@ def _background_backup_task(params: Dict[str, Any]):
             current_task["error"] = "Cancelled by user"
     except Exception as e:
         from core.lock import BackupAlreadyRunningError
+        from core.storage import InsufficientDiskSpaceError
         if isinstance(e, BackupAlreadyRunningError):
             append_task_log(f"백업 거부: {str(e)}", level="WARNING")
+        elif isinstance(e, InsufficientDiskSpaceError):
+            append_task_log(f"[안전 보호(Fail-Closed) 작동] {str(e)}", level="ERROR")
         else:
             import traceback
             append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")

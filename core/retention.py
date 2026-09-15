@@ -64,18 +64,10 @@ class RetentionManager:
                     if sid:
                         deleted_ids.add(sid)
 
-        # 3. 디스크 최소 여유 공간(min_free_gb) 검사 및 선제적 정리
-        if min_free_gb and min_free_gb > 0:
-            current_free_gb = get_disk_free_gb(self.repo_dir)
-            if current_free_gb < min_free_gb:
-                # 오래된 스냅샷부터 순차적으로 삭제 후보에 추가
-                for s in reversed(snapshots[1:]): # 가장 오래된 것부터
-                    sid = s.get("id")
-                    if sid:
-                        deleted_ids.add(sid)
-                    # 여유 공간이 확보되었을 것으로 예상되면 중단 (추정치)
-                    if len(deleted_ids) >= len(snapshots) - 1:
-                        break
+        # Note: Fail-Closed Policy:
+        # Disk space shortage MUST NEVER cause arbitrary deletion of valid historical snapshots.
+        # Insufficient disk space is handled at backup entry time by rejecting new backups (Fail-Closed).
+        # Retention policy only prunes expired snapshots based on configured generation count and age days.
 
         # 실제 삭제 실행
         actually_deleted = []

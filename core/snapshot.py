@@ -9,10 +9,14 @@ import concurrent.futures
 from typing import Dict, List, Any, Optional, Callable, Tuple
 from core.hasher import calculate_sha256, get_file_stat
 from core.filter import PathFilter
-from core.storage import BlobStorage, lock_file_immutable, unlock_file_writable, get_disk_free_gb
+from core.storage import (
+    BlobStorage, lock_file_immutable, unlock_file_writable, get_disk_free_gb,
+    verify_disk_space_or_fail, InsufficientDiskSpaceError
+)
 from core.lock import BackupLock, BackupAlreadyRunningError
 from core.verify import IntegrityVerifier
 from core.retention import RetentionManager
+from core.vss_manager import VSSContext
 
 class SnapshotEngine:
     @staticmethod
@@ -172,7 +176,8 @@ class SnapshotEngine:
         compress_level: int = 6,
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
         cancel_event: Optional[Any] = None,
-        min_free_disk_gb: Optional[float] = None
+        min_free_disk_gb: Optional[float] = None,
+        use_vss: bool = True
     ) -> Dict[str, Any]:
         # 0. Acquire repository lock to prevent concurrent backup runs
         with BackupLock(repo_dir, timeout_sec=1.0, process_desc=f"{profile_name} ({profile_id})"):
@@ -185,7 +190,8 @@ class SnapshotEngine:
                 compress_level=compress_level,
                 progress_callback=progress_callback,
                 cancel_event=cancel_event,
-                min_free_disk_gb=min_free_disk_gb
+                min_free_disk_gb=min_free_disk_gb,
+                use_vss=use_vss
             )
 
     @classmethod
@@ -199,13 +205,14 @@ class SnapshotEngine:
         compress_level: int = 6,
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
         cancel_event: Optional[Any] = None,
-        min_free_disk_gb: Optional[float] = None
+        min_free_disk_gb: Optional[float] = None,
+        use_vss: bool = True
     ) -> Dict[str, Any]:
         start_time = time.time()
         storage = BlobStorage(repo_dir)
         path_filter = PathFilter(exclude_patterns=exclude_patterns)
 
-        # 0. Smart Low-Disk Safeguard: auto prune oldest snapshots if free space < min_free_disk_gb
+        # 0. Fail-Closed Smart Safeguard: verify available disk space before backup starts
         if min_free_disk_gb is None:
             try:
                 from core.config import ConfigManager
@@ -215,16 +222,52 @@ class SnapshotEngine:
                 min_free_disk_gb = 10.0
 
         if min_free_disk_gb > 0:
-            pruned_snaps, freed_space_gb = cls.ensure_disk_space(repo_dir, min_free_gb=min_free_disk_gb)
-            if pruned_snaps > 0 and progress_callback:
-                progress_callback({
-                    "type": "safeguard",
-                    "current_file": f"저장소 용량 확보: 여유 공간 부족(<{min_free_disk_gb}GB)으로 오래된 스냅샷 {pruned_snaps}개 정리 (+{freed_space_gb}GB)",
-                    "processed_files": 0,
-                    "total_files": 0,
-                    "percent": 0
-                })
+            # Under Fail-Closed policy: never prune historical snapshots; abort if space is low
+            verify_disk_space_or_fail(repo_dir, min_free_gb=min_free_disk_gb)
 
+        # 1. Initialize VSS Volume Shadow Copy Context (Crash-Consistent Locked File Access)
+        with VSSContext(sources, enabled=use_vss) as vss_ctx:
+            if vss_ctx.warnings and progress_callback:
+                for w in vss_ctx.warnings:
+                    progress_callback({
+                        "type": "vss_notice",
+                        "current_file": f"[VSS] {w}",
+                        "processed_files": 0,
+                        "total_files": 0,
+                        "percent": 0
+                    })
+
+            return cls._execute_backup_pipeline(
+                repo_dir=repo_dir,
+                sources=sources,
+                profile_id=profile_id,
+                profile_name=profile_name,
+                exclude_patterns=exclude_patterns,
+                compress_level=compress_level,
+                progress_callback=progress_callback,
+                cancel_event=cancel_event,
+                start_time=start_time,
+                storage=storage,
+                path_filter=path_filter,
+                vss_ctx=vss_ctx
+            )
+
+    @classmethod
+    def _execute_backup_pipeline(
+        cls,
+        repo_dir: str,
+        sources: List[str],
+        profile_id: str,
+        profile_name: str,
+        exclude_patterns: Optional[List[str]],
+        compress_level: int,
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]],
+        cancel_event: Optional[Any],
+        start_time: float,
+        storage: BlobStorage,
+        path_filter: PathFilter,
+        vss_ctx: Optional[VSSContext] = None
+    ) -> Dict[str, Any]:
         # 1. Build fast incremental diff cache from existing snapshots in the repository
         existing_snapshots = cls.list_snapshots(repo_dir)
         prev_entries_map = {}
@@ -322,11 +365,13 @@ class SnapshotEngine:
             if cancel_event and cancel_event.is_set():
                 raise InterruptedError("Operation cancelled")
             try:
-                # One-Pass streaming hash + compression
+                # One-Pass streaming hash + compression (read via VSS shadow copy if active)
+                read_p = vss_ctx.get_shadow_path(full_p) if (vss_ctx and vss_ctx.vss_active) else None
                 sha256_hash, orig_sz, stored_sz, is_new = storage.put_file_blob_onepass(
                     full_p,
                     compress_level=compress_level,
-                    cancel_event=cancel_event
+                    cancel_event=cancel_event,
+                    read_path=read_p
                 )
                 st = "modified" if p_entry else "new"
                 res_entry = {
@@ -459,6 +504,8 @@ class SnapshotEngine:
             "profile_name": profile_name,
             "backup_type": backup_type,
             "base_snapshot_id": best_snapshot["id"] if best_snapshot else None,
+            "vss_enabled": vss_ctx.vss_active if vss_ctx else False,
+            "vss_warnings": vss_ctx.warnings if vss_ctx else [],
             "sources": sources,
             "summary": {
                 "total_files": len(entries),
@@ -589,39 +636,14 @@ class SnapshotEngine:
     @classmethod
     def ensure_disk_space(cls, repo_dir: str, min_free_gb: float = 10.0) -> Tuple[int, float]:
         """
-        Smart Low-Disk Safeguard:
-        If free space in the backup repository volume falls below min_free_gb,
-        automatically prunes the oldest snapshots one by one until sufficient space is secured.
-        Returns (pruned_snapshot_count, freed_gb).
+        Fail-Closed Low-Disk Safeguard:
+        Verifies if the backup repository volume has at least min_free_gb available.
+        Under the Fail-Closed security principle, it NEVER deletes any existing snapshots.
+        Raises InsufficientDiskSpaceError if space is insufficient.
+        Returns (0, 0.0).
         """
-        free_gb = get_disk_free_gb(repo_dir)
-        if free_gb >= min_free_gb:
-            return 0, 0.0
-
-        initial_free = free_gb
-        pruned_count = 0
-
-        # Load snapshots (sorted newest first)
-        snapshots = cls.list_snapshots(repo_dir)
-        if len(snapshots) <= 1:
-            return 0, 0.0
-
-        # Oldest snapshots are deleted first; keep the newest intact (snapshots[0] is newest)
-        candidates = list(reversed(snapshots[1:]))
-
-        for s in candidates:
-            try:
-                if cls.delete_snapshot(repo_dir, s["id"], prune_orphaned_blobs=True):
-                    pruned_count += 1
-                    current_free = get_disk_free_gb(repo_dir)
-                    if current_free >= min_free_gb:
-                        break
-            except Exception:
-                pass
-
-        final_free = get_disk_free_gb(repo_dir)
-        freed_gb = max(0.0, round(final_free - initial_free, 2))
-        return pruned_count, freed_gb
+        verify_disk_space_or_fail(repo_dir, min_free_gb=min_free_gb)
+        return 0, 0.0
 
     @classmethod
     def delete_snapshot(cls, repo_dir: str, snapshot_id: str, prune_orphaned_blobs: bool = True) -> bool:

@@ -15,6 +15,10 @@ except ImportError:
 
 import stat as stat_mod
 
+class InsufficientDiskSpaceError(Exception):
+    """Raised when repository disk free space is below the safety threshold (Fail-Closed safeguard)."""
+    pass
+
 def lock_file_immutable(filepath: str):
     """Protects file from ransomware tampering by setting OS read-only attribute (WORM)."""
     try:
@@ -38,6 +42,21 @@ def get_disk_free_gb(path: str) -> float:
         return round(free / (1024 ** 3), 2)
     except Exception:
         return 999.0
+
+def verify_disk_space_or_fail(path: str, min_free_gb: float = 10.0) -> float:
+    """
+    Fail-Closed Disk Space Verification:
+    Ensures that the destination volume has at least min_free_gb remaining.
+    If free space is insufficient, raises InsufficientDiskSpaceError immediately to prevent
+    partial backups and NEVER deletes existing snapshots.
+    """
+    free_gb = get_disk_free_gb(path)
+    if free_gb < min_free_gb:
+        raise InsufficientDiskSpaceError(
+            f"저장소 여유 공간 부족 (현재: {free_gb:.2f}GB < 최소 안전 여유량: {min_free_gb:.2f}GB). "
+            f"기존 백업 체인을 안전하게 보존하기 위해 백업 작업을 즉시 거부/중단(Fail-Closed)합니다."
+        )
+    return free_gb
 
 ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 
@@ -117,15 +136,16 @@ class BlobStorage:
             with self._cache_lock:
                 self._blob_cache.update(valid_ids)
 
-    def put_file_blob(self, filepath: str, sha256_hash: Optional[str] = None, compress_level: int = DEFAULT_COMPRESS_LEVEL) -> Tuple[str, int, int, bool]:
+    def put_file_blob(self, filepath: str, sha256_hash: Optional[str] = None, compress_level: int = DEFAULT_COMPRESS_LEVEL, read_path: Optional[str] = None) -> Tuple[str, int, int, bool]:
         """
         Compresses and saves a file as a content-addressed blob.
         Uses Zstandard if available (high speed & high compression), otherwise zlib.
         Returns (sha256_hash, original_size, stored_size, is_new_blob).
         """
-        orig_size = os.path.getsize(filepath)
+        actual_path = read_path if read_path else filepath
+        orig_size = os.path.getsize(actual_path)
         if not sha256_hash:
-            sha256_hash = calculate_sha256(filepath)
+            sha256_hash = calculate_sha256(actual_path)
 
         blob_path = self.get_blob_abs_path(sha256_hash)
 
@@ -138,7 +158,7 @@ class BlobStorage:
 
         stored_size = 0
         try:
-            with open(filepath, "rb") as fin, open(temp_blob_path, "wb") as fout:
+            with open(actual_path, "rb") as fin, open(temp_blob_path, "wb") as fout:
                 if HAS_ZSTD:
                     cctx = zstd.ZstdCompressor(level=compress_level)
                     with cctx.stream_writer(fout, closefd=False) as compressor:
@@ -161,7 +181,7 @@ class BlobStorage:
                         fout.write(tail)
         except FileNotFoundError:
             os.makedirs(os.path.dirname(blob_path), exist_ok=True)
-            with open(filepath, "rb") as fin, open(temp_blob_path, "wb") as fout:
+            with open(actual_path, "rb") as fin, open(temp_blob_path, "wb") as fout:
                 if HAS_ZSTD:
                     cctx = zstd.ZstdCompressor(level=compress_level)
                     with cctx.stream_writer(fout, closefd=False) as compressor:
@@ -190,19 +210,20 @@ class BlobStorage:
             self._blob_cache.add(sha256_hash)
         return sha256_hash, orig_size, stored_size, True
 
-    def put_file_blob_onepass(self, filepath: str, compress_level: int = DEFAULT_COMPRESS_LEVEL, cancel_event=None) -> Tuple[str, int, int, bool]:
+    def put_file_blob_onepass(self, filepath: str, compress_level: int = DEFAULT_COMPRESS_LEVEL, cancel_event=None, read_path: Optional[str] = None) -> Tuple[str, int, int, bool]:
         """
         High-Performance Single-Pass (One-Pass) hashing & deduplication:
         - Files <= 16MB: RAM read + RAM SHA-256 first. Duplicate files return in ~0ms with zero disk I/O and zero compression CPU.
         - Large files: Streaming one-pass compression directly to blob.
         """
-        orig_size = os.path.getsize(filepath)
+        actual_path = read_path if read_path else filepath
+        orig_size = os.path.getsize(actual_path)
 
         # Fast path for small/medium files (<= 16MB, covers 99% of system files)
         if orig_size <= 16 * 1024 * 1024:
             if cancel_event and cancel_event.is_set():
                 raise InterruptedError("Operation cancelled")
-            with open(filepath, "rb") as fin:
+            with open(actual_path, "rb") as fin:
                 data = fin.read()
             sha256_hash = hashlib.sha256(data).hexdigest()
             blob_path = self.get_blob_abs_path(sha256_hash)
@@ -255,7 +276,7 @@ class BlobStorage:
         temp_file = os.path.join(temp_dir, f"tmp_{os.getpid()}_{hashlib.md5(filepath.encode('utf-8', 'replace')).hexdigest()}_{os.urandom(4).hex()}.blob")
 
         try:
-            with open(filepath, "rb") as fin, open(temp_file, "wb") as fout:
+            with open(actual_path, "rb") as fin, open(temp_file, "wb") as fout:
                 if HAS_ZSTD:
                     cctx = zstd.ZstdCompressor(level=compress_level)
                     with cctx.stream_writer(fout, closefd=False) as compressor:

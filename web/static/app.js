@@ -159,11 +159,12 @@ function renderRecentSnapshots() {
                         <i data-lucide="${isFull ? 'database' : 'layers'}" class="w-5 h-5"></i>
                     </div>
                     <div>
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-2 flex-wrap">
                             <span class="font-semibold text-sm text-slate-200">${s.profile_name || '백업'}</span>
                             <span class="text-[10px] px-2 py-0.5 rounded-full font-medium ${isFull ? 'bg-blue-900/60 text-blue-300 border border-blue-700' : 'bg-emerald-900/60 text-emerald-300 border border-emerald-700'}">
                                 ${isFull ? 'FULL' : 'INCREMENTAL'}
                             </span>
+                            ${s.vss_enabled ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 font-semibold" title="Windows Volume Shadow Copy(VSS) 일관성 백업">VSS</span>' : ''}
                         </div>
                         <div class="text-xs text-slate-400 mt-0.5">
                             ${formatDate(s.iso_time)} · 파일 ${sum.total_files || 0}개 (${formatBytes(sum.total_bytes)})
@@ -211,8 +212,9 @@ function renderSnapshotsTable() {
         return `
             <tr class="border-b border-slate-800 hover:bg-slate-800/40 text-sm transition">
                 <td class="py-3 px-4 font-mono text-xs text-blue-400">
-                    <div class="flex items-center gap-1.5">
+                    <div class="flex items-center gap-1.5 flex-wrap">
                         <span>${s.id}</span>
+                        ${s.vss_enabled ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 font-semibold" title="Windows Volume Shadow Copy(VSS) 일관성 백업">VSS</span>' : ''}
                         ${isVerified ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold" title="SHA-256 및 zstd 무결성 검증 통과">✓ 검증됨</span>' : ''}
                     </div>
                 </td>
