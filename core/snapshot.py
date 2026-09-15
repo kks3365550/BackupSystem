@@ -404,7 +404,7 @@ class SnapshotEngine:
                 res_entry = {
                     "source_root": s_root,
                     "rel_path": r_path,
-                    "size": size,
+                    "size": orig_sz,
                     "mtime": mtime,
                     "sha256": sha256_hash,
                     "blob_id": sha256_hash,
@@ -521,6 +521,7 @@ class SnapshotEngine:
         snapshot_id = cls._generate_snapshot_id()
         backup_type = "incremental" if best_snapshot else "full"
 
+        total_source_bytes = sum(e.get("size", 0) for e in entries)
         dedup_saved_bytes = max(0, total_source_bytes - new_stored_bytes)
 
         snapshot_manifest = {

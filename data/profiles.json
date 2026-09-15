@@ -159,6 +159,7 @@
     "schedule_value": "09:00",
     "auto_backup_enabled": true,
     "retention_count": 30,
+    "retention_days": 60,
     "compression_level": 9,
     "last_status": "success"
   }
