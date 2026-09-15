@@ -25,16 +25,51 @@ from core.storage import (
 )
 
 
+class TokenBucketLimiter:
+    """
+    QoS 대역폭 제한을 위한 토큰 버킷 알고리즘 (time.monotonic 기반)
+    CPU 스파이크(Busy-waiting) 없이 정밀한 마이크로초 슬립 제어.
+    """
+    def __init__(self, max_mb_per_sec: float = 0.0):
+        self.rate_bytes = max_mb_per_sec * 1024 * 1024 if max_mb_per_sec > 0 else 0
+        self.capacity = self.rate_bytes * 2 if self.rate_bytes > 0 else 0
+        self.tokens = self.capacity
+        self.last_refill = time.monotonic()
+        self._lock = threading.Lock()
+
+    def consume(self, num_bytes: int):
+        if self.rate_bytes <= 0:
+            return
+        with self._lock:
+            now = time.monotonic()
+            elapsed = now - self.last_refill
+            self.last_refill = now
+            self.tokens = min(self.capacity, self.tokens + elapsed * self.rate_bytes)
+
+            if self.tokens >= num_bytes:
+                self.tokens -= num_bytes
+                return
+
+            needed = num_bytes - self.tokens
+            sleep_time = needed / self.rate_bytes
+            self.tokens = 0
+
+        time.sleep(sleep_time)
+
+
 class ReplicationManager:
     """
     로컬 CAS 저장소의 블롭과 스냅샷을 오프사이트 원격 저장소로 증분 복제하는 관리자.
+    - QoS 대역폭 제한(Token Bucket) 및 진행률 실시간 모니터링 지원
     """
 
     MIN_REMOTE_FREE_GB = 5.0
 
-    def __init__(self, local_repo_dir: str, remote_repo_dir: str):
+    def __init__(self, local_repo_dir: str, remote_repo_dir: str, bandwidth_limit_mb: float = 0.0):
         self.local_repo_dir = os.path.abspath(local_repo_dir)
         self.remote_repo_dir = os.path.abspath(remote_repo_dir)
+        self.bandwidth_limit_mb = bandwidth_limit_mb
+        self.limiter = TokenBucketLimiter(bandwidth_limit_mb)
 
         if not os.path.isdir(self.local_repo_dir):
             raise FileNotFoundError(f"Local repository does not exist: {self.local_repo_dir}")
@@ -104,9 +139,11 @@ class ReplicationManager:
         try:
             with open(local_path, 'rb') as fin, open(tmp_path, 'wb') as fout:
                 while True:
-                    chunk = fin.read(DEFAULT_CHUNK_SIZE)
+                    chunk = fin.read(262144)
                     if not chunk:
                         break
+                    if self.limiter:
+                        self.limiter.consume(len(chunk))
                     fout.write(chunk)
                     bytes_copied += len(chunk)
 
@@ -169,9 +206,11 @@ class ReplicationManager:
         try:
             with open(local_manifest, 'rb') as fin, open(tmp_path, 'wb') as fout:
                 while True:
-                    chunk = fin.read(DEFAULT_CHUNK_SIZE)
+                    chunk = fin.read(262144)
                     if not chunk:
                         break
+                    if self.limiter:
+                        self.limiter.consume(len(chunk))
                     fout.write(chunk)
 
             os.replace(tmp_path, remote_manifest)
@@ -185,8 +224,13 @@ class ReplicationManager:
                 pass
             raise
 
-    def replicate_snapshot(self, snapshot_id: str, max_workers: int = 4) -> Dict[str, Any]:
-        """특정 스냅샷에 필요한 누락된 블롭들만 증분 복제하고 매니페스트 동기화."""
+    def replicate_snapshot(
+        self,
+        snapshot_id: str,
+        max_workers: int = 4,
+        progress_callback: Optional[Any] = None
+    ) -> Dict[str, Any]:
+        """특정 스냅샷에 필요한 누락된 블롭들만 증분 복제하고 매니페스트 동기화 (QoS 및 실시간 진행률 지원)."""
         start_time = time.time()
 
         verify_disk_space_or_fail(self.remote_repo_dir, min_free_gb=self.MIN_REMOTE_FREE_GB)
@@ -213,6 +257,13 @@ class ReplicationManager:
         total_bytes = 0
         errors = []
 
+        # 총 예상 복제 크기 계산
+        total_missing_bytes = 0
+        for b_id in missing_blobs:
+            lp = self._get_local_blob_path(b_id)
+            if os.path.exists(lp):
+                total_missing_bytes += os.path.getsize(lp)
+
         if missing_blobs:
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_blob = {
@@ -228,6 +279,26 @@ class ReplicationManager:
                         replicated_count += 1
                     except Exception as e:
                         errors.append(f"블롭 {b_id} 복제 실패: {str(e)}")
+
+                    if progress_callback:
+                        elapsed = max(0.001, time.time() - start_time)
+                        speed = total_bytes / elapsed
+                        remaining_bytes = max(0, total_missing_bytes - total_bytes)
+                        eta = (remaining_bytes / speed) if speed > 0 else 0
+                        pct = (replicated_count / max(1, len(missing_blobs))) * 100
+                        try:
+                            progress_callback({
+                                "status": "REPLICATING",
+                                "transferred_bytes": total_bytes,
+                                "remaining_bytes": remaining_bytes,
+                                "speed_mb_s": round(speed / (1024 * 1024), 2),
+                                "eta_seconds": round(eta, 1),
+                                "percent": round(pct, 1),
+                                "replicated_blobs": replicated_count,
+                                "total_missing_blobs": len(missing_blobs)
+                            })
+                        except Exception:
+                            pass
 
         try:
             self._copy_snapshot_manifest(snapshot_id)

@@ -58,11 +58,12 @@ class BlobStorage:
     _class_blob_caches: Dict[str, Set[str]] = {}
     _class_cache_lock: threading.Lock = threading.Lock()
 
-    def __init__(self, repo_dir: str):
+    def __init__(self, repo_dir: str, crypto_engine: Optional[Any] = None):
         self.repo_dir = os.path.abspath(repo_dir)
         self.blobs_dir = os.path.join(self.repo_dir, "blobs")
         self.snapshots_dir = os.path.join(self.repo_dir, "snapshots")
         self.meta_file = os.path.join(self.repo_dir, "repo_meta.json")
+        self.crypto_engine = crypto_engine
         self.init_repo()
         from core.metadata_db import MetadataDB
         self.db = MetadataDB(self.repo_dir)
@@ -219,10 +220,12 @@ class BlobStorage:
                 stored_size = os.path.getsize(blob_path)
                 return sha256_hash, orig_size, stored_size, False
 
-            # Genuinely new blob: compress in RAM and write directly to disk
+            # Genuinely new blob: compress/encrypt in RAM and write directly to disk
             temp_file = blob_path + f".tmp_{os.getpid()}_{os.urandom(4).hex()}"
             try:
-                if HAS_ZSTD:
+                if self.crypto_engine:
+                    compressed = self.crypto_engine.encrypt_blob_data(data, sha256_hash, compress_level=compress_level)
+                elif HAS_ZSTD:
                     cctx = zstd.ZstdCompressor(level=compress_level)
                     compressed = cctx.compress(data)
                 else:
@@ -242,12 +245,18 @@ class BlobStorage:
                     stored_size = os.path.getsize(blob_path)
                     return sha256_hash, orig_size, stored_size, False
 
-                os.replace(temp_file, blob_path)
-                lock_file_immutable(blob_path)
-                stored_size = len(compressed)
-                with self._cache_lock:
-                    self._blob_cache.add(sha256_hash)
-                return sha256_hash, orig_size, stored_size, True
+                try:
+                    os.replace(temp_file, blob_path)
+                    lock_file_immutable(blob_path)
+                    stored_size = len(compressed)
+                    with self._cache_lock:
+                        self._blob_cache.add(sha256_hash)
+                    return sha256_hash, orig_size, stored_size, True
+                except (FileExistsError, PermissionError, OSError):
+                    if self.has_blob(sha256_hash):
+                        stored_size = os.path.getsize(blob_path)
+                        return sha256_hash, orig_size, stored_size, False
+                    raise
             finally:
                 if os.path.exists(temp_file):
                     try:
@@ -307,12 +316,18 @@ class BlobStorage:
 
             # New blob
             os.makedirs(os.path.dirname(blob_path), exist_ok=True)
-            os.replace(temp_file, blob_path)
-            lock_file_immutable(blob_path)
-            stored_size = os.path.getsize(blob_path)
-            with self._cache_lock:
-                self._blob_cache.add(sha256_hash)
-            return sha256_hash, orig_size, stored_size, True
+            try:
+                os.replace(temp_file, blob_path)
+                lock_file_immutable(blob_path)
+                stored_size = os.path.getsize(blob_path)
+                with self._cache_lock:
+                    self._blob_cache.add(sha256_hash)
+                return sha256_hash, orig_size, stored_size, True
+            except (FileExistsError, PermissionError, OSError):
+                if self.has_blob(sha256_hash):
+                    stored_size = os.path.getsize(blob_path)
+                    return sha256_hash, orig_size, stored_size, False
+                raise
 
         finally:
             if os.path.exists(temp_file):
@@ -331,7 +346,9 @@ class BlobStorage:
             return sha256_hash, orig_size, stored_size, False
 
         os.makedirs(os.path.dirname(blob_path), exist_ok=True)
-        if HAS_ZSTD:
+        if self.crypto_engine:
+            compressed = self.crypto_engine.encrypt_blob_data(data, sha256_hash, compress_level=compress_level)
+        elif HAS_ZSTD:
             cctx = zstd.ZstdCompressor(level=compress_level)
             compressed = cctx.compress(data)
         else:
@@ -340,18 +357,27 @@ class BlobStorage:
         temp_blob_path = blob_path + ".tmp"
         with open(temp_blob_path, "wb") as f:
             f.write(compressed)
-        os.replace(temp_blob_path, blob_path)
-        lock_file_immutable(blob_path)
-        # Fix #16: Don't call record_new_blob here — caller (snapshot.py) handles batch update for consistency
-        with self._cache_lock:
-            self._blob_cache.add(sha256_hash)
-        return sha256_hash, orig_size, len(compressed), True
+        try:
+            os.replace(temp_blob_path, blob_path)
+            lock_file_immutable(blob_path)
+            # Fix #16: Don't call record_new_blob here — caller (snapshot.py) handles batch update for consistency
+            with self._cache_lock:
+                self._blob_cache.add(sha256_hash)
+            return sha256_hash, orig_size, len(compressed), True
+        except (FileExistsError, PermissionError, OSError):
+            if os.path.exists(temp_blob_path):
+                try:
+                    os.remove(temp_blob_path)
+                except OSError:
+                    pass
+            if os.path.exists(blob_path):
+                return sha256_hash, orig_size, os.path.getsize(blob_path), False
+            raise
 
     def extract_blob_to_file(self, sha256_hash: str, dest_filepath: str, verify_hash: bool = False, direct_write: bool = True) -> bool:
         """
         Decompresses blob directly to dest_filepath with HYBRID automatic format detection.
-        Detects Zstandard vs zlib magic bytes with zero false-positives and fallbacks.
-        High-performance direct write avoids multiple NTFS metadata operations.
+        Supports v1 AES-256-GCM encrypted blobs (magic b'ENC\\x01') and v0 Zstd/zlib plaintext blobs.
         """
         blob_path = self.get_blob_abs_path(sha256_hash)
         if not os.path.exists(blob_path):
@@ -369,6 +395,19 @@ class BlobStorage:
         # Check first 4 magic bytes
         with open(blob_path, "rb") as f_head:
             magic_header = f_head.read(4)
+
+        # v1 Encrypted blob branch
+        if magic_header == b"ENC\x01":
+            if not self.crypto_engine:
+                raise RuntimeError(f"암호화된 블롭입니다 ({sha256_hash[:12]}). 복호화를 위해 마스터 키가 필요합니다.")
+            with open(blob_path, "rb") as f_in:
+                blob_bytes = f_in.read()
+            decompressed = self.crypto_engine.decrypt_blob_data(blob_bytes, sha256_hash)
+            with open(target_dest, "wb") as f_out:
+                f_out.write(decompressed)
+            if not direct_write:
+                os.replace(target_dest, dest_filepath)
+            return True
 
         is_zstd = (magic_header == ZSTD_MAGIC)
 

@@ -57,13 +57,14 @@ def verify_manifest_signature(manifest: Dict[str, Any]) -> bool:
 class IntegrityVerifier:
     """스냅샷 및 블롭 저장소의 물리적 무결성을 검증하는 엔진"""
 
-    def __init__(self, repo_dir: str):
+    def __init__(self, repo_dir: str, crypto_engine: Optional[Any] = None):
         self.repo_dir = os.path.abspath(repo_dir)
-        self.storage = BlobStorage(self.repo_dir)
+        self.crypto_engine = crypto_engine
+        self.storage = BlobStorage(self.repo_dir, crypto_engine=crypto_engine)
 
     def verify_blob(self, sha256_hash: str) -> Tuple[bool, Optional[str]]:
         """
-        단일 블롭의 압축 해제 및 SHA-256 일치 여부를 검증.
+        단일 블롭의 압축 해제 및 SHA-256 일치 여부를 검증 (v1 암호화 및 v0 평문 자동 지원).
         반환: (성공 여부, 오류 메시지)
         """
         blob_path = self.storage.get_blob_abs_path(sha256_hash)
@@ -73,6 +74,18 @@ class IntegrityVerifier:
         try:
             with open(blob_path, "rb") as f:
                 magic = f.read(4)
+
+            # v1 암호화 블롭 처리
+            if magic == b"ENC\x01":
+                if not self.crypto_engine:
+                    return False, "암호화된 블롭입니다 (복호화 키 필요)"
+                with open(blob_path, "rb") as f_in:
+                    raw_blob = f_in.read()
+                decompressed = self.crypto_engine.decrypt_blob_data(raw_blob, sha256_hash)
+                calc_hash = hashlib.sha256(decompressed).hexdigest()
+                if calc_hash.lower() != sha256_hash.lower():
+                    return False, f"해시 불일치 (기록: {sha256_hash}, 계산: {calc_hash})"
+                return True, None
 
             is_zstd = (magic == ZSTD_MAGIC)
             decompressed_hasher = hashlib.sha256()
@@ -175,6 +188,16 @@ class IntegrityVerifier:
         """블롭 파일을 스트리밍 압축 해제하며 크기와 SHA-256을 실시간 계산."""
         with open(blob_path, "rb") as f:
             magic = f.read(4)
+
+        # v1 암호화 블롭 처리
+        if magic == b"ENC\x01":
+            if not self.crypto_engine:
+                raise RuntimeError("암호화된 블롭 검증을 위해 복호화 키가 필요합니다.")
+            expected_hash = os.path.splitext(os.path.basename(blob_path))[0]
+            with open(blob_path, "rb") as f_in:
+                raw_blob = f_in.read()
+            decompressed = self.crypto_engine.decrypt_blob_data(raw_blob, expected_hash)
+            return len(decompressed), hashlib.sha256(decompressed).hexdigest()
 
         is_zstd = (magic == ZSTD_MAGIC)
         hasher = hashlib.sha256()

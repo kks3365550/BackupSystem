@@ -21,6 +21,7 @@ from core.verify import (
 from core.retention import RetentionManager
 from core.vss_manager import VSSContext, VSSRequiredError
 from core.crypto_sign import Ed25519Signer
+from core.crypto_at_rest import CryptoAtRestEngine
 
 class SnapshotEngine:
     @staticmethod
@@ -184,7 +185,9 @@ class SnapshotEngine:
         use_vss: bool = True,
         strict_vss: bool = False,
         offsite_repo_dir: Optional[str] = None,
-        worm_protect: bool = False
+        worm_protect: bool = False,
+        encryption_enabled: bool = False,
+        passphrase: Optional[str] = None
     ) -> Dict[str, Any]:
         # 0. Acquire repository lock to prevent concurrent backup runs
         with BackupLock(repo_dir, timeout_sec=1.0, process_desc=f"{profile_name} ({profile_id})"):
@@ -201,7 +204,9 @@ class SnapshotEngine:
                 use_vss=use_vss,
                 strict_vss=strict_vss,
                 offsite_repo_dir=offsite_repo_dir,
-                worm_protect=worm_protect
+                worm_protect=worm_protect,
+                encryption_enabled=encryption_enabled,
+                passphrase=passphrase
             )
 
     @classmethod
@@ -219,10 +224,15 @@ class SnapshotEngine:
         use_vss: bool = True,
         strict_vss: bool = False,
         offsite_repo_dir: Optional[str] = None,
-        worm_protect: bool = False
+        worm_protect: bool = False,
+        encryption_enabled: bool = False,
+        passphrase: Optional[str] = None
     ) -> Dict[str, Any]:
         start_time = time.time()
-        storage = BlobStorage(repo_dir)
+        crypto_engine = None
+        if encryption_enabled or passphrase:
+            crypto_engine = CryptoAtRestEngine.from_passphrase(passphrase or "DefaultMasterBackupKey2026", repo_dir)
+        storage = BlobStorage(repo_dir, crypto_engine=crypto_engine)
         path_filter = PathFilter(exclude_patterns=exclude_patterns)
 
         # 0. Fail-Closed Smart Safeguard: verify available disk space before backup starts
@@ -525,6 +535,12 @@ class SnapshotEngine:
             "vss_warnings": vss_ctx.warnings if vss_ctx else [],
             "manifest_signature": generate_manifest_signature(entries),
             "ed25519_signature": None,
+            "encryption": {
+                "enabled": bool(storage.crypto_engine is not None),
+                "version": 1 if storage.crypto_engine else 0,
+                "cipher": "AES-256-GCM" if storage.crypto_engine else "none",
+                "kdf": storage.crypto_engine.kdf_metadata.get("kdf", {}) if storage.crypto_engine else {}
+            },
             "sources": sources,
             "summary": {
                 "total_files": len(entries),
@@ -558,7 +574,7 @@ class SnapshotEngine:
                     "total_files": len(entries),
                     "percent": 99.0
                 })
-            verifier = IntegrityVerifier(repo_dir)
+            verifier = IntegrityVerifier(repo_dir, crypto_engine=storage.crypto_engine)
             restore_res = verifier.verify_restore_sampling(snapshot_manifest, sample_count=20)
             snapshot_manifest["restore_verification"] = restore_res
             snapshot_manifest["is_verified"] = (restore_res.get("status") == "passed")

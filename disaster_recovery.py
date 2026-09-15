@@ -196,8 +196,8 @@ def list_snapshots(repo_dir: str) -> List[Dict[str, Any]]:
     return snapshots
 
 
-def extract_blob(blob_path: str, dest_path: str, expected_sha256: str, verify_hash: bool = True) -> bool:
-    """단일 블롭을 읽어 대상 파일로 복원"""
+def extract_blob(blob_path: str, dest_path: str, expected_sha256: str, verify_hash: bool = True, crypto_engine: Optional[Any] = None) -> bool:
+    """단일 블롭을 읽어 대상 파일로 복원 (v1 암호화 및 v0 평문 자동 판별)"""
     if not os.path.exists(blob_path):
         raise FileNotFoundError(f"블롭 누락: {blob_path}")
 
@@ -214,46 +214,58 @@ def extract_blob(blob_path: str, dest_path: str, expected_sha256: str, verify_ha
     with open(blob_path, "rb") as fin:
         header = fin.read(4)
 
+    is_enc = (header == b"ENC\x01")
     is_zstd = (header == b"\x28\xb5\x2f\xfd")
     buf_size = 262144
 
     try:
-        with open(blob_path, "rb") as fin, open(dest_path, "wb") as fout:
-            if is_zstd:
-                if not HAS_ZSTD:
-                    raise RuntimeError("Zstd 압축 블롭입니다. 'pip install zstandard'가 필요합니다.")
-                dctx = zstd.ZstdDecompressor()
-                with dctx.stream_reader(fin) as reader:
+        if is_enc:
+            if not crypto_engine:
+                raise RuntimeError(f"암호화된 블롭입니다 ({expected_sha256[:12]}). 복호화를 위해 마스터 키/패스프레이즈가 필요합니다.")
+            with open(blob_path, "rb") as fin:
+                blob_bytes = fin.read()
+            decompressed = crypto_engine.decrypt_blob_data(blob_bytes, expected_sha256)
+            with open(dest_path, "wb") as fout:
+                fout.write(decompressed)
+            if hasher:
+                hasher.update(decompressed)
+        else:
+            with open(blob_path, "rb") as fin, open(dest_path, "wb") as fout:
+                if is_zstd:
+                    if not HAS_ZSTD:
+                        raise RuntimeError("Zstd 압축 블롭입니다. 'pip install zstandard'가 필요합니다.")
+                    dctx = zstd.ZstdDecompressor()
+                    with dctx.stream_reader(fin) as reader:
+                        while True:
+                            chunk = reader.read(buf_size)
+                            if not chunk:
+                                break
+                            fout.write(chunk)
+                            if hasher:
+                                hasher.update(chunk)
+                else:
+                    decompressor = zlib.decompressobj()
                     while True:
-                        chunk = reader.read(buf_size)
+                        chunk = fin.read(buf_size)
                         if not chunk:
                             break
-                        fout.write(chunk)
+                        decompressed = decompressor.decompress(chunk)
+                        if decompressed:
+                            fout.write(decompressed)
+                            if hasher:
+                                hasher.update(decompressed)
+                    tail = decompressor.flush()
+                    if tail:
+                        fout.write(tail)
                         if hasher:
-                            hasher.update(chunk)
-            else:
-                decompressor = zlib.decompressobj()
-                while True:
-                    chunk = fin.read(buf_size)
-                    if not chunk:
-                        break
-                    decompressed = decompressor.decompress(chunk)
-                    if decompressed:
-                        fout.write(decompressed)
-                        if hasher:
-                            hasher.update(decompressed)
-                tail = decompressor.flush()
-                if tail:
-                    fout.write(tail)
-                    if hasher:
-                        hasher.update(tail)
+                            hasher.update(tail)
     except Exception as e:
         if os.path.exists(dest_path):
             try:
                 os.remove(dest_path)
             except OSError:
                 pass
-        raise ValueError(f"블롭 압축 데이터 손상 (Bit-Rot 탐지): {str(e)}") from e
+        raise ValueError(f"블롭 데이터 손상 (Bit-Rot 탐지): {str(e)}") from e
 
     if verify_hash and hasher:
         actual_hash = hasher.hexdigest()
@@ -361,9 +373,12 @@ def restore_snapshot(
     dest_dir: Optional[str] = None,
     verify_hash: bool = True,
     filter_keyword: Optional[str] = None,
-    non_interactive: bool = True
+    non_interactive: bool = True,
+    crypto_engine: Optional[Any] = None,
+    passphrase: Optional[str] = None,
+    key_file: Optional[str] = None
 ) -> Dict[str, Any]:
-    """지정된 스냅샷 복원 실행"""
+    """지정된 스냅샷 복원 실행 (v1 암호화 및 v0 평문 자동 지원)"""
     snapshots = list_snapshots(repo_dir)
     target_snap = None
     if snapshot_id.lower() == "latest":
@@ -382,6 +397,23 @@ def restore_snapshot(
     manifest = target_snap["data"]
     print(f"\n[*] 스냅샷 복원 준비: {target_snap['id']} ({target_snap['iso_time']})")
     print(f"[*] 프로필: {target_snap['profile_name']} | 총 {target_snap['file_count']}개 파일 ({format_bytes(target_snap['total_bytes'])})")
+
+    # 암호화 엔진 초기화
+    if not crypto_engine:
+        if key_file and os.path.exists(key_file):
+            try:
+                from core.crypto_at_rest import CryptoAtRestEngine
+                crypto_engine = CryptoAtRestEngine.from_key_file(key_file, repo_dir)
+                print(f"[*] 오프라인 키 파일 로드 완료: {key_file}")
+            except Exception as e:
+                print(f"[!] 키 파일 로드 실패: {e}")
+        elif passphrase:
+            try:
+                from core.crypto_at_rest import CryptoAtRestEngine
+                crypto_engine = CryptoAtRestEngine.from_passphrase(passphrase, repo_dir, create_if_missing=False)
+                print("[*] 패스프레이즈 기반 복호화 키 초기화 완료")
+            except Exception as e:
+                print(f"[!] 패스프레이즈 키 생성 실패: {e}")
 
     # 무결성 검증 (Ed25519 & Manifest 지문)
     pubkey = os.path.join(repo_dir, "keys", "backup_ed25519.pub")
@@ -454,7 +486,7 @@ def restore_snapshot(
             target_out = src_path
 
         try:
-            extract_blob(blob_p, target_out, expected_sha256=h, verify_hash=verify_hash)
+            extract_blob(blob_p, target_out, expected_sha256=h, verify_hash=verify_hash, crypto_engine=crypto_engine)
             # mtime 복원
             mtime = entry.get("mtime")
             if mtime:
@@ -512,6 +544,8 @@ def main():
     parser.add_argument("--dest", "-d", type=str, default=None, help="복원 대상 디렉터리 (미지정 시 원본 위치)")
     parser.add_argument("--audit", action="store_true", help="저장소 내 전체 블롭 Bit-Rot 전수 감사")
     parser.add_argument("--filter", "-f", type=str, default=None, help="복원 파일명/경로 필터링")
+    parser.add_argument("--passphrase", "-p", type=str, default=None, help="암호화 저장소 복호화 패스프레이즈")
+    parser.add_argument("--key-file", "-k", type=str, default=None, help="오프라인 키 백업 파일 경로")
     args = parser.parse_args()
 
     repo = args.repo
@@ -580,7 +614,9 @@ def main():
             snapshot_id=args.restore,
             dest_dir=args.dest,
             verify_hash=True,
-            filter_keyword=args.filter
+            filter_keyword=args.filter,
+            passphrase=args.passphrase,
+            key_file=args.key_file
         )
         return
 
