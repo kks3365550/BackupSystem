@@ -161,8 +161,8 @@
     "retention_count": 30,
     "retention_days": 60,
     "compression_level": 3,
-    "last_run": 1789523149.1573076,
+    "last_run": 1789523751.6853602,
     "last_status": "success",
-    "last_snapshot_id": "snap_20260916_104547_678af7"
+    "last_snapshot_id": "snap_20260916_105550_49513c"
   }
 ]

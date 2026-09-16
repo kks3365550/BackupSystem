@@ -70,24 +70,48 @@ class ConfigManager:
     def get_profiles(cls) -> List[Dict[str, Any]]:
         cls._ensure_dir()
         if not os.path.exists(PROFILES_FILE):
+            # 최초 1회만: profiles.json이 아예 없을 때만 기본값 생성
             default_p = dict(DEFAULT_PROFILE)
             cls.save_profiles([default_p])
             return [default_p]
         try:
             with open(PROFILES_FILE, "r", encoding="utf-8") as f:
                 profiles = json.load(f)
-                if not profiles:
-                    profiles = [dict(DEFAULT_PROFILE)]
-                    cls.save_profiles(profiles)
-                return profiles
+            # 빈 리스트([])는 사용자가 모든 프로필을 삭제한 정상 상태 → 덮어쓰지 않음
+            if not isinstance(profiles, list):
+                return []
+            return profiles
         except Exception:
-            return [dict(DEFAULT_PROFILE)]
+            # 파싱 실패 시: 손상된 파일을 .bak으로 보존하고 빈 리스트 반환
+            # (기본값으로 덮어쓰지 않음 → 데이터 손실 방지)
+            try:
+                bak_path = PROFILES_FILE + ".bak"
+                import shutil
+                shutil.copy2(PROFILES_FILE, bak_path)
+            except Exception:
+                pass
+            return []
 
     @classmethod
     def save_profiles(cls, profiles: List[Dict[str, Any]]):
         cls._ensure_dir()
-        with open(PROFILES_FILE, "w", encoding="utf-8") as f:
-            json.dump(profiles, f, indent=2, ensure_ascii=False)
+        # 원자적 쓰기: temp 파일 → os.replace()로 교체 (중간 실패 시 기존 파일 보존)
+        tmp_path = PROFILES_FILE + ".tmp"
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(profiles, f, indent=2, ensure_ascii=False)
+            if os.path.exists(PROFILES_FILE):
+                os.replace(tmp_path, PROFILES_FILE)
+            else:
+                os.rename(tmp_path, PROFILES_FILE)
+        except Exception:
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
+            raise
+
 
     @classmethod
     def get_profile(cls, profile_id: str) -> Optional[Dict[str, Any]]:
