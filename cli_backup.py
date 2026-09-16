@@ -56,7 +56,7 @@ def run_cli_backup(profile_id: str = None):
         t1 = time.time()
 
         # 3. Prune old snapshots
-        pruned = SnapshotEngine.prune_snapshots(repo_dir, retention_count, retention_days)
+        pruned = SnapshotEngine.prune_snapshots(repo_dir, retention_count, retention_days, authorized=True)
 
         # 4. Update profile last run time
         profile["last_run"] = time.time()

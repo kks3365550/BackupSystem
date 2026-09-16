@@ -111,7 +111,7 @@ def sync_install_directories():
         # Sync root py and bat files
         for item in os.listdir(BASE_DIR):
             full_path = os.path.join(BASE_DIR, item)
-            if os.path.isfile(full_path) and (item.endswith('.py') or item.endswith('.bat') or item.endswith('.txt') or item.endswith('.md') or item == 'VERSION'):
+            if os.path.isfile(full_path) and (item.endswith('.py') or item.endswith('.bat') or item.endswith('.vbs') or item.endswith('.txt') or item.endswith('.md') or item == 'VERSION'):
                 try:
                     with open(full_path, 'rb') as rf, open(os.path.join(target, item), 'wb') as wf:
                         wf.write(rf.read())
