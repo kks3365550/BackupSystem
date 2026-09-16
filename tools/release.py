@@ -286,9 +286,9 @@ def restart_local_server():
             time.sleep(0.5)
 
     if alive:
-        print("      ✅ Server is live on http://127.0.0.1:8765")
+        print("      [OK] Server is live on http://127.0.0.1:8765")
     else:
-        print("      ⚠️  Server did not respond within 20s — check logs/startup_error.log")
+        print("      [WARN] Server did not respond within 20s -- check logs/startup_error.log")
 
 def main():
     parser = argparse.ArgumentParser(description="Backup System Release & Versioning Manager")
