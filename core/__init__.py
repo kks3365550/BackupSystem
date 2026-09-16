@@ -1,4 +1,4 @@
 """
 System & Server Incremental Backup & Snapshot Core Engine
 """
-__version__ = "2.7.5"
+__version__ = "2.7.6"

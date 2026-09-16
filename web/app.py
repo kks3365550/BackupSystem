@@ -517,23 +517,46 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             except Exception:
                 pass
 
-            auto_enable = False if is_desktop else params.get("auto_backup_enabled", False)
-            sched_type = "manual" if is_desktop else params.get("schedule_type", "manual")
+            # 기존 프로필 불러오기 (없으면 None)
+            existing_prof = ConfigManager.get_profile(profile_id)
 
-            prof = {
-                "id": profile_id,
-                "name": profile_name,
-                "sources": all_sources,
-                "repo_dir": repo_dir,
-                "exclude_patterns": excludes,
-                "schedule_type": sched_type,
-                "schedule_value": params.get("schedule_value", "12"),
-                "auto_backup_enabled": auto_enable,
-                "retention_count": 30,
-                "retention_days": 60,
-                "compression_level": 3
-            }
+            if existing_prof:
+                # 기존 프로필의 모든 설정을 보존하고, sources/repo_dir/exclude_patterns만 업데이트
+                prof = dict(existing_prof)
+                prof["sources"] = all_sources
+                prof["repo_dir"] = repo_dir
+                prof["exclude_patterns"] = excludes
+                # 데스크탑인 경우 자동 백업 강제 비활성화
+                if is_desktop:
+                    prof["auto_backup_enabled"] = False
+                    prof["schedule_type"] = "manual"
+            else:
+                # 최초 생성 시에만 기본값 사용
+                auto_enable = False if is_desktop else params.get("auto_backup_enabled", False)
+                sched_type = "manual" if is_desktop else params.get("schedule_type", "manual")
+
+                prof = {
+                    "id": profile_id,
+                    "name": profile_name,
+                    "sources": all_sources,
+                    "repo_dir": repo_dir,
+                    "exclude_patterns": excludes,
+                    "schedule_type": sched_type,
+                    "schedule_value": params.get("schedule_value", "12"),
+                    "auto_backup_enabled": auto_enable,
+                    "retention_count": params.get("retention_count", 30),
+                    "retention_days": params.get("retention_days", 60),
+                    "compression_level": params.get("compression_level", 3)
+                }
             ConfigManager.save_profile(prof)
+        else:
+            # save_as_profile=False 이면 기존 프로필 설정만 참조
+            prof = ConfigManager.get_profile(profile_id) or {}
+
+        # 실제 백업에 사용할 압축 레벨: 프로필 설정 우선, 없으면 3
+        effective_compress = prof.get("compression_level", 3) if prof else 3
+        effective_retention_count = prof.get("retention_count", 30) if prof else 30
+        effective_retention_days = prof.get("retention_days", 60) if prof else 60
 
         def on_progress(p_data):
             with task_lock:
@@ -547,12 +570,12 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             profile_id=profile_id,
             profile_name=profile_name,
             exclude_patterns=excludes,
-            compress_level=3,
+            compress_level=effective_compress,
             progress_callback=on_progress,
             cancel_event=cancel_evt
         )
 
-        pruned = SnapshotEngine.prune_snapshots(repo_dir, 30, 60, authorized=True)
+        pruned = SnapshotEngine.prune_snapshots(repo_dir, effective_retention_count, effective_retention_days, authorized=True)
 
         # Update profile
         prof = ConfigManager.get_profile(profile_id)
