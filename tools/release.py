@@ -231,12 +231,72 @@ def remote_deploy_if_online(remote_ip: str, bat_path: str):
     except Exception as e:
         print(f"      Remote check skipped: {e}")
 
+def restart_local_server():
+    """로컬 백업 서버(pythonw run.py)를 Kill 후 start_silent.vbs로 재시작하고, 포트 8765가 열릴 때까지 확인."""
+    print("[5/5] Restarting local backup server...")
+    if not sys.platform.startswith('win'):
+        print("      Non-Windows: server restart skipped.")
+        return
+
+    no_win = {}
+    if hasattr(subprocess, 'CREATE_NO_WINDOW'):
+        no_win = {'creationflags': subprocess.CREATE_NO_WINDOW}
+
+    # 1. Kill running pythonw processes
+    try:
+        subprocess.run(
+            ['powershell', '-NoProfile', '-Command',
+             'Get-Process -Name pythonw -ErrorAction SilentlyContinue | Stop-Process -Force'],
+            capture_output=True, timeout=8, **no_win
+        )
+        print("      Stopped existing pythonw process(es).")
+    except Exception as e:
+        print(f"      Stop warning (may be OK if nothing was running): {e}")
+
+    import time
+    time.sleep(1)
+
+    # 2. Restart via start_silent.vbs
+    vbs_path = os.path.join(BASE_DIR, 'start_silent.vbs')
+    if not os.path.exists(vbs_path):
+        print(f"      start_silent.vbs not found at {vbs_path}. Restart skipped.")
+        return
+
+    try:
+        subprocess.Popen(
+            ['wscript.exe', vbs_path],
+            cwd=BASE_DIR,
+            **no_win
+        )
+        print("      start_silent.vbs launched.")
+    except Exception as e:
+        print(f"      Failed to launch start_silent.vbs: {e}")
+        return
+
+    # 3. Wait up to 20s for port 8765 to open
+    import socket
+    deadline = time.time() + 20
+    alive = False
+    while time.time() < deadline:
+        try:
+            with socket.create_connection(('127.0.0.1', 8765), timeout=1):
+                alive = True
+                break
+        except OSError:
+            time.sleep(0.5)
+
+    if alive:
+        print("      ✅ Server is live on http://127.0.0.1:8765")
+    else:
+        print("      ⚠️  Server did not respond within 20s — check logs/startup_error.log")
+
 def main():
     parser = argparse.ArgumentParser(description="Backup System Release & Versioning Manager")
     parser.add_argument('--bump', choices=['patch', 'minor', 'major', 'none'], default='patch', help="Version bump type")
     parser.add_argument('-m', '--message', type=str, default="Automated engine build and bugfix release", help="Commit and changelog message")
     parser.add_argument('--remote-ip', type=str, default="100.90.20.59", help="Tailscale remote desktop IP")
     parser.add_argument('--skip-remote', action="store_true", help="Skip remote deployment")
+    parser.add_argument('--skip-restart', action="store_true", help="Skip local server restart after release")
     args = parser.parse_args()
 
     print("=" * 60)
@@ -257,6 +317,9 @@ def main():
 
     if not args.skip_remote:
         remote_deploy_if_online(args.remote_ip, bat_path)
+
+    if not args.skip_restart:
+        restart_local_server()
 
     print("=" * 60)
     print(f"   SUCCESS: Release v{new_ver} completely built and deployed!")
