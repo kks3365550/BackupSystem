@@ -138,73 +138,45 @@ class RestoreEngine:
 
         reg_files_to_import = []
 
-        if to_restore:
-            # Optimization #1: Sliding Window Batch Scheduler (max 2,000 active futures in memory)
-            # Prevents OOM and massive GIL contention when restoring 100,000+ files
-            BATCH_WINDOW_SIZE = 2000
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = {executor.submit(_restore_one, entry): entry for entry in to_restore}
+            for fut in concurrent.futures.as_completed(futures):
+                if cancel_event and cancel_event.is_set():
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    raise InterruptedError("Restore operation was cancelled by user.")
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-                items_iter = iter(to_restore)
-                active_futures = {}
+                result = fut.result()
+                entry = futures[fut]
+                rel_path = entry.get("rel_path", "")
 
-                # Pre-fill sliding window
-                for item in items_iter:
-                    fut = executor.submit(_restore_one, item)
-                    active_futures[fut] = item
-                    if len(active_futures) >= BATCH_WINDOW_SIZE:
-                        break
+                with lock:
+                    if result[0] == "ok":
+                        restored_files += 1
+                        restored_bytes += result[1]
+                        if len(result) > 2 and result[2]:
+                            reg_files_to_import.append(result[2])
+                    elif result[0] == "skip":
+                        skipped_files += 1
+                    elif result[0] == "fail":
+                        failed_files.append({
+                            "rel_path": result[2],
+                            "error": result[3]
+                        })
+                    # cancelled: just skip
 
-                while active_futures:
-                    if cancel_event and cancel_event.is_set():
-                        executor.shutdown(wait=False, cancel_futures=True)
-                        raise InterruptedError("Restore operation was cancelled by user.")
-
-                    # Wait for at least one worker to finish
-                    done, _ = concurrent.futures.wait(
-                        active_futures.keys(),
-                        return_when=concurrent.futures.FIRST_COMPLETED
-                    )
-
-                    for fut in done:
-                        entry = active_futures.pop(fut)
-                        try:
-                            next_item = next(items_iter)
-                            new_fut = executor.submit(_restore_one, next_item)
-                            active_futures[new_fut] = next_item
-                        except StopIteration:
-                            pass
-
-                        result = fut.result()
-                        rel_path = entry.get("rel_path", "")
-
-                        with lock:
-                            if result[0] == "ok":
-                                restored_files += 1
-                                restored_bytes += result[1]
-                                if len(result) > 2 and result[2]:
-                                    reg_files_to_import.append(result[2])
-                            elif result[0] == "skip":
-                                skipped_files += 1
-                            elif result[0] == "fail":
-                                failed_files.append({
-                                    "rel_path": result[2],
-                                    "error": result[3]
-                                })
-                            # cancelled: just skip
-
-                            done_count = restored_files + skipped_files + len(failed_files)
-                            if progress_callback and (done_count % 5 == 0 or done_count == total_files):
-                                pct = round((done_count / max(1, total_files)) * 100, 1)
-                                progress_callback({
-                                    "type": "progress",
-                                    "current_file": rel_path,
-                                    "restored_files": restored_files,
-                                    "skipped_files": skipped_files,
-                                    "failed_files": len(failed_files),
-                                    "total_files": total_files,
-                                    "percent": pct,
-                                    "restored_bytes": restored_bytes
-                                })
+                    done = restored_files + skipped_files + len(failed_files)
+                    if progress_callback and (done % 5 == 0 or done == total_files):
+                        pct = round((done / max(1, total_files)) * 100, 1)
+                        progress_callback({
+                            "type": "progress",
+                            "current_file": rel_path,
+                            "restored_files": restored_files,
+                            "skipped_files": skipped_files,
+                            "failed_files": len(failed_files),
+                            "total_files": total_files,
+                            "percent": pct,
+                            "restored_bytes": restored_bytes
+                        })
 
         # Fix: Safely import registry files sequentially after all files are restored
         if reg_files_to_import:

@@ -6,7 +6,6 @@ import threading
 import psutil
 import datetime
 import tempfile
-from collections import deque
 from contextlib import asynccontextmanager
 from typing import Dict, List, Any, Optional
 from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
@@ -38,12 +37,12 @@ def _cpu_monitor():
 _cpu_monitor_thread = threading.Thread(target=_cpu_monitor, daemon=True)
 _cpu_monitor_thread.start()
 
-# Global execution state (Optimization #3: deque maxlen=500 circular buffer for O(1) appending)
+# Global execution state
 current_task = {
     "type": None,  # "backup", "restore", "verify", None
     "running": False,
     "progress": {},
-    "logs": deque(maxlen=500),
+    "logs": [],
     "cancel_event": None,
     "start_time": None,
     "result": None,
@@ -58,6 +57,8 @@ def append_task_log(msg: str, level: str = "INFO"):
     entry = f"[{ts}] [{level}] {msg}"
     with task_lock:
         current_task["logs"].append(entry)
+        if len(current_task["logs"]) > 500:
+            current_task["logs"].pop(0)
 
 scheduler.register_log_callback(append_task_log)
 
@@ -853,7 +854,7 @@ def get_task_status():
             "type": current_task["type"],
             "running": current_task["running"],
             "progress": current_task["progress"],
-            "logs": list(current_task["logs"])[-30:],
+            "logs": current_task["logs"][-30:],
             "start_time": current_task["start_time"],
             "result": current_task["result"],
             "error": current_task["error"]
