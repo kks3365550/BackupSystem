@@ -1,76 +1,116 @@
 ## PART 1. [EXECUTIVE SUMMARY FOR ANTIGRAVITY]
 
 **[CRITICAL]: 시스템 중단, 보안 결함, 규정 위반 위험**
-*   **무인증 셀프업데이트 엔드포인트**: `app.py` 내 `/api/system/self-update`가 인증/인가 로직 없이 노출되어 있습니다. 악성 ZIP 파일 전송 시 시스템 재부팅 및 코드 치환이 가능하여 **최상위 보안 취약점(Critical)** 입니다.
-*   **긴급 경보 시스템 부재**: 대시보드(`index.html`) 및 백엔드(`app.py`) 전수 조사 결과, 사용자 가시적인 '긴급정보/위험경보' 전용 UI 컴포넌트나 API 엔드포인트가 **완전 부재**합니다. 이는 장애 발생 시 운영자가 즉시 인지하지 못하는 치명적인 모니터링 공백을 의미합니다.
+*   **UI/UX 치명적 결함 (Critical UX Bug):** `backup_auth.js`의 `openAuthChangeModal()` 함수에서 **로그인 모달(`modal-auth-login`)을 표시하고, 비밀번호 변경 모달(`modal-auth-change`)을 숨기는** 로직 오류가 존재합니다.
+    *   **현상:** 사용자가 "비밀번호 변경"을 클릭하면, 비밀번호 변경 입력 필드가 있는 모달이 아닌 **로그인 모달**이 뜹니다.
+    *   **결과:** 사용자는 비밀번호 변경을 시도할 수 없으며, 이는 "비밀번호 변경이 작동 안한다"는 제보의 **가장 직접적인 원인**입니다.
+    *   **보안 영향:** 간접적 보안 위협은 없으나, 인증 관리 기능의 완전한 마비로 인해 비밀번호 유실 시 복구 불가능한 상태가 될 수 있습니다.
 
-**[BUG]: 발견된 구체적 결함 (버튼, 함수 누락, 하드코딩 등)**
-*   **하드코딩된 호스트명 로직**: `app.py`의 `_background_custom_backup_task`에서 데스크탑 여부를 판단하기 위해 `"r2pfnfp"`라는 특정 호스트명을 하드코딩하여 비교합니다. 환경 변경 시 백업 로직이 오작동할 수 있는 잠재적 버그입니다.
-*   **메모리 누수 (로그 무한 증식)**: `app.py`의 `current_task["logs"]` 리스트가 메모리에 무한정 축적됩니다. API 응답 시 `[-30:]`만 반환하지만, 실제 메모리는 장시간 실행 시 소진되어 서비스 중단(Crash)을 유발할 수 있습니다.
-*   **알림 실패 무시**: 카카오톡 알림 전송(`notify_backup_result`) 실패 시 `WARNING` 로그만 남기고 진행합니다. 중요한 위험 경보가 유실될 수 있으며, 재시도 로직이 없습니다.
+**[BUG]: 발견된 구체적 결함**
+1.  **`backup_auth.js` - `openAuthChangeModal()` 함수 로직 오류:**
+    *   `loginModal.classList.remove('hidden')` (로그인 모달 표시)
+    *   `changeModal.classList.add('hidden')` (변경 모달 숨김)
+    *   **수정 필요:** `loginModal`은 `add('hidden')`, `changeModal`은 `remove('hidden')`으로 수정해야 합니다.
+2.  **`core/auth.py` - 세션 무효화 후 프론트엔드 미처리:**
+    *   `change_master_password()` 실행 시 `_sessions.clear()`로 모든 세션이 즉시 무효화됩니다.
+    *   `backup_auth.js`의 `submitAuthChangePassword()`는 성공 후 `alert`와 `openAuthLoginModal()`을 호출하지만, **브라우저 쿠키(`backup_session`)가 여전히 유효한 것처럼 보이는 상태**에서 API 호출 시 401 에러가 발생할 수 있습니다.
+    *   **수정 필요:** 성공 시 `document.cookie`를 명시적으로 삭제하거나, 서버가 새 세션 토큰을 반환하도록 `app.py` 엔드포인트를 수정해야 합니다.
 
 **[RISK]: 성능 병목, 사이드 이펙트, 환경 의존성**
-*   **경보 데이터 분리 불가**: 모든 오류/위험 신호가 일반 태스크 로그(`current_task["error"]`, `logs`)와 혼재되어 있습니다. 프론트엔드가 이를 필터링하여 '긴급'으로 표시하려면 복잡한 파싱 로직이 필요하며, 현재는 미구현 상태입니다.
-*   **하드코딩된 경로/드라이브**: `index.html`의 `#custom-repo-dir` 기본값(`D:\MyBackup_Repository`) 및 시스템 이미지 탭의 드라이브 옵션(`D:, E:, F:`)이 하드코딩되어 있어, 다른 환경에서는 초기 로드 시 잘못된 설정으로 이어질 수 있습니다.
+*   **파일 권한 의존성:** `core/auth.py`의 `_save_auth_config()`가 `data/auth_config.json`을 수정할 때, 해당 디렉토리에 쓰기 권한이 없으면 `PermissionError`가 발생하여 500 에러로 전파됩니다. (예: Windows에서 읽기 전용 폴더로 실행 시)
+*   **경로 하드코딩:** `app.py` 및 `index.html` 내 `D:\MyBackup_Repository` 등 하드코딩된 경로는 사용자 환경에 따라 백업 실패를 유발할 수 있으나, 이는 비밀번호 변경과는 무관한 별도 이슈입니다.
 
 **[ACTION]: 구체적인 해결 제안 및 수정 가이드**
-1.  **보안 패치 (즉시)**: `/api/system/self-update` 엔드포인트에 토큰 기반 인증 또는 로컬호스트 제한 미들웨어를 적용하세요.
-2.  **경보 시스템 구현**:
-    *   **백엔드**: `app.py`에 `/api/alerts` 엔드포인트 추가. `psutil` 임계값(CPU>90%, Disk<10%) 및 백업 실패 이력을 DB 또는 메모리 큐에 저장.
-    *   **프론트엔드**: `index.html` 헤더 부분에 고정된 경보 배너(`<div id="alert-banner">`) 추가. `app.js`에서 30초 간격으로 `/api/alerts` 폴링하여 임계값 초과 시 붉은색 배경으로 렌더링.
-3.  **하드코딩 제거**: 호스트명 체크를 환경변수(`os.environ.get('IS_DESKTOP')`)로 대체하고, 드라이브 목록은 API(`/api/system-info`)에서 동적으로 받아오도록 수정하세요.
-4.  **메모리 관리**: `current_task["logs"]`에 최대 길이 제한(예: 100개)을 설정하거나, 오래된 로그를 DB로 오프로드하는 로직을 추가하세요.
+1.  **`backup_auth.js` 수정 (최우선):**
+    ```javascript
+    function openAuthChangeModal() {
+        toggleAuthDropdown();
+        const overlay = document.getElementById('auth-modal-overlay');
+        const setupModal = document.getElementById('modal-auth-setup');
+        const loginModal = document.getElementById('modal-auth-login');
+        const changeModal = document.getElementById('modal-auth-change');
+        
+        if (overlay) overlay.classList.remove('hidden');
+        if (setupModal) setupModal.classList.add('hidden');
+        if (loginModal) loginModal.classList.add('hidden');   // 수정: 로그인 모달 숨김
+        if (changeModal) changeModal.classList.remove('hidden'); // 수정: 변경 모달 표시
+        
+        // 에러 메시지 초기화
+        const errDiv = document.getElementById('change-error');
+        if (errDiv) {
+            errDiv.innerText = '';
+            errDiv.classList.add('hidden');
+        }
+        
+        setTimeout(() => document.getElementById('change-current')?.focus(), 100);
+    }
+    ```
+2.  **`web/app.py` 엔드포인트 수정 (세션 관리):**
+    *   `POST /api/auth/change-password` 엔드포인트에서 `change_master_password()` 호출 후, **새 세션 토큰을 생성하여 응답에 포함**하거나, 기존 세션을 유지하도록 `core/auth.py`를 수정합니다.
+    *   **권장안:** `core/auth.py`의 `change_master_password()`에서 `_sessions.clear()` 대신, **현재 요청의 세션 토큰만 유지**하거나, `app.py`에서 변경 성공 시 `create_session()`을 호출하여 새 쿠키를 설정합니다.
+3.  **`backup_auth.js` - 성공 후 처리 강화:**
+    *   성공 시 `alert` 후 `closeAuthModal()`과 `openAuthLoginModal()` 호출 전, **브라우저 쿠키를 명시적으로 삭제**하거나, 서버가 새 세션을 발급하도록 `app.py`를 수정하여 재로그인 없이 세션을 갱신합니다.
 
 **[DECISION REQUIRED]: Antigravity 및 사용자가 최종 승인해야 할 핵심 의사결정**
-*   **경보 수준 정의**: 어떤 조건을 '긴급(Critical)'으로 볼 것인지 (예: 디스크 95% 이상, 백업 연속 실패 3회 등)를 확정해야 합니다.
-*   **알림 채널 확장**: 현재 카카오톡 웹훅만 존재합니다. 이메일 또는 SMS 알림 추가가 필요한지 결정이 필요합니다.
+*   **세션 전략 선택:**
+    *   **옵션 A (보안 강화):** 비밀번호 변경 시 모든 세션 무효화 + 즉시 재로그인 유도 (현재 로직 유지, 프론트엔드 UX 개선).
+    *   **옵션 B (UX 최적화):** 비밀번호 변경 시 현재 세션만 유지하거나, 새 세션 토큰을 발급하여 재로그인 없이 계속 사용 가능.
+    *   **권장:** 옵션 B를 채택하여 사용자 경험을 개선하되, `app.py`에서 새 세션 ��큰을 반환하도록 수정해야 합니다.
 
 ---
 
 ## PART 2. [COMPREHENSIVE AUDIT & ARCHITECTURE REPORT]
 
-### 1. 긴급정보/위험경보 기능 전수 조사 결과
-**결론: 해당 기능이 코드베이스에 존재하지 않습니다.**
+### 1. 전체 파일 구조 및 데이터 흐름
+*   **Frontend:** `index.html` (UI 구조), `backup_auth.js` (인증 로직)
+*   **Backend:** `web/app.py` (FastAPI 엔드포인트), `core/auth.py` (인증 코어 로직)
+*   **데이터 흐름:**
+    1.  사용자: `index.html`의 "비밀번호 변경" 버튼 클릭 → `openAuthChangeModal()` 호출.
+    2.  `backup_auth.js`: 모달 표시 및 입력 필드 포커스.
+    3.  사용자: 입력 후 제출 → `submitAuthChangePassword(event)` 호출.
+    4.  `backup_auth.js`: `fetch('/api/auth/change-password', { body: { old_password, new_password } })` 호출.
+    5.  `web/app.py`: Pydantic 모델(`AuthChangePasswordRequest`)로 검증 → `core.auth.change_master_password()` 호출.
+    6.  `core/auth.py`: `auth_config.json` 수정, `_sessions.clear()` 실행.
+    7.  `web/app.py`: 성공 응답 반환.
+    8.  `backup_auth.js`: 성공 알림, 모달 닫기, 로그인 모달 표시.
 
-*   **데이터 소스 (Data Source)**:
-    *   **현재 상태**: 별도 DB 테이블이나 파일 기반의 경보 저장소가 없습니다.
-    *   **간접적 데이터**: `app.py`의 `get_system_info()`가 CPU/메모리/디스크 사용률을 반환하지만, 이는 단순 정보 제공 목적이며 '위험' 판정 로직이 없습니다. 백업 실패 시에는 `core.notifier`를 통해 외부 알림만 보내고, 대시보드에 잔존하는 데이터는 없습니다.
-*   **프론트엔드 렌더링 (Frontend Rendering)**:
-    *   **현재 상태**: `index.html`의 모든 탭(Dashboard, Custom, Runner, Snapshots, Profiles, System-Image)을 검토한 결과, 경보 배너, 알림 아이콘, 또는 관련 CSS 클래스(`.alert`, `.critical`)가 정의되어 있지 않습니다.
-    *   **추정 동작**: 현재는 `#runner-progress-bar`나 로그 박스(`#terminal-log-box`)에 에러 텍스트가 출력되는 것이 유일한 '오류 표시' 수단입니다.
-*   **날짜 필터링 로직**:
-    *   **현재 상태**: 경보 기능이 없으므로 관련 필터링도 없습니다. 스냅샷 목록은 `created_at` 정렬만 수행하며, 날짜 기반 검색 파라미터는 API에 존재하지 않습니다.
+### 2. 청크별 세부 분석 종합
 
-### 2. 파일별 상세 분석 요약
+#### [청크 1: backup_auth.js]
+*   **핵심 발견:** `openAuthChangeModal()` 함수에서 **로그인 모달을 표시하고 변경 모달을 숨기는 치명적 버그** 발견.
+*   **API 호출:** `POST /api/auth/change-password`에 `{ old_password, new_password }` 전송.
+*   **DOM 의존성:** `change-current`, `change-new`, `change-new-confirm`, `change-error` ID 사용.
 
-#### A. `app.py` (백엔드 로직)
-*   **구조**: Flask 기반 웹 서버 및 백업 엔진 제어기.
-*   **주요 발견**:
-    *   `/api/system-info`: `psutil` 기반 리소스 사용률 반환. (경보 판정 로직 없음)
-    *   `_background_backup_task` / `_background_restore_task`: 예외 발생 시 `append_task_log(level="ERROR")` 기록 및 카카오톡 알림 전송.
-    *   **버그**: `"r2pfnfp"` 하드코딩, `current_task["logs"]` 무한 증식, 알림 실패 무시.
-    *   **보안**: `/api/system/self-update` 무인증 접근 가능.
+#### [청크 2: app.py (Part 1/5)]
+*   **핵심 발견:** `AuthChangePasswordRequest` Pydantic 모델 정의 확인 (`old_password`, `new_password`).
+*   **엔드포인트:** `POST /api/auth/change-password` 존재 확인.
+*   **세션 문제:** `change_master_password()` 호출 후 세션 처리 누락 가능성 지적.
 
-#### B. `index.html` (프론트엔드 UI)
-*   **구조**: 단일 페이지 애플리케이션(SPA) 구조의 Jinja2 템플릿.
-*   **주요 발견**:
-    *   **Dashboard Tab**: 통계 카드(`#stat-*`)와 최근 스냅샷 목록만 존재. 경보 섹션 없음.
-    *   **System Image Tab**: 하드코딩된 드라이브 옵션(`D:, E:, F:`) 및 정적 복구 매뉴얼 텍스트.
-    *   **Modals**: 복원 및 프로필 설정 모달은 정상 연결되어 있으나, 오류 처리 UI(예: 경보 팝업)가 부재합니다.
-    *   **하드코딩**: `D:\MyBackup_Repository` 기본 경로, "43개 드라이버" 등 정적 텍스트.
+#### [청크 3~6: app.py (Part 2~5/5)]
+*   **분석 결과:** 비밀번호 변경 관련 로직 없음. 백업, 복원, 시스템 관리 로직만 포함.
+*   **확인 사항:** `app.py` 전체에서 `/api/auth/change-password` 엔드포인트가 Part 1/5에 정의되어 있음을 확인.
 
-### 3. 아키텍처 개선 로드맵 (제안)
+#### [청크 7: core/auth.py]
+*   **핵심 발견:** `change_master_password()` 함수에서 `_sessions.clear()`로 모든 세션 무효화.
+*   **파일 권한:** `data/auth_config.json` 쓰기 권한 문제 가능성.
+*   **판단:** 백엔드 로직 자체는 정상 작동하나, 세션 무효화로 인한 프론트엔드 401 에러 가능성 높음.
 
-1.  **Phase 1: 보안 및 안정성 (즉시)**
-    *   셀프업데이트 엔드포인트 인증 추가.
-    *   로그 메모리 누수 방지 로직 적용.
-    *   하드코딩된 호스트명/경로 제거 및 환경변수화.
+#### [청크 8~14: index.html (Part 1~7/7)]
+*   **핵심 발견:**
+    *   Part 1/7: `openAuthChangeModal()` 트리거 버튼 존재.
+    *   Part 6/7: `modal-auth-change` 모달 구조 정의 (`change-current`, `change-new`, `change-new-confirm` input 필드 존재).
+    *   Part 7/7: `form-auth-change`의 `onsubmit="submitAuthChangePassword(event)"` 확인.
+*   **판단:** HTML 구조는 정상적이며, `backup_auth.js`와 ID가 일치함. 문제는 `backup_auth.js`의 모달 전환 로직에 있음.
 
-2.  **Phase 2: 경보 시스템 구축 (단기)**
-    *   **Backend**: `AlertManager` 클래스 도입. 시스템 리소스 임계값 모니터링 및 백업 실패 이력 추적. `/api/alerts` 엔드포인트 구현.
-    *   **Frontend**: 헤더에 고정된 `#global-alert-banner` 추가. JS 폴링을 통해 경보 상태 수신 시 색상(빨강/주황) 및 메시지 렌더링.
+### 3. 최종 결론 및 패치 요약
 
-3.  **Phase 3: 고급 모니터링 (중장기)**
-    *   WebSocket 기반 실시간 알림으로 폴링 대역폭 절감.
-    *   경보 이력 DB 저장 및 날짜 필터링 기능 추가.
-    *   다채널 알림(이메일, SMS) 통합.
+**원인:** `backup_auth.js`의 `openAuthChangeModal()` 함수에서 모달 전환 로직 오류로 인해 **비밀번호 변경 모달이 표시되지 않고 로그인 모달이 표시됨**.
+
+**해결 방안:**
+1.  `backup_auth.js`의 `openAuthChangeModal()` 함수 수정 (로그인 모달 숨김, 변경 모달 표시).
+2.  (선택) `web/app.py` 및 `core/auth.py` 수정으로 세션 관리 최적화 (재로그인 없이 세션 유지 또는 새 세션 발급).
+
+**검증 절차:**
+1.  `backup_auth.js` 수정 후, 브라우저 개발자 도구에서 `openAuthChangeModal()` 호출 시 `modal-auth-change`가 `hidden` 클래스를 제거되고 `modal-auth-login`이 `hidden` 클래스를 추가되는지 확인.
+2.  비밀번호 변경 제출 시, 네트워크 탭에서 `POST /api/auth/change-password` 요청이 200 OK를 반환하는지 확인.
+3.  성공 후, 대시보드에서 API 호출이 401 에러 없이 정상 작동하는지 확인.

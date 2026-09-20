@@ -25,5 +25,26 @@
     "target_file": "c:\\Users\\kksjmj\\Desktop\\ai\\백업시스템\\tools\\release.py",
     "target_sha256": "UNKNOWN",
     "occurrence": 0
+  },
+  "qwen_analysis_mapreduce_1789921786_ffd789.md": {
+    "source_hash": "",
+    "generated_at": "2026-09-21 01:29:46",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2"
+  },
+  "qwen_latest_review.md": {
+    "source_hash": "",
+    "generated_at": "2026-09-21 01:29:46",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2"
+  },
+  "patch_backup_auth_1789921878_b88346.txt": {
+    "source_hash": "f659d5d49dafcbc026eb976019e36e944e9b4ac18b7e05339b7201935940c12c",
+    "generated_at": "2026-09-21 01:31:18",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2",
+    "target_file": "c:\\Users\\kksjmj\\Desktop\\ai\\백업시스템\\web\\static\\js\\backup_auth.js",
+    "target_sha256": "0d48480c96b0bb92f7468d51b16a4527aa4a10bc2a57bb717166e15395891689",
+    "occurrence": 1
   }
 }

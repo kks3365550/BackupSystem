@@ -1,0 +1,9 @@
+{
+  "configured": false,
+  "password_hash": "",
+  "salt": "",
+  "allow_localhost_bypass": true,
+  "session_ttl_hours": 24,
+  "created_at": null,
+  "updated_at": null
+}

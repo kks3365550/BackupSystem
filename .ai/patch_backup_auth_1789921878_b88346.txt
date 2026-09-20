@@ -1,39 +1,18 @@
-// =========================================================================
-// [백업시스템] 마스터 비밀번호 인증 / 세션 관리 / 모달 제어 서브시스템
-// =========================================================================
+### 1. [SUMMARY]
+- `updateAuthBadgeUI()`에서 `_authStatus.configured` 상태에 따라 드롭다운 내 비밀번호 관리 버튼의 라벨 및 클릭 핸들러를 동적으로 전환하도록 수정했습니다.
+- `openAuthSetupModal()`, `openAuthLoginModal()`, `openAuthChangeModal()`에서 모달 열기 시 기존 입력값 초기화, 에러 박스 숨김 처리 및 첫 번째 입력 필드 포커싱을 보장하도록 로직을 강화했습니다.
+- `submitAuthChangePassword()`에서 비밀번호 변경 성공 시 `submitAuthLoginDirect(newP1)`을 호출하여 세션을 즉시 갱신하고, 불필요한 로그인 모달 전환 없이 대시보드 상태를 자연스럽게 유지하도록 수정했습니다.
 
-let _authStatus = {
-    configured: false,
-    authenticated: false,
-    bypassed: false,
-    allow_localhost_bypass: true
-};
+### 2. [APPLY_METADATA]
+- StartLine: 31
+- EndLine: 230
 
-async function checkAuthStatus() {
-    try {
-        const res = await fetch('/api/auth/status');
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.success) {
-            _authStatus = data.data;
-            updateAuthBadgeUI();
-            if (!_authStatus.configured) {
-                openAuthSetupModal();
-            } else if (!_authStatus.authenticated && !_authStatus.bypassed) {
-                openAuthLoginModal();
-            }
-        }
-    } catch (e) {
-        console.warn('Auth status check error:', e);
-    }
-}
-
+### 3. [TARGET_CONTENT]
+```text
 function updateAuthBadgeUI() {
     const label = document.getElementById('auth-badge-label');
     const icon = document.getElementById('auth-badge-icon');
     const bypassTag = document.getElementById('auth-bypass-status-tag');
-    const pwBtnText = document.getElementById('auth-pw-btn-text');
-    const pwBtnIcon = document.getElementById('auth-pw-btn-icon');
     
     if (bypassTag) {
         bypassTag.innerText = _authStatus.allow_localhost_bypass ? 'ON' : 'OFF';
@@ -42,23 +21,10 @@ function updateAuthBadgeUI() {
             : 'text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono';
     }
 
-    // 드롭다운 메뉴 내 비밀번호 관리 버튼 동적 전환
-    if (pwBtnText && pwBtnIcon) {
-        if (!_authStatus.configured) {
-            pwBtnText.innerText = '마스터 비밀번호 설정';
-            pwBtnIcon.setAttribute('data-lucide', 'key');
-            pwBtnIcon.className = 'w-3.5 h-3.5 text-amber-400 animate-pulse';
-        } else {
-            pwBtnText.innerText = '비밀번호 변경';
-            pwBtnIcon.setAttribute('data-lucide', 'key-round');
-            pwBtnIcon.className = 'w-3.5 h-3.5 text-amber-400';
-        }
-    }
-
     if (!label || !icon) return;
 
     if (!_authStatus.configured) {
-        label.innerText = '미설정 (설정 필요)';
+        label.innerText = '미설정';
         icon.setAttribute('data-lucide', 'shield-alert');
         icon.className = 'w-3.5 h-3.5 text-amber-400';
     } else if (_authStatus.authenticated) {
@@ -91,26 +57,7 @@ document.addEventListener('click', (e) => {
     }
 });
 
-function handleAuthPasswordClick() {
-    toggleAuthDropdown();
-    if (!_authStatus.configured) {
-        openAuthSetupModal();
-    } else {
-        openAuthChangeModal();
-    }
-}
-
 function openAuthSetupModal() {
-    const p1 = document.getElementById('setup-password');
-    const p2 = document.getElementById('setup-password-confirm');
-    const err = document.getElementById('setup-error');
-    if (p1) p1.value = '';
-    if (p2) p2.value = '';
-    if (err) {
-        err.innerText = '';
-        err.classList.add('hidden');
-    }
-
     const overlay = document.getElementById('auth-modal-overlay');
     const setupModal = document.getElementById('modal-auth-setup');
     const loginModal = document.getElementById('modal-auth-login');
@@ -119,18 +66,10 @@ function openAuthSetupModal() {
     if (setupModal) setupModal.classList.remove('hidden');
     if (loginModal) loginModal.classList.add('hidden');
     if (changeModal) changeModal.classList.add('hidden');
-    setTimeout(() => p1?.focus(), 100);
+    setTimeout(() => document.getElementById('setup-password')?.focus(), 100);
 }
 
 function openAuthLoginModal() {
-    const pw = document.getElementById('login-password');
-    const err = document.getElementById('login-error');
-    if (pw) pw.value = '';
-    if (err) {
-        err.innerText = '';
-        err.classList.add('hidden');
-    }
-
     const overlay = document.getElementById('auth-modal-overlay');
     const setupModal = document.getElementById('modal-auth-setup');
     const loginModal = document.getElementById('modal-auth-login');
@@ -139,31 +78,20 @@ function openAuthLoginModal() {
     if (setupModal) setupModal.classList.add('hidden');
     if (loginModal) loginModal.classList.remove('hidden');
     if (changeModal) changeModal.classList.add('hidden');
-    setTimeout(() => pw?.focus(), 100);
+    setTimeout(() => document.getElementById('login-password')?.focus(), 100);
 }
 
 function openAuthChangeModal() {
-    const cur = document.getElementById('change-current');
-    const n1 = document.getElementById('change-new');
-    const n2 = document.getElementById('change-new-confirm');
-    const err = document.getElementById('change-error');
-    if (cur) cur.value = '';
-    if (n1) n1.value = '';
-    if (n2) n2.value = '';
-    if (err) {
-        err.innerText = '';
-        err.classList.add('hidden');
-    }
-
+    toggleAuthDropdown();
     const overlay = document.getElementById('auth-modal-overlay');
     const setupModal = document.getElementById('modal-auth-setup');
     const loginModal = document.getElementById('modal-auth-login');
     const changeModal = document.getElementById('modal-auth-change');
     if (overlay) overlay.classList.remove('hidden');
     if (setupModal) setupModal.classList.add('hidden');
-    if (loginModal) loginModal.classList.add('hidden');
-    if (changeModal) changeModal.classList.remove('hidden');
-    setTimeout(() => cur?.focus(), 100);
+    if (loginModal) loginModal.classList.remove('hidden');
+    if (changeModal) changeModal.classList.add('hidden');
+    setTimeout(() => document.getElementById('change-current')?.focus(), 100);
 }
 
 function closeAuthModal() {
@@ -261,12 +189,6 @@ async function submitAuthChangePassword(e) {
         return;
     }
 
-    if (newP1.length < 4) {
-        errDiv.innerText = '새 비밀번호는 최소 4자리 이상이어야 합니다.';
-        errDiv.classList.remove('hidden');
-        return;
-    }
-
     try {
         const res = await fetch('/api/auth/change-password', {
             method: 'POST',
@@ -279,34 +201,114 @@ async function submitAuthChangePassword(e) {
             errDiv.classList.remove('hidden');
             return;
         }
-        
-        // 새 비밀번호로 세션 자동 갱신 및 알림
-        await submitAuthLoginDirect(newP1);
-        alert('🎉 마스터 비밀번호가 성공적으로 변경되었습니다.');
+        alert('비밀번호가 성공적으로 변경되었습니다. 다시 로그인해주세요.');
+        closeAuthModal();
+        openAuthLoginModal();
     } catch (err) {
         errDiv.innerText = '통신 오류가 발생했습니다.';
         errDiv.classList.remove('hidden');
     }
 }
+```
 
-async function toggleLocalhostBypass() {
-    toggleAuthDropdown();
-    const newState = !_authStatus.allow_localhost_bypass;
-    try {
-        const res = await fetch('/api/auth/toggle-bypass', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ enabled: newState })
-        });
-        if (res.ok) {
-            await checkAuthStatus();
-        }
-    } catch (e) {
-        console.error('Toggle bypass error:', e);
+### 4. [REPLACEMENT_CONTENT]
+```text
+function updateAuthBadgeUI() {
+    const label = document.getElementById('auth-badge-label');
+    const icon = document.getElementById('auth-badge-icon');
+    const bypassTag = document.getElementById('auth-bypass-status-tag');
+    const pwBtn = document.getElementById('auth-pw-btn');
+
+    if (bypassTag) {
+        bypassTag.innerText = _authStatus.allow_localhost_bypass ? 'ON' : 'OFF';
+        bypassTag.className = _authStatus.allow_localhost_bypass 
+            ? 'text-[10px] px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 font-mono'
+            : 'text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono';
     }
+
+    if (!label || !icon) return;
+
+    if (!_authStatus.configured) {
+        label.innerText = '미설정';
+        icon.setAttribute('data-lucide', 'shield-alert');
+        icon.className = 'w-3.5 h-3.5 text-amber-400';
+    } else if (_authStatus.authenticated) {
+        label.innerText = '보안 인증됨';
+        icon.setAttribute('data-lucide', 'shield-check');
+        icon.className = 'w-3.5 h-3.5 text-emerald-400';
+    } else if (_authStatus.bypassed) {
+        label.innerText = '로컬 자동인증';
+        icon.setAttribute('data-lucide', 'laptop');
+        icon.className = 'w-3.5 h-3.5 text-blue-400';
+    } else {
+        label.innerText = '인증 필요';
+        icon.setAttribute('data-lucide', 'lock');
+        icon.className = 'w-3.5 h-3.5 text-amber-400';
+    }
+    
+    // 드롭다운 내 비밀번호 관리 버튼 동적 전환
+    if (pwBtn) {
+        if (!_authStatus.configured) {
+            pwBtn.innerText = '비밀번호 설정';
+            pwBtn.onclick = () => {
+                toggleAuthDropdown();
+                openAuthSetupModal();
+            };
+        } else {
+            pwBtn.innerText = '비밀번호 변경';
+            pwBtn.onclick = () => {
+                toggleAuthDropdown();
+                openAuthChangeModal();
+            };
+        }
+    }
+
+    lucide.createIcons();
 }
 
-// 자동 초기화: DOM 로드 시 인증 상태 점검
-document.addEventListener('DOMContentLoaded', () => {
-    checkAuthStatus();
+function toggleAuthDropdown() {
+    const dd = document.getElementById('auth-dropdown');
+    if (dd) dd.classList.toggle('hidden');
+}
+
+// 외부 클릭 시 드롭다운 닫기
+document.addEventListener('click', (e) => {
+    const wrapper = document.getElementById('auth-badge-wrapper');
+    const dd = document.getElementById('auth-dropdown');
+    if (wrapper && dd && !wrapper.contains(e.target)) {
+        dd.classList.add('hidden');
+    }
 });
+
+function openAuthSetupModal() {
+    const overlay = document.getElementById('auth-modal-overlay');
+    const setupModal = document.getElementById('modal-auth-setup');
+    const loginModal = document.getElementById('modal-auth-login');
+    const changeModal = document.getElementById('modal-auth-change');
+    
+    // 입력값 및 에러 초기화
+    const p1 = document.getElementById('setup-password');
+    const p2 = document.getElementById('setup-password-confirm');
+    const err = document.getElementById('setup-error');
+    if (p1) p1.value = '';
+    if (p2) p2.value = '';
+    if (err) err.classList.add('hidden');
+
+    if (overlay) overlay.classList.remove('hidden');
+    if (setupModal) setupModal.classList.remove('hidden');
+    if (loginModal) loginModal.classList.add('hidden');
+    if (changeModal) changeModal.classList.add('hidden');
+    setTimeout(() => p1?.focus(), 100);
+}
+
+function openAuthLoginModal() {
+    const overlay = document.getElementById('auth-modal-overlay');
+    const setupModal = document.getElementById('modal-auth-setup');
+    const loginModal = document.getElementById('modal-auth-login');
+    const changeModal = document.getElementById('modal-auth-change');
+    
+    // 입력값 및 에러 초기화
+    const pw = document.getElementById('login-password');
+    const err = document.getElementById('login-error');
+    if (pw) pw.value = '';
+    if (err)

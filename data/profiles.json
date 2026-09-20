@@ -4,14 +4,8 @@
     "name": "내 맞춤형 핵심 백업 (드라이버 + 프로젝트 + 선택 프로그램)",
     "sources": [
       "C:\\Users\\kksjmj\\Windows_Drivers",
-      "C:\\Users\\kksjmj\\Desktop\\ai\\build",
-      "C:\\Users\\kksjmj\\Desktop\\ai\\codebase",
       "C:\\Users\\kksjmj\\Desktop\\ai\\hwp2excel",
-      "C:\\Users\\kksjmj\\Desktop\\ai\\OpenManus",
       "C:\\Users\\kksjmj\\Desktop\\ai\\규격서",
-      "C:\\Users\\kksjmj\\Desktop\\ai\\배경",
-      "C:\\Users\\kksjmj\\Desktop\\ai\\배경_4K",
-      "C:\\Users\\kksjmj\\Desktop\\ai\\배경_Portrait_2K",
       "C:\\Users\\kksjmj\\Desktop\\ai\\백업시스템",
       "C:\\Users\\kksjmj\\Desktop\\ai\\선행모바일",
       "C:\\Users\\kksjmj\\Desktop\\ai\\운행기록병합기",
@@ -19,8 +13,6 @@
       "C:\\Users\\kksjmj\\Desktop\\ai\\컴플레인분석기",
       "C:\\Users\\kksjmj\\Desktop\\ai\\검사성적서",
       "C:\\Users\\kksjmj\\Desktop\\ai\\배송차량",
-      "C:\\Users\\kksjmj\\Desktop\\ai\\새 폴더",
-      "C:\\Users\\kksjmj\\Desktop\\ai\\백업시스템_설치용",
       "C:\\Users\\kksjmj\\Desktop\\ai\\위생교육",
       "C:\\Users\\kksjmj\\Desktop\\ai\\통합대시보드_서버배포팩",
       "C:\\Users\\kksjmj\\Desktop\\ai\\__pycache__",
@@ -116,6 +108,12 @@
       "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Accessibility\\Narrator.lnk",
       "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Accessibility\\On-Screen Keyboard.lnk",
       "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Accessibility\\VoiceAccess.lnk",
+      "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Inno Setup 6\\Inno Setup Compiler.lnk",
+      "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Inno Setup 6\\Inno Setup Documentation (Dark).lnk",
+      "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Inno Setup 6\\Inno Setup Documentation.lnk",
+      "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Inno Setup 6\\Inno Setup Example Scripts.lnk",
+      "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Inno Setup 6\\Inno Setup FAQ.lnk",
+      "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Inno Setup 6\\Inno Setup Revision History.lnk",
       "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Ollama\\Ollama.lnk",
       "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Python\\Python 3.14\\IDLE (Python 3.14).lnk",
       "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Python\\Python 3.14\\PyDoc (Python 3.14).lnk",
@@ -159,8 +157,8 @@
     "auto_backup_enabled": true,
     "retention_count": 3,
     "compression_level": 9,
-    "last_run": 1789862414.445424,
+    "last_run": 1789921313.3483596,
     "last_status": "success",
-    "last_snapshot_id": "snap_20260920_090009_8e4248"
+    "last_snapshot_id": "snap_20260921_012148_064d3a"
   }
 ]
