@@ -26,3 +26,10 @@ config/deep_scan_state.json
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Build artifacts
+build/
+dist/
+*.spec
+installer/Output/
+

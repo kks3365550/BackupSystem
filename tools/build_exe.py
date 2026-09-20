@@ -14,9 +14,15 @@ import subprocess
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 def build_package():
     print("=" * 60)
-    print("📦 [PyInstaller] 백업시스템 상용 단일 실행 패키지 빌드 시작")
+    print("[*] [PyInstaller] 백업시스템 상용 단일 실행 패키지 빌드 시작")
     print("=" * 60)
 
     # 1. 빌드 대상 경로 정의
@@ -92,7 +98,7 @@ def build_package():
             print(f"[*] 배포 에셋 복사: {fname} -> dist/BackupSystem/{fname}")
 
     print("\n" + "=" * 60)
-    print(f"🎉 빌드 완료! 배포 디렉토리: {target_dist}")
+    print(f"[OK] 빌드 완료! 배포 디렉토리: {target_dist}")
     print("=" * 60)
 
 
