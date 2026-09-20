@@ -8,30 +8,8 @@ import threading
 import subprocess
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-def ensure_dependencies():
-    required = ["uvicorn", "fastapi", "cryptography", "psutil", "jinja2", "requests", "pydantic", "zstandard"]
-    missing = []
-    for mod in required:
-        try:
-            __import__(mod)
-        except ImportError:
-            missing.append(mod)
-    
-    if missing:
-        req_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
-        if os.path.exists(req_file):
-            print(f"[*] 필수 패키지({', '.join(missing)})가 누락되어 자동으로 설치합니다...")
-            try:
-                subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", req_file, "--quiet"])
-            except Exception as e:
-                print(f"[!] 필수 패키지 자동 설치 실패: {e}")
-                raise
 
-ensure_dependencies()
-import uvicorn
-from core.config import ConfigManager
-
-# Handle headless execution where stdio might be None
+# Handle headless execution where stdio might be None (Critical for pythonw.exe)
 if sys.stdin is None:
     try:
         sys.stdin = open(os.devnull, 'r')
@@ -47,6 +25,33 @@ if sys.stderr is None:
         sys.stderr = open(os.devnull, 'w', encoding='utf-8')
     except Exception:
         pass
+
+def ensure_dependencies():
+    required = ["uvicorn", "fastapi", "cryptography", "psutil", "jinja2", "requests", "pydantic", "zstandard"]
+    missing = []
+    for mod in required:
+        try:
+            __import__(mod)
+        except ImportError:
+            missing.append(mod)
+    
+    if missing:
+        req_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
+        if os.path.exists(req_file):
+            print(f"[*] 필수 패키지({', '.join(missing)})가 누락되어 자동으로 설치합니다...")
+            try:
+                cmd = [sys.executable, "-m", "pip", "install", "-r", req_file, "--quiet"]
+                # Add --break-system-packages if running under uv / PEP 668 managed python
+                try:
+                    subprocess.check_call(cmd + ["--break-system-packages"])
+                except Exception:
+                    subprocess.check_call(cmd)
+            except Exception as e:
+                print(f"[!] 필수 패키지 자동 설치 경고 (계속 진행 시도): {e}")
+
+ensure_dependencies()
+import uvicorn
+from core.config import ConfigManager
 
 def is_port_in_use(port: int) -> bool:
     try:

@@ -329,10 +329,16 @@ def restart_local_server():
         return
 
     try:
+        flags = 0
+        if hasattr(subprocess, 'CREATE_NO_WINDOW'):
+            flags |= subprocess.CREATE_NO_WINDOW
+        if hasattr(subprocess, 'DETACHED_PROCESS'):
+            flags |= subprocess.DETACHED_PROCESS
         subprocess.Popen(
             ['wscript.exe', vbs_path],
             cwd=BASE_DIR,
-            **no_win
+            creationflags=flags,
+            close_fds=True
         )
         print("      start_silent.vbs launched.")
     except Exception as e:
