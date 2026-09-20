@@ -1,0 +1,304 @@
+### 1. [SUMMARY]
+- `self_update` 엔드포인트에 Ed25519 서명 검증 및 Zip Slip 취약점 방지를 위한 보안 로직을 전면 강화했습니다.
+- 백업 실패 이력, 저장소 용량, 복제 큐 상태를 종합 분석하여 실시간 경보 등급을 반환하는 `GET /api/alerts/summary` 엔드포인트를 신규 구현했습니다.
+
+### 2. [APPLY_METADATA]
+- StartLine: 1199
+- EndLine: 1260
+
+### 3. [TARGET_CONTENT]
+```text
+# --- Remote Self-Update API ---
+@app.post("/api/system/self-update")
+async def self_update(request: Request):
+    """
+    Receives raw zip binary of latest code, extracts it over BASE_DIR, and restarts the service.
+    Enables true zero-touch remote updating from another machine.
+    """
+    body = await request.body()
+    if not body:
+        raise HTTPException(status_code=400, detail="Empty update payload")
+
+    import io
+    import zipfile
+    import subprocess
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(body), "r") as zf:
+            file_names = zf.namelist()
+            if not any("core" in fn or "web" in fn or "run.py" in fn for fn in file_names):
+                raise HTTPException(status_code=400, detail="Invalid update package: missing core/web components")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid zip payload: {str(e)}")
+
+    temp_zip = os.path.join(tempfile.gettempdir(), f"backup_update_{int(time.time())}.zip")
+    with open(temp_zip, "wb") as f:
+        f.write(body)
+
+    updater_bat = os.path.join(tempfile.gettempdir(), f"run_updater_{int(time.time())}.bat")
+    pyw_candidate = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+    launch_py = pyw_candidate if os.path.exists(pyw_candidate) else sys.executable
+
+    bat_content = f"""@echo off
+timeout /t 1 >nul
+tar -xf "{temp_zip}" -C "{BASE_DIR}"
+cd /d "{BASE_DIR}"
+start "" "{launch_py}" run.py
+del "{temp_zip}" >nul 2>&1
+del "%~f0" >nul 2>&1
+"""
+    with open(updater_bat, "w", encoding="utf-8") as f:
+        f.write(bat_content)
+
+    def _trigger_update_and_restart():
+        time.sleep(0.8)
+        flags = 0x00000200
+        if sys.platform.startswith("win") and hasattr(subprocess, "CREATE_NO_WINDOW"):
+            flags |= subprocess.CREATE_NO_WINDOW
+        else:
+            flags |= 0x00000008
+        subprocess.Popen(
+            ["cmd.exe", "/c", updater_bat],
+            creationflags=flags,
+            close_fds=True
+        )
+        time.sleep(0.2)
+        os._exit(0)
+
+    threading.Thread(target=_trigger_update_and_restart, daemon=True).start()
+    return {
+        "success": True,
+        "message": f"업데이트 패키지({len(body)} 바이트)를 수신했습니다. 1초 후 자동으로 덮어쓰고 최신 엔진으로 재시작됩니다."
+    }
+```
+
+### 4. [REPLACEMENT_CONTENT]
+```text
+# --- Remote Self-Update API ---
+@app.post("/api/system/self-update")
+async def self_update(request: Request):
+    """
+    Receives raw zip binary of latest code, verifies Ed25519 signature, extracts it over BASE_DIR, and restarts the service.
+    """
+    body = await request.body()
+    if not body:
+        raise HTTPException(status_code=400, detail="Empty update payload")
+
+    # 1. Signature Verification
+    signature_b64 = request.headers.get("X-Package-Signature")
+    if not signature_b64:
+        raise HTTPException(status_code=403, detail="서명 누락")
+    
+    try:
+        signature_bytes = base64.b64decode(signature_b64)
+    except Exception:
+        raise HTTPException(status_code=403, detail="유효하지 않거나 변조된 업데이트 패키지")
+
+    pub_key_path = os.path.join(BASE_DIR, 'keys', 'release_ed25519.pub')
+    if not os.path.exists(pub_key_path):
+        raise HTTPException(status_code=403, detail="유효하지 않거나 변조된 업데이트 패키지")
+    
+    try:
+        with open(pub_key_path, 'rb') as f:
+            pub_key_bytes = f.read()
+        from core.crypto_sign import verify_bytes_ed25519
+        if not verify_bytes_ed25519(body, signature_bytes, pub_key_bytes):
+            raise HTTPException(status_code=403, detail="유효하지 않거나 변조된 업데이트 패키지")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=403, detail="유효하지 않거나 변조된 업데이트 패키지")
+
+    import io
+    import zipfile
+    import subprocess
+
+    # 2. Zip Slip Prevention & Validation
+    try:
+        with zipfile.ZipFile(io.BytesIO(body), "r") as zf:
+            file_names = zf.namelist()
+            if not any("core" in fn or "web" in fn or "run.py" in fn for fn in file_names):
+                raise HTTPException(status_code=400, detail="Invalid update package: missing core/web components")
+            
+            # Zip Slip Check
+            base_dir_abs = os.path.abspath(BASE_DIR)
+            for fn in file_names:
+                target_path = os.path.abspath(os.path.join(BASE_DIR, fn))
+                if not target_path.startswith(base_dir_abs):
+                    raise HTTPException(status_code=403, detail="Zip Slip attack detected")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid zip payload: {str(e)}")
+
+    temp_zip = os.path.join(tempfile.gettempdir(), f"backup_update_{int(time.time())}.zip")
+    with open(temp_zip, "wb") as f:
+        f.write(body)
+
+    updater_bat = os.path.join(tempfile.gettempdir(), f"run_updater_{int(time.time())}.bat")
+    pyw_candidate = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+    launch_py = pyw_candidate if os.path.exists(pyw_candidate) else sys.executable
+
+    # Windows CRLF compliant batch content
+    bat_content = f"""@echo off
+timeout /t 1 >nul
+tar -xf "{temp_zip}" -C "{BASE_DIR}"
+cd /d "{BASE_DIR}"
+start "" "{launch_py}" run.py
+del "{temp_zip}" >nul 2>&1
+del "%~f0" >nul 2>&1
+""".replace("\n", "\r\n")
+    
+    with open(updater_bat, "w", encoding="utf-8", newline="\r\n") as f:
+        f.write(bat_content)
+
+    def _trigger_update_and_restart():
+        time.sleep(0.8)
+        flags = 0x00000200
+        if sys.platform.startswith("win") and hasattr(subprocess, "CREATE_NO_WINDOW"):
+            flags |= subprocess.CREATE_NO_WINDOW
+        else:
+            flags |= 0x00000008
+        subprocess.Popen(
+            ["cmd.exe", "/c", updater_bat],
+            creationflags=flags,
+            close_fds=True
+        )
+        time.sleep(0.2)
+        os._exit(0)
+
+    threading.Thread(target=_trigger_update_and_restart, daemon=True).start()
+    return {
+        "success": True,
+        "message": f"업데이트 패키지({len(body)} 바이트)를 수신했습니다. 1초 후 자동으로 덮어쓰고 최신 엔진으로 재시작됩니다."
+    }
+
+# --- Real-time Alert Summary API ---
+@app.get("/api/alerts/summary")
+def get_alerts_summary():
+    """
+    Aggregates recent backup failures, disk space, and replication queue status to provide a real-time alert summary.
+    """
+    alerts = []
+    status = "ok"
+    
+    # 1. Check Backup History (Last 24h)
+    try:
+        profiles = ConfigManager.get_profiles()
+        for profile in profiles:
+            last_status = profile.get("last_status")
+            last_run = profile.get("last_run", 0)
+            if last_status == "failed" and (time.time() - last_run < 86400):
+                alerts.append({
+                    "type": "backup_failure",
+                    "severity": "critical",
+                    "message": f"프로필 '{profile.get('name')}' 백업 실패 이력 발견 (최근 24시간 내)"
+                })
+                status = "critical"
+    except Exception:
+        pass
+
+    # 2. Check Active Repository Disk Space
+    try:
+        profiles = ConfigManager.get_profiles()
+        if profiles:
+            repo_dir = profiles[0].get("repo_dir")
+            if repo_dir and os.path.exists(repo_dir):
+                drive = os.path.splitdrive(repo_dir)[0]
+                if not drive:
+                    drive = os.path.splitdrive(os.path.abspath(repo_dir))[0]
+                
+                if drive:
+                    total, used, free = shutil.disk_usage(drive)
+                    if total > 0:
+                        free_percent = (free / total) * 100
+                        if free_percent < 5:
+                            alerts.append({
+                                "type": "disk_space",
+                                "severity": "critical",
+                                "message": f"저장소 드라이브({drive}) 여유 공간 5% 미만 ({free_percent:.2f}%)"
+                            })
+                            status = "critical"
+                        elif free_percent < 10:
+                            alerts.append({
+                                "type": "disk_space",
+                                "severity": "warning",
+                                "message": f"저장소 드라이브({drive}) 여유 공간 10% 미만 ({free_percent:.2f}%)"
+                            })
+                            if status != "critical":
+                                status = "warning"
+    except Exception:
+        pass
+
+    # 3. Check Replication Queue
+    try:
+        from core.replication import ReplicationManager
+        rm = ReplicationManager()
+        queue_status = rm.get_queue_status()
+        pending = queue_status.get("pending", 0)
+        failed = queue_status.get("failed", 0)
+        
+        if failed > 0:
+            alerts.append({
+                "type": "replication_failure",
+                "severity": "critical",
+                "message": f"복제 큐에서 {failed}건의 실패가 감지되었습니다."
+            })
+            status = "critical"
+        elif pending > 10:
+            alerts.append({
+                "type": "replication_backlog",
+                "severity": "warning",
+                "message": f"복제 큐에 {pending}건의 작업이 적체되어 있습니다."
+            })
+            if status != "critical":
+                status = "warning"
+    except Exception:
+        pass
+
+    return {
+        "status": status,
+        "alerts": alerts
+    }
+```
+
+### 5. [DIFF]
+```diff
+--- a/app.py
++++ b/app.py
+@@ -1199 +1199 @@
+ # --- Remote Self-Update API ---
+ @app.post("/api/system/self-update")
+ async def self_update(request: Request):
+     """
+-    Receives raw zip binary of latest code, extracts it over BASE_DIR, and restarts the service.
+-    Enables true zero-touch remote updating from another machine.
++    Receives raw zip binary of latest code, verifies Ed25519 signature, extracts it over BASE_DIR, and restarts the service.
+     """
+     body = await request.body()
+     if not body:
+         raise HTTPException(status_code=400, detail="Empty update payload")
+ 
++    # 1. Signature Verification
++    signature_b64 = request.headers.get("X-Package-Signature")
++    if not signature_b64:
++        raise HTTPException(status_code=403, detail="서명 누락")
++    
++    try:
++        signature_bytes = base64.b64decode(signature_b64)
++    except Exception:
++        raise HTTPException(status_code=403, detail="유효하지 않거나 변조된 업데이트 패키지")
++
++    pub_key_path = os.path.join(BASE_DIR, 'keys', 'release_ed25519.pub')
++    if not os.path.exists(pub_key_path):
++        raise HTTPException(status_code=403, detail="유효하지 않거나 변조된 업데이트 패키지")
++    
++    try:
++        with open(pub_key_path, 'rb') as f:
++            pub_key_bytes = f.read()
++        from core.crypto_sign import verify_bytes_ed25519
++        if not verify_bytes_ed25519(body, signature_bytes, pub_key_bytes):
++            raise HTTPException(status_code=403, detail="유효하지 않거나 변조된 업데이트 패키지")
++    except HTTPException:
++        raise
++    except Exception:

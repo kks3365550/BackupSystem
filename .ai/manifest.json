@@ -7,5 +7,23 @@
     "target_file": "c:\\Users\\kksjmj\\Desktop\\ai\\백업시스템\\web\\app.py",
     "target_sha256": "a089d5c1fa8ded8b7735a2b43eead01714aa9641bd3fa07186ea747aedee1c1c",
     "occurrence": 1
+  },
+  "patch_app_1789920366_16b5cc.txt": {
+    "source_hash": "b94156a3b6607df20897bd7bc5001300a6ad42a3eea1cf980de33e3d259ee5cb",
+    "generated_at": "2026-09-21 01:06:06",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2",
+    "target_file": "c:\\Users\\kksjmj\\Desktop\\ai\\백업시스템\\web\\app.py",
+    "target_sha256": "a031f311e49dc61b2b7135b3de317256d324f01055a776cf15a26f7c1992d49a",
+    "occurrence": 1
+  },
+  "patch_release_1789920472_714e77.txt": {
+    "source_hash": "d9f322908e4db139692a3e8c4f363f96af0aa8ec1533e78f7d63a4bb7e9dd7e0",
+    "generated_at": "2026-09-21 01:07:52",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2",
+    "target_file": "c:\\Users\\kksjmj\\Desktop\\ai\\백업시스템\\tools\\release.py",
+    "target_sha256": "UNKNOWN",
+    "occurrence": 0
   }
 }

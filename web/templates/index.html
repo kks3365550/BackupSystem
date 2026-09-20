@@ -38,7 +38,7 @@
             <div>
                 <h1 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
                     서버 & 시스템 백업 매니저
-                    <span class="text-[10px] px-2 py-0.5 bg-emerald-900/80 text-emerald-300 rounded-full font-medium border border-emerald-700/60">v2.8.2</span>
+                    <span class="text-[10px] px-2 py-0.5 bg-emerald-900/80 text-emerald-300 rounded-full font-medium border border-emerald-700/60">v2.8.3</span>
                 </h1>
                 <p class="text-[11px] text-slate-400">멀티코어 Zstandard 엔진 & 증분 스냅샷 중복제거</p>
             </div>
@@ -84,6 +84,22 @@
         </div>
     </header>
 
+    <!-- Global Real-time Alert Banner (Red Alert System) -->
+    <div id="global-alert-banner" class="hidden shrink-0 border-b px-6 py-2.5 flex items-center justify-between text-xs transition-all duration-300 z-30">
+        <div class="flex items-center gap-3">
+            <span id="alert-banner-badge" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+                <i data-lucide="alert-triangle" id="alert-banner-icon" class="w-3.5 h-3.5"></i>
+                <span id="alert-banner-status">CRITICAL</span>
+            </span>
+            <span id="alert-banner-message" class="font-medium text-slate-200"></span>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="dismissAlertBanner()" class="text-slate-400 hover:text-white p-1 rounded transition" title="배너 닫기">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </div>
+
     <!-- Main Workspace Container -->
     <div class="flex-1 flex overflow-hidden">
 
@@ -122,9 +138,9 @@
                     스케줄러: <span class="text-slate-200 font-medium">자동 백업 활성화됨</span>
                 </div>
                 <div class="pt-2 border-t border-slate-700/50 space-y-1 text-[11px]">
-                    <div class="flex items-center justify-between text-slate-400">
-                        <span class="flex items-center gap-1.5"><i data-lucide="lock" class="w-3.5 h-3.5 text-amber-400"></i> WORM 방어</span>
-                        <span class="text-emerald-400 font-mono font-medium">불변성 잠금</span>
+                    <div class="flex items-center justify-between text-slate-400" title="Windows NTFS ACL 권한 분리 기반의 변조 및 실수 방지 (일반 랜섬웨어 차단)">
+                        <span class="flex items-center gap-1.5"><i data-lucide="lock" class="w-3.5 h-3.5 text-amber-400"></i> ACL 변조방지</span>
+                        <span class="text-emerald-400 font-mono font-medium">NTFS WORM</span>
                     </div>
                     <div class="flex items-center justify-between text-slate-400">
                         <span class="flex items-center gap-1.5"><i data-lucide="shield-alert" class="w-3.5 h-3.5 text-cyan-400"></i> 디스크 풀 방어</span>

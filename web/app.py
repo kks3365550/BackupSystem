@@ -2,6 +2,8 @@ import os
 import sys
 import time
 import json
+import base64
+import shutil
 import threading
 import psutil
 import datetime
@@ -1196,28 +1198,78 @@ def shutdown_system():
     threading.Thread(target=_kill, daemon=True).start()
     return {"success": True, "message": "백업 시스템 서비스가 완전히 종료됩니다."}
 
-# --- Remote Self-Update API ---
+# --- Remote Self-Update API (P0 Security: Ed25519 Signature Verification & Anti-Zip-Slip) ---
 @app.post("/api/system/self-update")
 async def self_update(request: Request):
     """
-    Receives raw zip binary of latest code, extracts it over BASE_DIR, and restarts the service.
-    Enables true zero-touch remote updating from another machine.
+    Receives raw zip binary of latest code, verifies Ed25519 cryptographic signature,
+    extracts it safely over BASE_DIR with Zip-Slip protection, and restarts the service.
     """
     body = await request.body()
     if not body:
-        raise HTTPException(status_code=400, detail="Empty update payload")
+        raise HTTPException(status_code=400, detail="업데이트 페이로드가 비어 있습니다.")
+
+    # 1. Ed25519 Signature Verification
+    signature_raw = request.headers.get("X-Package-Signature", "").strip()
+    if not signature_raw:
+        raise HTTPException(
+            status_code=403,
+            detail="업데이트 패키지 서명 누락: X-Package-Signature 헤더가 필요합니다."
+        )
+
+    # Convert Base64 or Hex to Hex format for verify_bytes_ed25519
+    signature_hex = signature_raw
+    if len(signature_raw) == 88 or signature_raw.endswith("="):
+        try:
+            signature_hex = base64.b64decode(signature_raw).hex()
+        except Exception:
+            raise HTTPException(status_code=403, detail="서명 인코딩 형식 오류")
+
+    pub_key_path = os.path.join(BASE_DIR, "keys", "release_ed25519.pub")
+    if not os.path.exists(pub_key_path):
+        raise HTTPException(
+            status_code=403,
+            detail="업데이트 거부: 서버에 Ed25519 릴리즈 공개키(release_ed25519.pub)가 등록되지 않았습니다."
+        )
+
+    try:
+        from core.crypto_sign import verify_bytes_ed25519
+        if not verify_bytes_ed25519(body, signature_hex, pub_key_path):
+            raise HTTPException(
+                status_code=403,
+                detail="패키지 전자서명 검증 실패: 유효하지 않거나 변조된 업데이트 패키지입니다."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=403,
+            detail=f"전자서명 검증 중 오류 발생: {str(e)}"
+        )
 
     import io
     import zipfile
     import subprocess
 
+    # 2. Safe Zip Extraction with Path Traversal (Zip-Slip) Protection
+    base_dir_abs = os.path.abspath(BASE_DIR)
     try:
         with zipfile.ZipFile(io.BytesIO(body), "r") as zf:
             file_names = zf.namelist()
             if not any("core" in fn or "web" in fn or "run.py" in fn for fn in file_names):
-                raise HTTPException(status_code=400, detail="Invalid update package: missing core/web components")
+                raise HTTPException(status_code=400, detail="유효하지 않은 업데이트 패키지: 핵심 구성요소가 누락되었습니다.")
+
+            for member in zf.infolist():
+                dest_path = os.path.abspath(os.path.join(base_dir_abs, member.filename))
+                if not (dest_path == base_dir_abs or dest_path.startswith(base_dir_abs + os.sep)):
+                    raise HTTPException(
+                        status_code=403,
+                        detail=f"Zip-Slip 보안 위협 탐지: 허용되지 않은 경로 탈출 ({member.filename})"
+                    )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid zip payload: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"압축 패키지 검증 오류: {str(e)}")
 
     temp_zip = os.path.join(tempfile.gettempdir(), f"backup_update_{int(time.time())}.zip")
     with open(temp_zip, "wb") as f:
@@ -1227,15 +1279,19 @@ async def self_update(request: Request):
     pyw_candidate = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
     launch_py = pyw_candidate if os.path.exists(pyw_candidate) else sys.executable
 
-    bat_content = f"""@echo off
-timeout /t 1 >nul
-tar -xf "{temp_zip}" -C "{BASE_DIR}"
-cd /d "{BASE_DIR}"
-start "" "{launch_py}" run.py
-del "{temp_zip}" >nul 2>&1
-del "%~f0" >nul 2>&1
-"""
-    with open(updater_bat, "w", encoding="utf-8") as f:
+    # Windows CRLF & Ghost/Silent compliant batch script
+    bat_content = (
+        "@echo off\r\n"
+        "chcp 65001 >nul\r\n"
+        "ping 127.0.0.1 -n 2 >nul\r\n"
+        f"tar -xf \"{temp_zip}\" -C \"{BASE_DIR}\"\r\n"
+        f"cd /d \"{BASE_DIR}\"\r\n"
+        f"start \"\" \"{launch_py}\" run.py\r\n"
+        f"del \"{temp_zip}\" >nul 2>&1\r\n"
+        "del \"%~f0\" >nul 2>&1\r\n"
+        "exit /b 0\r\n"
+    )
+    with open(updater_bat, "w", encoding="utf-8", newline="\r\n") as f:
         f.write(bat_content)
 
     def _trigger_update_and_restart():
@@ -1256,5 +1312,116 @@ del "%~f0" >nul 2>&1
     threading.Thread(target=_trigger_update_and_restart, daemon=True).start()
     return {
         "success": True,
-        "message": f"업데이트 패키지({len(body)} 바이트)를 수신했습니다. 1초 후 자동으로 덮어쓰고 최신 엔진으로 재시작됩니다."
+        "message": f"Ed25519 서명 검증 통과! 최신 패키지({len(body):,} 바이트)를 안전하게 수신했습니다. 1초 후 자동으로 적용되고 재시작됩니다."
     }
+
+
+# --- Real-time Global Alert Summary API (Red Alert System) ---
+@app.get("/api/alerts/summary")
+def get_alerts_summary():
+    """
+    Aggregates recent backup failures, active repository free disk space,
+    and replication queue backlogs to compute real-time alert status for UI banner.
+    """
+    alerts = []
+    status = "ok"
+
+    # 1. Check Backup History (Last 24h)
+    try:
+        profiles = ConfigManager.get_profiles()
+        now_ts = time.time()
+        for profile in profiles:
+            last_status = profile.get("last_status")
+            last_run = profile.get("last_run", 0)
+            p_name = profile.get("name", "기본 프로필")
+
+            if last_status == "failed" and (now_ts - last_run < 86400):
+                alerts.append({
+                    "type": "backup_failure",
+                    "severity": "critical",
+                    "title": "백업 실패 감지",
+                    "message": f"프로필 '{p_name}'의 최근 백업이 실패했습니다. 저장소 상태 및 로그를 확인하세요."
+                })
+                status = "critical"
+    except Exception as e:
+        alerts.append({
+            "type": "config_error",
+            "severity": "warning",
+            "title": "설정 조회 오류",
+            "message": f"프로필 상태 점검 중 오류: {str(e)}"
+        })
+        if status != "critical":
+            status = "warning"
+
+    # 2. Check Active Repository Disk Space
+    active_repo = None
+    disk_info = {"total_gb": 0.0, "free_gb": 0.0, "free_percent": 100.0}
+    try:
+        profiles = ConfigManager.get_profiles()
+        if profiles:
+            active_repo = profiles[0].get("repo_dir")
+            if active_repo and os.path.exists(active_repo):
+                drive = os.path.splitdrive(active_repo)[0]
+                if not drive:
+                    drive = os.path.splitdrive(os.path.abspath(active_repo))[0]
+                if drive:
+                    total, used, free = shutil.disk_usage(drive)
+                    total_gb = round(total / (1024 ** 3), 1)
+                    free_gb = round(free / (1024 ** 3), 1)
+                    free_pct = round((free / total) * 100, 1) if total > 0 else 0.0
+                    disk_info = {"total_gb": total_gb, "free_gb": free_gb, "free_percent": free_pct}
+
+                    if free_pct < 5.0:
+                        alerts.append({
+                            "type": "disk_critical",
+                            "severity": "critical",
+                            "title": "디스크 용량 고갈 위험",
+                            "message": f"저장소 드라이브({drive}) 여유 공간이 5% 미만({free_pct}%, 잔여 {free_gb} GB)입니다."
+                        })
+                        status = "critical"
+                    elif free_pct < 10.0:
+                        alerts.append({
+                            "type": "disk_warning",
+                            "severity": "warning",
+                            "title": "디스크 용량 부족 경고",
+                            "message": f"저장소 드라이브({drive}) 여유 공간이 10% 미만({free_pct}%, 잔여 {free_gb} GB)입니다."
+                        })
+                        if status != "critical":
+                            status = "warning"
+    except Exception:
+        pass
+
+    # 3. Check Replication Queue
+    try:
+        from core.replication_queue import ReplicationQueueManager
+        candidate_repos = _get_all_candidate_repos()
+        total_interrupted = 0
+        total_pending = 0
+        for cand in candidate_repos:
+            rq = ReplicationQueueManager(cand)
+            status_map = rq.get_status_summary()
+            total_pending += status_map.get("pending", 0)
+            total_interrupted += status_map.get("interrupted", 0)
+
+        if total_interrupted > 0:
+            alerts.append({
+                "type": "replication_interrupted",
+                "severity": "warning",
+                "title": "오프사이트 복제 지연",
+                "message": f"네트워크 단절로 중단된 복제 작업이 {total_interrupted}건 있습니다. 대기열에서 자동 재시도됩니다."
+            })
+            if status != "critical":
+                status = "warning"
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "data": {
+            "status": status,
+            "badge_color": "red" if status == "critical" else ("yellow" if status == "warning" else "green"),
+            "alerts": alerts,
+            "disk": disk_info
+        }
+    }
+

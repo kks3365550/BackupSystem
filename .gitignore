@@ -32,4 +32,5 @@ build/
 dist/
 *.spec
 installer/Output/
-
+# Keys & Secrets (Keep private keys local, only track public keys)
+keys/*.key

@@ -190,3 +190,33 @@ def verify_manifest_signature_ed25519(
         return True
     except Exception:
         return False
+
+
+def sign_bytes_ed25519(data: bytes, priv_key_path_or_bytes: Union[str, bytes]) -> str:
+    """임의의 바이트 데이터에 대한 Ed25519 서명 생성 (hex 반환)."""
+    if isinstance(priv_key_path_or_bytes, str):
+        with open(priv_key_path_or_bytes, 'rb') as f:
+            key_data = f.read()
+    else:
+        key_data = priv_key_path_or_bytes
+    private_key = load_pem_private_key(key_data, password=None)
+    sig = private_key.sign(data)
+    return sig.hex()
+
+
+def verify_bytes_ed25519(data: bytes, signature_hex: str, pub_key_path_or_bytes: Union[str, bytes]) -> bool:
+    """임의의 바이트 데이터에 대한 Ed25519 서명 검증."""
+    try:
+        if not signature_hex or not isinstance(signature_hex, str):
+            return False
+        if isinstance(pub_key_path_or_bytes, str):
+            with open(pub_key_path_or_bytes, 'rb') as f:
+                key_data = f.read()
+        else:
+            key_data = pub_key_path_or_bytes
+        public_key = load_pem_public_key(key_data)
+        sig_bytes = bytes.fromhex(signature_hex)
+        public_key.verify(sig_bytes, data)
+        return True
+    except Exception:
+        return False
