@@ -1,7 +1,0 @@
-{
-  "server_port": 8765,
-  "server_host": "0.0.0.0",
-  "auto_open_browser": true,
-  "dark_mode": true,
-  "log_level": "INFO"
-}
