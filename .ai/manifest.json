@@ -1,0 +1,11 @@
+{
+  "patch_app_1789917168_3b3c78.txt": {
+    "source_hash": "16d82e1d4303eb359c32a6d441a6aa0928a641b6192bf9e8f9179fd316103aca",
+    "generated_at": "2026-09-21 00:12:48",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2",
+    "target_file": "c:\\Users\\kksjmj\\Desktop\\ai\\백업시스템\\web\\app.py",
+    "target_sha256": "a089d5c1fa8ded8b7735a2b43eead01714aa9641bd3fa07186ea747aedee1c1c",
+    "occurrence": 1
+  }
+}

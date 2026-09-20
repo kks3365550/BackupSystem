@@ -9,11 +9,11 @@ import tempfile
 from collections import deque
 from contextlib import asynccontextmanager
 from typing import Dict, List, Any, Optional
-from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
+from fastapi import FastAPI, Request, Response, BackgroundTasks, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core.config import ConfigManager
 from core.snapshot import SnapshotEngine
@@ -22,6 +22,11 @@ from core.storage import BlobStorage
 from core.scheduler import BackupScheduler
 from core.app_scanner import get_installed_applications, get_project_items
 from core.driver_backup import export_windows_drivers
+from core.auth import (
+    is_auth_configured, get_auth_status, setup_master_password,
+    verify_master_password, change_master_password, create_session,
+    validate_session, revoke_session, set_localhost_bypass
+)
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -81,6 +86,141 @@ async def lifespan(app: FastAPI):
     scheduler.stop()
 
 app = FastAPI(title="Server & System Backup Manager", version="2.1.4", lifespan=lifespan)
+
+# ==================== Auth Pydantic Models ====================
+class AuthSetupRequest(BaseModel):
+    password: str = Field(..., min_length=4, description="최소 4자 이상의 마스터 비밀번호")
+    allow_localhost_bypass: bool = Field(default=True, description="로컬 루프백 접속 시 인증 우회 여부")
+
+class AuthLoginRequest(BaseModel):
+    password: str = Field(..., description="마스터 비밀번호")
+
+class AuthChangePasswordRequest(BaseModel):
+    old_password: str = Field(..., description="현재 비밀번호")
+    new_password: str = Field(..., min_length=4, description="최소 4자 이상의 새 비밀번호")
+
+class AuthBypassRequest(BaseModel):
+    enabled: bool = Field(..., description="로컬 루프백 인증 우회 활성화 여부")
+
+
+# ==================== Auth HTTP Middleware ====================
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    path = request.url.path
+    
+    # 인증 불필요 경로 (정적 리소스, 인증 API, favicon)
+    if (
+        path.startswith("/static") or
+        path.startswith("/api/auth/") or
+        path == "/favicon.ico"
+    ):
+        return await call_next(request)
+    
+    # 마스터 비밀번호 미설정 상태: 진입 허용 (UI에서 셋업 모달 표시)
+    if not is_auth_configured():
+        return await call_next(request)
+    
+    # 클라이언트 IP 기반 로컬 루프백 바이패스 검사
+    client_ip = request.client.host if request.client else ""
+    auth_st = get_auth_status(client_ip)
+    if auth_st.get("bypassed"):
+        return await call_next(request)
+    
+    # 세션 토큰 추출 (쿠키 우선, Bearer 헤더 보조)
+    token = request.cookies.get("backup_session")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+    
+    # 유효한 세션인 경우 통과
+    if token and validate_session(token):
+        return await call_next(request)
+    
+    # API 요청인데 인증 실패 시 401 JSON 응답 반환
+    if path.startswith("/api/"):
+        return JSONResponse(
+            status_code=401,
+            content={
+                "success": False,
+                "error": "인증이 필요합니다.",
+                "auth_required": True
+            }
+        )
+    
+    # 대시보드 페이지(/) 등 일반 요청은 통과 (프론트엔드에서 로그인 모달 표시)
+    return await call_next(request)
+
+
+# ==================== Auth Endpoints ====================
+@app.get("/api/auth/status")
+async def auth_status(request: Request):
+    client_ip = request.client.host if request.client else ""
+    status = get_auth_status(client_ip)
+    token = request.cookies.get("backup_session")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+    status["authenticated"] = bool(token and validate_session(token))
+    return JSONResponse(content={"success": True, "data": status})
+
+@app.post("/api/auth/setup")
+async def auth_setup(req: AuthSetupRequest):
+    try:
+        setup_master_password(req.password, req.allow_localhost_bypass)
+        return JSONResponse(content={"success": True, "message": "마스터 비밀번호가 성공적으로 설정되었습니다."})
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"success": False, "error": str(e)})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"success": False, "error": f"설정 중 오류: {str(e)}"})
+
+@app.post("/api/auth/login")
+async def auth_login(req: AuthLoginRequest):
+    if not verify_master_password(req.password):
+        return JSONResponse(status_code=401, content={"success": False, "error": "비밀번호가 일치하지 않습니다."})
+    token = create_session()
+    resp = JSONResponse(content={"success": True, "token": token, "message": "로그인 성공"})
+    resp.set_cookie(
+        key="backup_session",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=86400 * 30,
+        path="/"
+    )
+    return resp
+
+@app.post("/api/auth/logout")
+async def auth_logout(request: Request):
+    token = request.cookies.get("backup_session")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+    if token:
+        revoke_session(token)
+    resp = JSONResponse(content={"success": True, "message": "로그아웃 성공"})
+    resp.delete_cookie("backup_session", path="/")
+    return resp
+
+@app.post("/api/auth/change-password")
+async def auth_change_password(req: AuthChangePasswordRequest):
+    try:
+        change_master_password(req.old_password, req.new_password)
+        return JSONResponse(content={"success": True, "message": "비밀번호가 성공적으로 변경되었습니다."})
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"success": False, "error": str(e)})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"success": False, "error": f"변경 중 오류: {str(e)}"})
+
+@app.post("/api/auth/toggle-bypass")
+async def auth_toggle_bypass(req: AuthBypassRequest):
+    try:
+        set_localhost_bypass(req.enabled)
+        return JSONResponse(content={"success": True, "message": f"로컬 루프백 자동 우회 설정이 {'활성화' if req.enabled else '비활성화'}되었습니다."})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"success": False, "error": f"설정 변경 중 오류: {str(e)}"})
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
