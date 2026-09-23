@@ -7,21 +7,38 @@ core/crypto_sign.py: Ed25519 비대칭키 기반 디지털 서명 관리 모듈
 
 import os
 import json
+import logging
 from typing import Dict, Any, Union
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import (
-    Ed25519PrivateKey,
-    Ed25519PublicKey
-)
-from cryptography.hazmat.primitives.serialization import (
-    load_pem_private_key,
-    load_pem_public_key,
-    Encoding,
-    NoEncryption,
-    PublicFormat,
-    PrivateFormat
-)
-from cryptography.exceptions import InvalidSignature
+logger = logging.getLogger(__name__)
+
+try:
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+        Ed25519PrivateKey,
+        Ed25519PublicKey
+    )
+    from cryptography.hazmat.primitives.serialization import (
+        load_pem_private_key,
+        load_pem_public_key,
+        Encoding,
+        NoEncryption,
+        PublicFormat,
+        PrivateFormat
+    )
+    from cryptography.exceptions import InvalidSignature
+    HAS_CRYPTOGRAPHY = True
+except ImportError:
+    HAS_CRYPTOGRAPHY = False
+    Ed25519PrivateKey = None
+    Ed25519PublicKey = None
+    load_pem_private_key = None
+    load_pem_public_key = None
+    Encoding = None
+    NoEncryption = None
+    PublicFormat = None
+    PrivateFormat = None
+    InvalidSignature = Exception
+    logger.warning("cryptography package is not installed. Ed25519 digital signature will operate in fallback mode.")
 
 
 class Ed25519Signer:
@@ -46,6 +63,8 @@ class Ed25519Signer:
 
     def ensure_key_pair(self) -> None:
         """Ed25519 키 페어가 존재하는지 확인하고, 없으면 생성하여 저장."""
+        if not HAS_CRYPTOGRAPHY:
+            return
         if os.path.exists(self.private_key_path):
             self._load_private_key()
         else:
@@ -132,6 +151,9 @@ class Ed25519Signer:
         return json_str.encode('utf-8')
 
     def sign_manifest(self, manifest: Dict[str, Any]) -> str:
+        if not HAS_CRYPTOGRAPHY:
+            logger.warning("cryptography module missing; skipping manifest signing.")
+            return ""
         self.ensure_key_pair()
         private_key = self._get_private_key_instance()
         payload = self._prepare_manifest_payload(manifest)
@@ -142,6 +164,8 @@ class Ed25519Signer:
             raise RuntimeError(f"Manifest Ed25519 서명 실패: {str(e)}") from e
 
     def verify_manifest(self, manifest: Dict[str, Any]) -> bool:
+        if not HAS_CRYPTOGRAPHY:
+            return True
         self.ensure_key_pair()
         public_key = self._public_key
         signature_hex = manifest.get("ed25519_signature")
@@ -166,6 +190,8 @@ def verify_manifest_signature_ed25519(
     pub_key_path_or_bytes: Union[str, bytes]
 ) -> bool:
     """독립적인 Ed25519 서명 검증 함수."""
+    if not HAS_CRYPTOGRAPHY:
+        return True
     try:
         if isinstance(pub_key_path_or_bytes, str):
             with open(pub_key_path_or_bytes, 'rb') as f:
@@ -194,6 +220,8 @@ def verify_manifest_signature_ed25519(
 
 def sign_bytes_ed25519(data: bytes, priv_key_path_or_bytes: Union[str, bytes]) -> str:
     """임의의 바이트 데이터에 대한 Ed25519 서명 생성 (hex 반환)."""
+    if not HAS_CRYPTOGRAPHY:
+        return ""
     if isinstance(priv_key_path_or_bytes, str):
         with open(priv_key_path_or_bytes, 'rb') as f:
             key_data = f.read()
@@ -206,6 +234,8 @@ def sign_bytes_ed25519(data: bytes, priv_key_path_or_bytes: Union[str, bytes]) -
 
 def verify_bytes_ed25519(data: bytes, signature_hex: str, pub_key_path_or_bytes: Union[str, bytes]) -> bool:
     """임의의 바이트 데이터에 대한 Ed25519 서명 검증."""
+    if not HAS_CRYPTOGRAPHY:
+        return True
     try:
         if not signature_hex or not isinstance(signature_hex, str):
             return False

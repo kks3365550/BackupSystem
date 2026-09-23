@@ -223,6 +223,8 @@ def build_self_extracting_updater(version: str):
         "taskkill /F /IM python.exe /T >nul 2>&1\r\n"
         "taskkill /F /IM pythonw.exe /T >nul 2>&1\r\n"
         "ping 127.0.0.1 -n 2 >nul\r\n"
+        "REM Silently ensure cryptography dependency\r\n"
+        "python -m pip install cryptography --quiet >nul 2>&1\r\n"
         "\r\n"
         "echo ========================================================\r\n"
         f"echo   [2/3] Detecting installation directory ^& Extracting v{version}...\r\n"
