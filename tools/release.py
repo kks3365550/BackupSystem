@@ -173,7 +173,11 @@ def build_self_extracting_updater(version: str):
                     full_path = os.path.join(root, f)
                     rel_path = os.path.relpath(full_path, BASE_DIR)
                     zf.write(full_path, rel_path)
-        zf.write(os.path.join(BASE_DIR, 'run.py'), 'run.py')
+        # Bundle essential runner scripts
+        for extra_script in ['run.py', 'start_silent.vbs', 'start_tray.vbs', 'stop_backup_system.bat', '2_백업시스템_실행.bat']:
+            extra_path = os.path.join(BASE_DIR, extra_script)
+            if os.path.exists(extra_path):
+                zf.write(extra_path, extra_script)
         if os.path.exists(VERSION_FILE):
             zf.write(VERSION_FILE, 'VERSION')
 
@@ -217,12 +221,44 @@ def build_self_extracting_updater(version: str):
         "echo   [1/3] Terminating running backup background processes...\r\n"
         "echo ========================================================\r\n"
         "taskkill /F /IM python.exe /T >nul 2>&1\r\n"
+        "taskkill /F /IM pythonw.exe /T >nul 2>&1\r\n"
         "ping 127.0.0.1 -n 2 >nul\r\n"
         "\r\n"
         "echo ========================================================\r\n"
-        f"echo   [2/3] Extracting engine v{version} to D:\\백업시스템_설치용...\r\n"
+        f"echo   [2/3] Detecting installation directory ^& Extracting v{version}...\r\n"
         "echo ========================================================\r\n"
-        "set \"TARGET_DIR=D:\\백업시스템_설치용\"\r\n"
+        "set \"TARGET_DIR=\"\r\n"
+        "REM (1) Inno Setup registry lookup\r\n"
+        "for /f \"tokens=2* skip=2\" %%a in ('reg query \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{E8A42F38-9B7C-4C2E-8E1A-98C32B7D501F}_is1\" /v InstallLocation 2^>nul') do set \"TARGET_DIR=%%b\"\r\n"
+        "if not defined TARGET_DIR (\r\n"
+        "    for /f \"tokens=2* skip=2\" %%a in ('reg query \"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{E8A42F38-9B7C-4C2E-8E1A-98C32B7D501F}_is1\" /v InstallLocation 2^>nul') do set \"TARGET_DIR=%%b\"\r\n"
+        ")\r\n"
+        "REM (2) Standard Program Files check\r\n"
+        "if not defined TARGET_DIR (\r\n"
+        "    if exist \"%ProgramFiles%\\백업시스템\\core\" set \"TARGET_DIR=%ProgramFiles%\\백업시스템\"\r\n"
+        ")\r\n"
+        "if not defined TARGET_DIR (\r\n"
+        "    if exist \"%ProgramFiles(x86)%\\백업시스템\\core\" set \"TARGET_DIR=%ProgramFiles(x86)%\\백업시스템\"\r\n"
+        ")\r\n"
+        "REM (3) D drive installer / dev dir\r\n"
+        "if not defined TARGET_DIR (\r\n"
+        "    if exist \"D:\\백업시스템_설치용\\core\" set \"TARGET_DIR=D:\\백업시스템_설치용\"\r\n"
+        ")\r\n"
+        "REM (4) Current execution directory\r\n"
+        "if not defined TARGET_DIR (\r\n"
+        "    if exist \"%~dp0core\" set \"TARGET_DIR=%~dp0\"\r\n"
+        ")\r\n"
+        "REM (5) Fallback default\r\n"
+        "if not defined TARGET_DIR (\r\n"
+        "    if exist \"%ProgramFiles%\\백업시스템\" (\r\n"
+        "        set \"TARGET_DIR=%ProgramFiles%\\백업시스템\"\r\n"
+        "    ) else if exist \"D:\\백업시스템_설치용\" (\r\n"
+        "        set \"TARGET_DIR=D:\\백업시스템_설치용\"\r\n"
+        "    ) else (\r\n"
+        "        set \"TARGET_DIR=%ProgramFiles%\\백업시스템\"\r\n"
+        "    )\r\n"
+        ")\r\n"
+        "echo   Detected Target: %TARGET_DIR%\r\n"
         "if not exist \"%TARGET_DIR%\" mkdir \"%TARGET_DIR%\" >nul 2>&1\r\n"
         "\r\n"
         f"set \"TMP_ZIP=%TEMP%\\update_v{version}_%RANDOM%.zip\"\r\n"
@@ -237,7 +273,15 @@ def build_self_extracting_updater(version: str):
         f"echo   [3/3] Starting Backup System v{version}...\r\n"
         "echo ========================================================\r\n"
         "cd /d \"%TARGET_DIR%\"\r\n"
-        "start \"\" \"%TARGET_DIR%\\2_백업시스템_실행.bat\"\r\n"
+        "if exist \"%TARGET_DIR%\\start_silent.vbs\" (\r\n"
+        "    wscript.exe \"%TARGET_DIR%\\start_silent.vbs\"\r\n"
+        ") else if exist \"%TARGET_DIR%\\2_백업시스템_실행.bat\" (\r\n"
+        "    start \"\" \"%TARGET_DIR%\\2_백업시스템_실행.bat\"\r\n"
+        ") else if exist \"%TARGET_DIR%\\BackupSystem.exe\" (\r\n"
+        "    start \"\" \"%TARGET_DIR%\\BackupSystem.exe\"\r\n"
+        ") else if exist \"%TARGET_DIR%\\run.py\" (\r\n"
+        "    start \"\" pythonw.exe \"%TARGET_DIR%\\run.py\"\r\n"
+        ")\r\n"
         "\r\n"
         "echo ========================================================\r\n"
         f"echo   Update to v{version} completed successfully! (1-2s Cold Boot)\r\n"

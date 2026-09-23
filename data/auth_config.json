@@ -1,9 +1,9 @@
 {
-  "configured": false,
-  "password_hash": "",
-  "salt": "",
+  "configured": true,
+  "password_hash": "7826c982eea2ddbcf0f9a0ee586fa54c15ff899500269106304e1f0004fe217e",
+  "salt": "ef926a84416b2130eaac36c27ff88107",
   "allow_localhost_bypass": true,
   "session_ttl_hours": 24,
-  "created_at": null,
-  "updated_at": null
+  "created_at": "2026-09-24T00:36:36.269607",
+  "updated_at": "2026-09-24T00:36:36.269607"
 }
