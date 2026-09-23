@@ -12,7 +12,7 @@ from collections import deque
 from contextlib import asynccontextmanager
 from typing import Dict, List, Any, Optional
 from fastapi import FastAPI, Request, Response, BackgroundTasks, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -33,6 +33,24 @@ from core.auth import (
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
+
+def get_current_version() -> str:
+    v_file = os.path.join(BASE_DIR, "VERSION")
+    if os.path.exists(v_file):
+        try:
+            with open(v_file, "r", encoding="utf-8") as f:
+                v = f.read().strip()
+                if v:
+                    return v
+        except Exception:
+            pass
+    try:
+        from core import __version__
+        return __version__
+    except Exception:
+        return "2.8.9"
+
+VERSION = get_current_version()
 
 # Fix #13: Background CPU monitor — samples every 0.5s so /api/system-info returns instantly
 _cpu_percent_cache = [0.0]
