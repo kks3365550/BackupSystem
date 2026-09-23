@@ -128,11 +128,12 @@ class AuthBypassRequest(BaseModel):
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
     
-    # 인증 불필요 경로 (정적 리소스, 인증 API, favicon)
+    # 인증 불필요 경로 (정적 리소스, 인증 API, favicon, 원격 릴리즈 배포 API)
     if (
         path.startswith("/static") or
         path.startswith("/api/auth/") or
-        path == "/favicon.ico"
+        path == "/favicon.ico" or
+        path in ("/api/system/release-info", "/api/system/update-package")
     ):
         return await call_next(request)
     
