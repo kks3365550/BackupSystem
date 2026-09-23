@@ -86,6 +86,20 @@ def append_task_log(msg: str, level: str = "INFO"):
 
 scheduler.register_log_callback(append_task_log)
 
+_cached_update_info = {"checked_at": 0, "data": None}
+
+def _background_update_check():
+    time.sleep(5)
+    try:
+        from core.updater import check_for_update
+        info = check_for_update()
+        _cached_update_info["checked_at"] = time.time()
+        _cached_update_info["data"] = info
+        if info and info.get("update_available"):
+            append_task_log(f"[소프트웨어 업데이트] 새 버전 v{info['latest_version']} 배포가 감지되었습니다. (현재: v{info['current_version']})")
+    except Exception as e_up:
+        append_task_log(f"[소프트웨어 업데이트] 업데이트 확인 알림: {e_up}", level="WARN")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     scheduler.start()
@@ -110,6 +124,12 @@ async def lifespan(app: FastAPI):
         append_task_log("[Firebase] 클라우드(sunhang-772e5) 실시간 백업 동기화가 활성화되었습니다.")
     except Exception as e_fb:
         append_task_log(f"[Firebase] 동기화 초기화 알림: {e_fb}", level="WARN")
+
+    # Software Auto-Update Check
+    try:
+        threading.Thread(target=_background_update_check, daemon=True).start()
+    except Exception:
+        pass
 
     yield
     scheduler.stop()
@@ -1657,4 +1677,55 @@ def get_firebase_cloud_history(limit: int = 50):
         return {"success": True, "count": len(items), "history": items}
     except Exception as e:
         return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
+
+# ==================== Software Auto-Update API ====================
+@app.get("/api/update/status")
+def get_software_update_status(force_check: bool = False):
+    """최신 소프트웨어 릴리즈 업데이트 상태 반환"""
+    from core.updater import check_for_update, get_current_installed_version
+    now = time.time()
+    # Cache for 10 minutes unless force_check is requested
+    if force_check or _cached_update_info["data"] is None or (now - _cached_update_info["checked_at"] > 600):
+        info = check_for_update()
+        _cached_update_info["checked_at"] = now
+        _cached_update_info["data"] = info
+    else:
+        info = _cached_update_info["data"]
+
+    cur_ver = get_current_installed_version()
+    if info and info.get("update_available"):
+        return {
+            "success": True,
+            "update_available": True,
+            "current_version": cur_ver,
+            "latest_version": info.get("latest_version"),
+            "mandatory": info.get("mandatory", False),
+            "changelog": info.get("changelog", ""),
+            "download_url": info.get("download_url", "")
+        }
+    return {
+        "success": True,
+        "update_available": False,
+        "current_version": cur_ver,
+        "latest_version": cur_ver,
+        "message": "최신 버전을 사용 중입니다."
+    }
+
+
+@app.post("/api/update/apply")
+def trigger_software_update(background_tasks: BackgroundTasks):
+    """클라우드에서 최신 패키지를 다운로드/검증 후 백그라운드 안전 설치"""
+    from core.updater import perform_full_update_pipeline
+    def _run_pipeline():
+        append_task_log("[소프트웨어 업데이트] 최신 버전 다운로드 및 무결성 검증 착수...")
+        res = perform_full_update_pipeline()
+        append_task_log(f"[소프트웨어 업데이트] 결과: {res.get('message', res.get('status'))}")
+
+    background_tasks.add_task(_run_pipeline)
+    return {
+        "success": True,
+        "message": "자동 업데이트 프로세스가 백그라운드에서 시작되었습니다."
+    }
+
 

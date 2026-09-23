@@ -356,6 +356,90 @@ async function triggerManualFirebaseSync() {
     }
 }
 
+// ==================== Software Auto-Update UI ====================
+async function checkSoftwareUpdateStatus() {
+    try {
+        const resp = await fetch('/api/update/status');
+        const data = await resp.json();
+        if (data.success && data.update_available) {
+            renderSoftwareUpdateBadge(data);
+        }
+    } catch (e) {
+        console.warn('[Update] 업데이트 확인 건너뜀:', e);
+    }
+}
+
+function renderSoftwareUpdateBadge(updateInfo) {
+    let barEl = document.getElementById('software-update-banner');
+    if (!barEl) {
+        barEl = document.createElement('div');
+        barEl.id = 'software-update-banner';
+        barEl.className = 'bg-gradient-to-r from-blue-900/90 to-indigo-900/90 border-b border-blue-500/40 text-blue-100 px-4 py-2 flex items-center justify-between shadow-lg text-xs transition-all sticky top-0 z-50';
+        document.body.insertBefore(barEl, document.body.firstChild);
+    }
+
+    barEl.innerHTML = `
+        <div class="flex items-center space-x-2">
+            <span class="flex h-2 w-2 relative">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+            </span>
+            <span class="font-semibold text-white">🚀 새 소프트웨어 버전 <strong>v${updateInfo.latest_version}</strong> 배포 감지</span>
+            <span class="text-blue-300 hidden md:inline">(${updateInfo.changelog || '시스템 개선 및 보안 패치'})</span>
+            ${updateInfo.mandatory ? '<span class="bg-red-600/80 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">필수</span>' : ''}
+        </div>
+        <div class="flex items-center space-x-2">
+            <button onclick="applySoftwareUpdate('${updateInfo.latest_version}')" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-3 py-1 rounded shadow text-xs transition flex items-center space-x-1 cursor-pointer">
+                <i data-lucide="download" class="w-3.5 h-3.5 inline mr-1"></i> 지금 업데이트 적용
+            </button>
+            <button onclick="document.getElementById('software-update-banner').remove()" class="text-blue-300 hover:text-white px-1.5 py-1 cursor-pointer">
+                ✕
+            </button>
+        </div>
+    `;
+
+    if (window.lucide && typeof lucide.createIcons === 'function') {
+        lucide.createIcons();
+    }
+}
+
+async function applySoftwareUpdate(targetVersion) {
+    if (!confirm(`백업 시스템을 v${targetVersion} 버전으로 자동 업데이트하시겠습니까?\n\n- 패키지 무결성(SHA-256) 및 전자 서명(Ed25519) 검증 후 안전하게 적용됩니다.\n- 실행 중인 백업 데몬이 약 1~2초간 안전하게 재기동됩니다.`)) {
+        return;
+    }
+
+    const banner = document.getElementById('software-update-banner');
+    if (banner) {
+        banner.innerHTML = `
+            <div class="flex items-center space-x-2 py-1">
+                <span class="animate-spin text-blue-400">⏳</span>
+                <span class="text-white font-semibold">v${targetVersion} 다운로드, 전자 서명 검증 및 안전 설치 진행 중... (약 5초 소요)</span>
+            </div>
+        `;
+    }
+
+    try {
+        const resp = await fetch('/api/update/apply', { method: 'POST' });
+        const res = await resp.json();
+        if (res.success) {
+            if (typeof showToast === 'function') {
+                showToast('업데이트가 시작되었습니다. 잠시 후 페이지가 새로고침됩니다.', 'info');
+            }
+            setTimeout(() => {
+                window.location.reload();
+            }, 6000);
+        } else {
+            throw new Error(res.error || '업데이트 적용 실패');
+        }
+    } catch (e) {
+        alert('업데이트 시작 오류: ' + e.message);
+        if (banner) banner.remove();
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(initFirebaseBackupSync, 500);
+    setTimeout(() => {
+        initFirebaseBackupSync();
+        checkSoftwareUpdateStatus();
+    }, 500);
 });
