@@ -126,8 +126,74 @@ function dismissAlertBanner() {
     _bannerDismissedUntil = Date.now() + 5 * 60 * 1000;
 }
 
-// 10초마다 자동 경보 점검
+// --- 원격 마스터 릴리즈 동기화 (One-Click Remote Sync) ---
+let _remoteReleaseDismissed = false;
+
+async function checkRemoteRelease() {
+    if (_remoteReleaseDismissed) return;
+    try {
+        const res = await fetchAPI('/api/system/check-remote-release');
+        const banner = document.getElementById('remote-release-banner');
+        if (!banner || !res || !res.success) return;
+
+        const data = res.data || {};
+        if (data.update_available) {
+            const textElem = document.getElementById('remote-release-text');
+            if (textElem) {
+                textElem.innerText = `마스터 서버(K12)에 최신 릴리즈 ${data.remote_version}이 감지되었습니다. (현재 버전: v${data.current_version})`;
+            }
+            banner.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        } else {
+            banner.classList.add('hidden');
+        }
+    } catch (e) {
+        // 원격 조회 실패 시 조용히 스킵
+    }
+}
+
+function dismissRemoteReleaseBanner() {
+    const banner = document.getElementById('remote-release-banner');
+    if (banner) banner.classList.add('hidden');
+    _remoteReleaseDismissed = true;
+}
+
+async function triggerRemoteReleaseSync() {
+    const btn = document.getElementById('btn-sync-remote-release');
+    const btnText = document.getElementById('sync-btn-text');
+    const btnIcon = document.getElementById('sync-btn-icon');
+
+    if (!confirm('마스터 서버(K12)로부터 최신 릴리즈를 다운로드하여 동기화하시겠습니까?\n\n서명 무결성 검증 후 1~2초 내에 백그라운드 엔진이 안전하게 재시작됩니다.')) {
+        return;
+    }
+
+    if (btn) btn.disabled = true;
+    if (btnText) btnText.innerText = '동기화 중...';
+    if (btnIcon) btnIcon.classList.add('animate-spin');
+
+    try {
+        const res = await fetchAPI('/api/system/sync-remote-release', {
+            method: 'POST',
+            body: JSON.stringify({ master_url: 'http://100.72.224.71:8765' })
+        });
+
+        alert(res.message || '최신 릴리즈 동기화가 성공적으로 완료되었습니다! 3초 후 대시보드가 새로고침됩니다.');
+        setTimeout(() => {
+            window.location.reload();
+        }, 3000);
+    } catch (err) {
+        alert('동기화 실패: ' + (err.message || '알 수 없는 오류가 발생했습니다.'));
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.innerText = '최신 릴리즈 동기화';
+        if (btnIcon) btnIcon.classList.remove('animate-spin');
+    }
+}
+
+// 10초마다 자동 경보 점검 및 60초마다 원격 릴리즈 점검
 document.addEventListener('DOMContentLoaded', () => {
     checkGlobalAlerts();
     setInterval(checkGlobalAlerts, 10000);
+
+    checkRemoteRelease();
+    setInterval(checkRemoteRelease, 60000);
 });

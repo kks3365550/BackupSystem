@@ -1200,17 +1200,23 @@ def shutdown_system():
 
 # --- Remote Self-Update API (P0 Security: Ed25519 Signature Verification & Anti-Zip-Slip) ---
 @app.post("/api/system/self-update")
-async def self_update(request: Request):
+async def self_update(request: Request = None, custom_body: bytes = None, custom_signature: str = ""):
     """
     Receives raw zip binary of latest code, verifies Ed25519 cryptographic signature,
     extracts it safely over BASE_DIR with Zip-Slip protection, and restarts the service.
     """
-    body = await request.body()
+    if custom_body is not None:
+        body = custom_body
+    elif request:
+        body = await request.body()
+    else:
+        body = b""
+
     if not body:
         raise HTTPException(status_code=400, detail="업데이트 페이로드가 비어 있습니다.")
 
     # 1. Ed25519 Signature Verification
-    signature_raw = request.headers.get("X-Package-Signature", "").strip()
+    signature_raw = custom_signature.strip() if custom_signature else (request.headers.get("X-Package-Signature", "").strip() if request else "")
     if not signature_raw:
         raise HTTPException(
             status_code=403,
@@ -1314,6 +1320,152 @@ async def self_update(request: Request):
         "success": True,
         "message": f"Ed25519 서명 검증 통과! 최신 패키지({len(body):,} 바이트)를 안전하게 수신했습니다. 1초 후 자동으로 적용되고 재시작됩니다."
     }
+
+
+# =========================================================================
+# Remote Master Release Origin & One-Click Sync Endpoints
+# =========================================================================
+
+@app.get("/api/system/release-info")
+def get_release_info():
+    """
+    Returns latest release package metadata and Ed25519 signature for remote clients.
+    """
+    dist_dir = os.path.join(BASE_DIR, "dist")
+    zip_path = os.path.join(dist_dir, f"release_v{VERSION}.zip")
+    sig_path = zip_path + ".sig"
+
+    has_pkg = os.path.exists(zip_path)
+    pkg_size = os.path.getsize(zip_path) if has_pkg else 0
+    signature = ""
+    if os.path.exists(sig_path):
+        try:
+            with open(sig_path, "r", encoding="utf-8") as f:
+                signature = f.read().strip()
+        except Exception:
+            pass
+
+    return {
+        "success": True,
+        "data": {
+            "version": VERSION,
+            "has_package": has_pkg,
+            "package_name": f"release_v{VERSION}.zip",
+            "package_size": pkg_size,
+            "signature": signature,
+            "updated_at": os.path.getmtime(zip_path) if has_pkg else time.time()
+        }
+    }
+
+
+@app.get("/api/system/update-package")
+def download_update_package():
+    """
+    Streams the signed release zip package to client machines.
+    """
+    dist_dir = os.path.join(BASE_DIR, "dist")
+    zip_path = os.path.join(dist_dir, f"release_v{VERSION}.zip")
+    sig_path = zip_path + ".sig"
+
+    if not os.path.exists(zip_path):
+        raise HTTPException(status_code=404, detail=f"릴리즈 패키지(v{VERSION})가 준비되지 않았습니다.")
+
+    signature = ""
+    if os.path.exists(sig_path):
+        try:
+            with open(sig_path, "r", encoding="utf-8") as f:
+                signature = f.read().strip()
+        except Exception:
+            pass
+
+    return FileResponse(
+        zip_path,
+        media_type="application/octet-stream",
+        filename=f"release_v{VERSION}.zip",
+        headers={"X-Package-Signature": signature}
+    )
+
+
+@app.get("/api/system/check-remote-release")
+def check_remote_release(master_url: str = "http://100.72.224.71:8765"):
+    """
+    Queries the master release origin (K12) to detect if an updated release is available.
+    """
+    master_url = master_url.rstrip("/")
+    if master_url.startswith("http://127.0.0.1") or master_url.startswith("http://localhost"):
+        return {"success": True, "data": {"update_available": False, "is_self": True, "current_version": VERSION}}
+
+    try:
+        req = urllib.request.Request(f"{master_url}/api/system/release-info", headers={"User-Agent": "BackupSystem-Client"})
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        if not data.get("success"):
+            return {"success": False, "error": "마스터 서버 응답 오류"}
+
+        r_info = data.get("data", {})
+        r_ver = r_info.get("version", "")
+
+        def _parse_v(v_str):
+            try:
+                return tuple(int(x) for x in v_str.replace("v", "").split(".")[:3])
+            except Exception:
+                return (0, 0, 0)
+
+        cur_v = _parse_v(VERSION)
+        rem_v = _parse_v(r_ver)
+
+        update_available = rem_v > cur_v
+
+        return {
+            "success": True,
+            "data": {
+                "update_available": update_available,
+                "current_version": VERSION,
+                "remote_version": r_ver,
+                "remote_url": master_url,
+                "package_size": r_info.get("package_size", 0),
+                "signature": r_info.get("signature", "")
+            }
+        }
+    except Exception as e:
+        return {
+            "success": True,
+            "data": {
+                "update_available": False,
+                "current_version": VERSION,
+                "master_online": False,
+                "error": str(e)
+            }
+        }
+
+
+@app.post("/api/system/sync-remote-release")
+async def sync_remote_release(request: Request):
+    """
+    Downloads signed release from master server and applies self-update automatically.
+    """
+    try:
+        body_json = await request.json()
+    except Exception:
+        body_json = {}
+
+    master_url = body_json.get("master_url", "http://100.72.224.71:8765").rstrip("/")
+
+    # 1. Fetch package from master server
+    try:
+        req = urllib.request.Request(f"{master_url}/api/system/update-package", headers={"User-Agent": "BackupSystem-Client"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            sig_header = resp.headers.get("X-Package-Signature", "")
+            pkg_bytes = resp.read()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"마스터 서버 패키지 다운로드 실패: {str(e)}")
+
+    if not pkg_bytes:
+        raise HTTPException(status_code=502, detail="다운로드된 패키지가 비어있습니다.")
+
+    # 2. Invoke self_update pipeline directly
+    return await self_update(request, custom_body=pkg_bytes, custom_signature=sig_header)
 
 
 # --- Real-time Global Alert Summary API (Red Alert System) ---
