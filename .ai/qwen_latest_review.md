@@ -1,116 +1,109 @@
 ## PART 1. [EXECUTIVE SUMMARY FOR ANTIGRAVITY]
 
 **[CRITICAL]: 시스템 중단, 보안 결함, 규정 위반 위험**
-*   **UI/UX 치명적 결함 (Critical UX Bug):** `backup_auth.js`의 `openAuthChangeModal()` 함수에서 **로그인 모달(`modal-auth-login`)을 표시하고, 비밀번호 변경 모달(`modal-auth-change`)을 숨기는** 로직 오류가 존재합니다.
-    *   **현상:** 사용자가 "비밀번호 변경"을 클릭하면, 비밀번호 변경 입력 필드가 있는 모달이 아닌 **로그인 모달**이 뜹니다.
-    *   **결과:** 사용자는 비밀번호 변경을 시도할 수 없으며, 이는 "비밀번호 변경이 작동 안한다"는 제보의 **가장 직접적인 원인**입니다.
-    *   **보안 영향:** 간접적 보안 위협은 없으나, 인증 관리 기능의 완전한 마비로 인해 비밀번호 유실 시 복구 불가능한 상태가 될 수 있습니다.
+*   **보안 취약점 (Critical)**: `auth-pw-btn` 클릭 시 모달이 열리지 않는 현상은 단순 UI 버그가 아니라, **인증 우회(Auth Bypass) 또는 인증 상태 동기화 실패**의 신호일 수 있습니다. 만약 `handleAuthPasswordClick()`이 실패하여 모달이 안 뜨는 대신, 백그라운드에서 인증 상태가 "설정됨"으로 오인되거나, 반대로 "미설정" 상태가 유지되면서도 보호 기능이 비활성화되는 경우, 데이터 무결성과 기밀성이 심각하게 훼손됩니다.
+*   **기능 마비**: 마스터 비밀번호 설정은 시스템의 첫 번째 보안 게이트입니다. 이 기능이 작동하지 않으면 신규 사용자 온보딩이 불가능하며, 기존 사용자의 비밀번호 변경/재설정 경로가 차단되어 계정 잠금(Account Lockout) 리스크가 발생합니다.
 
 **[BUG]: 발견된 구체적 결함**
-1.  **`backup_auth.js` - `openAuthChangeModal()` 함수 로직 오류:**
-    *   `loginModal.classList.remove('hidden')` (로그인 모달 표시)
-    *   `changeModal.classList.add('hidden')` (변경 모달 숨김)
-    *   **수정 필요:** `loginModal`은 `add('hidden')`, `changeModal`은 `remove('hidden')`으로 수정해야 합니다.
-2.  **`core/auth.py` - 세션 무효화 후 프론트엔드 미처리:**
-    *   `change_master_password()` 실행 시 `_sessions.clear()`로 모든 세션이 즉시 무효화됩니다.
-    *   `backup_auth.js`의 `submitAuthChangePassword()`는 성공 후 `alert`와 `openAuthLoginModal()`을 호출하지만, **브라우저 쿠키(`backup_session`)가 여전히 유효한 것처럼 보이는 상태**에서 API 호출 시 401 에러가 발생할 수 있습니다.
-    *   **수정 필요:** 성공 시 `document.cookie`를 명시적으로 삭제하거나, 서버가 새 세션 토큰을 반환하도록 `app.py` 엔드포인트를 수정해야 합니다.
+1.  **이중 `hidden` 클래스 충돌 (Double Hidden State)**:
+    *   `#auth-modal-overlay` (Part 6/7)와 그 내부의 `#modal-auth-setup` (Part 6/7) 모두 초기 상태에 `hidden` 클래스를 가지고 있습니다.
+    *   **결함**: `handleAuthPasswordClick()` 함수가 오버레이(`#auth-modal-overlay`)의 `hidden`만 제거하고, 내부 모달(`#modal-auth-setup`)의 `hidden`은 제거하지 않는 경우, **오버레이(반투명 배경)만 뜨고 실제 입력 폼은 보이지 않는 "빈 모달" 상태**가 됩니다. 사용자가 클릭해도 반응이 없어 "모달이 안 뜬다"고 인식하게 됩니다.
+2.  **이벤트 버블링과 전역 클릭 리스너의 경쟁 상태 (Race Condition)**:
+    *   `#auth-pw-btn` 클릭 시 `handleAuthPasswordClick()`이 실행되어 모달을 열지만, 이 `click` 이벤트가 `document` 레벨로 버블링됩니다.
+    *   `document`에 등록된 외부 클릭 감지 리스너(`document.addEventListener('click', ...)`)가 `e.target.closest('#auth-badge-wrapper')`를 검사하여 드롭다운을 닫는 로직을 수행합니다.
+    *   **결함**: 만약 전역 리스너가 드롭다운을 닫는 과정에서 DOM 조작(클래스 변경)을 수행하거나, `stopPropagation()`이 누락되어 이벤트가 계속 전파되면, 모달 오픈 로직과 드롭다운 클로징 로직이 동시에 실행되어 DOM 상태가 불안정해지고 모달이 즉시 닫히거나 렌더링이 깨질 수 있습니다.
+3.  **스크립트 로드 순서 및 함수 정의 시점 문제**:
+    *   `index.html` Part 7/7에서 스크립트 로드 순서가 `backup_auth.js` → `app.js` 순임을 확인했습니다.
+    *   `auth-pw-btn`의 `onclick` 핸들러가 `app.js`에 정의된 함수를 호출하는데, `app.js`가 `DOMContentLoaded` 이후에 초기화되거나, 함수가 `window` 객체에 제대로 노출되지 않으면 `ReferenceError`가 발생하여 모달이 열리지 않습니다.
 
 **[RISK]: 성능 병목, 사이드 이펙트, 환경 의존성**
-*   **파일 권한 의존성:** `core/auth.py`의 `_save_auth_config()`가 `data/auth_config.json`을 수정할 때, 해당 디렉토리에 쓰기 권한이 없으면 `PermissionError`가 발생하여 500 에러로 전파됩니다. (예: Windows에서 읽기 전용 폴더로 실행 시)
-*   **경로 하드코딩:** `app.py` 및 `index.html` 내 `D:\MyBackup_Repository` 등 하드코딩된 경로는 사용자 환경에 따라 백업 실패를 유발할 수 있으나, 이는 비밀번호 변경과는 무관한 별도 이슈입니다.
+*   **DOM 조작 과다**: 드롭다운 토글, 모달 오픈/클로즈, 전역 클릭 감지 로직이 모두 `classList` 조작과 `document` 이벤트 리스너에 의존합니다. 이 로직이 `app.js`와 `backup_auth.js`에 분산되어 있으면, 상태 관리(State Management)가 비동기적으로 깨질 수 있습니다.
+*   **브라우저 호환성**: `e.target.closest()`는 최신 브라우저에서 지원되지만, 구형 브라우저나 특정 웹뷰 환경에서는 `null`을 반환하거나 에러를 일으켜 드롭다운/모달 로직이 전체적으로 멈출 수 있습니다.
+*   **하드코딩된 UI 상태**: Part 1/7에서 `#auth-dropdown`의 초기 `hidden` 상태와 Part 6/7의 모달 `hidden` 상태가 하드코딩되어 있습니다. JS 초기화 로직이 이 상태를 올바르게 오버라이드하지 않으면, 초기 렌더링 시 UI가 깨집니다.
 
 **[ACTION]: 구체적인 해결 제안 및 수정 가이드**
-1.  **`backup_auth.js` 수정 (최우선):**
-    ```javascript
-    function openAuthChangeModal() {
-        toggleAuthDropdown();
-        const overlay = document.getElementById('auth-modal-overlay');
-        const setupModal = document.getElementById('modal-auth-setup');
-        const loginModal = document.getElementById('modal-auth-login');
-        const changeModal = document.getElementById('modal-auth-change');
-        
-        if (overlay) overlay.classList.remove('hidden');
-        if (setupModal) setupModal.classList.add('hidden');
-        if (loginModal) loginModal.classList.add('hidden');   // 수정: 로그인 모달 숨김
-        if (changeModal) changeModal.classList.remove('hidden'); // 수정: 변경 모달 표시
-        
-        // 에러 메시지 초기화
-        const errDiv = document.getElementById('change-error');
-        if (errDiv) {
-            errDiv.innerText = '';
-            errDiv.classList.add('hidden');
+1.  **모달 오픈 로직 수정 (Double Hidden Fix)**:
+    *   `handleAuthPasswordClick()` 함수 내에서 `#auth-modal-overlay`와 `#modal-auth-setup` **둘 다**의 `hidden` 클래스를 제거하도록 수정해야 합니다.
+    *   ```javascript
+        function handleAuthPasswordClick() {
+            const overlay = document.getElementById('auth-modal-overlay');
+            const modal = document.getElementById('modal-auth-setup');
+            if (overlay && modal) {
+                overlay.classList.remove('hidden');
+                modal.classList.remove('hidden'); // 핵심: 내부 모달도 표시
+            }
         }
-        
-        setTimeout(() => document.getElementById('change-current')?.focus(), 100);
-    }
-    ```
-2.  **`web/app.py` 엔드포인트 수정 (세션 관리):**
-    *   `POST /api/auth/change-password` 엔드포인트에서 `change_master_password()` 호출 후, **새 세션 토큰을 생성하여 응답에 포함**하거나, 기존 세션을 유지하도록 `core/auth.py`를 수정합니다.
-    *   **권장안:** `core/auth.py`의 `change_master_password()`에서 `_sessions.clear()` 대신, **현재 요청의 세션 토큰만 유지**하거나, `app.py`에서 변경 성공 시 `create_session()`을 호출하여 새 쿠키를 설정합니다.
-3.  **`backup_auth.js` - 성공 후 처리 강화:**
-    *   성공 시 `alert` 후 `closeAuthModal()`과 `openAuthLoginModal()` 호출 전, **브라우저 쿠키를 명시적으로 삭제**하거나, 서버가 새 세션을 발급하도록 `app.py`를 수정하여 재로그인 없이 세션을 갱신합니다.
+        ```
+2.  **이벤트 버블링 차단 및 전역 리스너 최적화**:
+    *   `#auth-pw-btn`의 클릭 핸들러에서 `event.stopPropagation()`을 호출하여 이벤트가 `document` 레벨로 전파되는 것을 방지해야 합니다.
+    *   ```javascript
+        function handleAuthPasswordClick(e) {
+            e.stopPropagation(); // 전역 클릭 리스너와의 충돌 방지
+            // ... 모달 오픈 로직
+        }
+        ```
+    *   전역 `document` 클릭 리스너에서 드롭다운/모달 상태를 확인하기 전에, `e.target`이 모달 내부인지 확인하는 로직을 추가해야 합니다.
+3.  **스크립트 로드 및 함수 정의 검증**:
+    *   `app.js` 또는 `backup_auth.js`에서 `handleAuthPasswordClick` 함수가 `window` 객체에 올바르게 노출되는지 확인하세요.
+    *   `DOMContentLoaded` 이벤트 리스너에서 드롭다운/모달의 초기 상태(`hidden` 클래스)를 명시적으로 설정하는 로직을 추가하여 HTML 하드코딩에 대한 의존성을 줄이세요.
+4.  **드롭다운과 모달의 상태 분리**:
+    *   드롭다운(`#auth-dropdown`)은 `#auth-badge-wrapper` 내부의 로컬 상태이며, 모달(`#auth-modal-overlay`)은 전역 상태입니다. 이 둘을 독립적으로 관리하도록 로직을 분리해야 합니다. 드롭다운을 닫는 로직이 모달의 상태를 영향을 주지 않도록 해야 합니다.
 
 **[DECISION REQUIRED]: Antigravity 및 사용자가 최종 승인해야 할 핵심 의사결정**
-*   **세션 전략 선택:**
-    *   **옵션 A (보안 강화):** 비밀번호 변경 시 모든 세션 무효화 + 즉시 재로그인 유도 (현재 로직 유지, 프론트엔드 UX 개선).
-    *   **옵션 B (UX 최적화):** 비밀번호 변경 시 현재 세션만 유지하거나, 새 세션 토큰을 발급하여 재로그인 없이 계속 사용 가능.
-    *   **권장:** 옵션 B를 채택하여 사용자 경험을 개선하되, `app.py`에서 새 세션 ��큰을 반환하도록 수정해야 합니다.
-
----
+1.  **모달 구조 재설계 승인**: `#auth-modal-overlay`와 `#modal-auth-setup`의 이중 `hidden` 구조를 유지할지, 아니면 오버레이만 `hidden`을 제어하고 내부 모달은 항상 표시되도록 CSS를 수정할지 결정해야 합니다. (권장: 오버레이만 제어)
+2.  **이벤트 처리 전략**: `stopPropagation()`을 사용하여 전역 클릭 리스너와의 충돌을 방지하는 방식을 승인할지, 아니면 전역 리스너에서 모달/드롭다운 상태를 더 정교하게 검사하는 방식을 선택할지 결정해야 합니다.
+3.  **스크립트 로드 순서 변경**: `backup_auth.js`가 `app.js`보다 먼저 로드되므로, `handleAuthPasswordClick` 함수가 `backup_auth.js`에 정의되어야 하는지, 아니면 `app.js`에 정의되어야 하는지 아키텍처를 확정해야 합니다. (권장: 인증 관련 로직은 `backup_auth.js`에 집중)
 
 ## PART 2. [COMPREHENSIVE AUDIT & ARCHITECTURE REPORT]
 
-### 1. 전체 파일 구조 및 데이터 흐름
-*   **Frontend:** `index.html` (UI 구조), `backup_auth.js` (인증 로직)
-*   **Backend:** `web/app.py` (FastAPI 엔드포인트), `core/auth.py` (인증 코어 로직)
-*   **데이터 흐름:**
-    1.  사용자: `index.html`의 "비밀번호 변경" 버튼 클릭 → `openAuthChangeModal()` 호출.
-    2.  `backup_auth.js`: 모달 표시 및 입력 필드 포커스.
-    3.  사용자: 입력 후 제출 → `submitAuthChangePassword(event)` 호출.
-    4.  `backup_auth.js`: `fetch('/api/auth/change-password', { body: { old_password, new_password } })` 호출.
-    5.  `web/app.py`: Pydantic 모델(`AuthChangePasswordRequest`)로 검증 → `core.auth.change_master_password()` 호출.
-    6.  `core/auth.py`: `auth_config.json` 수정, `_sessions.clear()` 실행.
-    7.  `web/app.py`: 성공 응답 반환.
-    8.  `backup_auth.js`: 성공 알림, 모달 닫기, 로그인 모달 표시.
+### 1. 전체 파일 구조 및 관련 요소 매핑
+
+*   **`index.html` (Part 1/7)**:
+    *   `#auth-badge-wrapper`: 드롭다운의 위치 기준점 (`position: relative`).
+    *   `#auth-badge-btn`: 드롭다운 토글 버튼 (`onclick="toggleAuthDropdown()"`).
+    *   `#auth-dropdown`: 드롭다운 메뉴 (`hidden` 클래스 기본값).
+    *   `#auth-pw-btn`: 마스터 비밀번호 설정 버튼 (`onclick="handleAuthPasswordClick()"`).
+*   **`index.html` (Part 6/7)**:
+    *   `#auth-modal-overlay`: 인증 모달 공통 오버레이 (`hidden` 클래스 기본값).
+    *   `#modal-auth-setup`: 마스터 비밀번호 설정 모달 (`hidden` 클래스 기본값).
+    *   `#modal-auth-login`: 로그인 모달.
+    *   `#modal-auth-change`: 비밀번호 변경 모달.
+*   **`index.html` (Part 7/7)**:
+    *   스크립트 로드 순서: `backup_utils.js` → `backup_auth.js` → ... → `app.js`.
+    *   `closeAuthModal()` 함수 호출 확인.
 
 ### 2. 청크별 세부 분석 종합
 
-#### [청크 1: backup_auth.js]
-*   **핵심 발견:** `openAuthChangeModal()` 함수에서 **로그인 모달을 표시하고 변경 모달을 숨기는 치명적 버그** 발견.
-*   **API 호출:** `POST /api/auth/change-password`에 `{ old_password, new_password }` 전송.
-*   **DOM 의존성:** `change-current`, `change-new`, `change-new-confirm`, `change-error` ID 사용.
+#### [청크 1: index.html Part 1/7] - 드롭다운 트리거 구조
+*   **핵심 발견**: `#auth-pw-btn`은 `#auth-dropdown` 내부에 위치하며, `#auth-dropdown`는 `hidden` 클래스를 가지고 있습니다.
+*   **충돌 가능성**: `#auth-pw-btn` 클릭 시 `handleAuthPasswordClick()`이 실행되고, 이 이벤트가 `document` 레벨로 버블링됩니다. 전역 클릭 리스너가 `#auth-badge-wrapper` 외부 클릭을 감지하여 드롭다운을 닫는 로직을 수행할 때, 모달 오픈 로직과 충돌할 수 있습니다.
 
-#### [청크 2: app.py (Part 1/5)]
-*   **핵심 발견:** `AuthChangePasswordRequest` Pydantic 모델 정의 확인 (`old_password`, `new_password`).
-*   **엔드포인트:** `POST /api/auth/change-password` 존재 확인.
-*   **세션 문제:** `change_master_password()` 호출 후 세션 처리 누락 가능성 지적.
+#### [청크 2~4: index.html Part 2/7 ~ 4/7] - 비인증 영역
+*   **핵심 발견**: 이 블록들은 대시보드, 커스텀 백업, 시스템 이미지 백업 UI를 포함하며, 인증 관련 요소가 없습니다.
+*   **관련성**: 인증 모달 문제와 직접적인 관련은 없으나, 전체 SPA 구조에서 모달 관리 패턴(`closeModal`, `openModal`)의 일관성을 확인하는 데 참고할 수 있습니다.
 
-#### [청크 3~6: app.py (Part 2~5/5)]
-*   **분석 결과:** 비밀번호 변경 관련 로직 없음. 백업, 복원, 시스템 관리 로직만 포함.
-*   **확인 사항:** `app.py` 전체에서 `/api/auth/change-password` 엔드포인트가 Part 1/5에 정의되어 있음을 확인.
+#### [청크 5: index.html Part 5/7] - 기존 모달 구조
+*   **핵심 발견**: `explorer-modal`, `restore-modal`, `profile-modal`은 모두 `fixed inset-0 ... hidden` 클래스를 사용합니다.
+*   **관련성**: `closeModal('modal-id')` 함수가 존재하며, 이는 `hidden` 클래스를 추가하는 방식으로 구현될 가능성이 높습니다. `auth` 모달도 동일한 패턴을 따를 것으로 추정됩니다.
 
-#### [청크 7: core/auth.py]
-*   **핵심 발견:** `change_master_password()` 함수에서 `_sessions.clear()`로 모든 세션 무효화.
-*   **파일 권한:** `data/auth_config.json` 쓰기 권한 문제 가능성.
-*   **판단:** 백엔드 로직 자체는 정상 작동하나, 세션 무효화로 인한 프론트엔드 401 에러 가능성 높음.
+#### [청크 6: index.html Part 6/7] - 인증 모달 마크업 (핵심)
+*   **핵심 발견**: `#auth-modal-overlay`와 `#modal-auth-setup` 모두 `hidden` 클래스를 가지고 있습니다.
+*   **버그 원인**: `handleAuthPasswordClick()`이 오버레이만 `hidden`을 제거하고 내부 모달은 제거하지 않으면, 오버레이만 표시되고 실제 모달은 보이지 않게 됩니다.
+*   **이벤트 핸들러**: `submitAuthSetup(event)`, `submitAuthLogin(event)`, `submitAuthChangePassword(event)` 등 폼 제출 핸들러가 정의되어 있습니다.
 
-#### [청크 8~14: index.html (Part 1~7/7)]
-*   **핵심 발견:**
-    *   Part 1/7: `openAuthChangeModal()` 트리거 버튼 존재.
-    *   Part 6/7: `modal-auth-change` 모달 구조 정의 (`change-current`, `change-new`, `change-new-confirm` input 필드 존재).
-    *   Part 7/7: `form-auth-change`의 `onsubmit="submitAuthChangePassword(event)"` 확인.
-*   **판단:** HTML 구조는 정상적이며, `backup_auth.js`와 ID가 일치함. 문제는 `backup_auth.js`의 모달 전환 로직에 있음.
+#### [청크 7: index.html Part 7/7] - 스크립트 로드 및 함수 호출
+*   **핵심 발견**: `closeAuthModal()` 함수가 호출되며, 스크립트 로드 순서가 `backup_auth.js` → `app.js`입니다.
+*   **버그 원인**: `handleAuthPasswordClick()` 함수가 `app.js`에 정의되어 있고, `app.js`가 로드되기 전에 버튼이 클릭되면 `ReferenceError`가 발생할 수 있습니다. 또는 `app.js`에서 `DOMContentLoaded` 이후에 함수를 정의하는 경우, 초기 클릭 시 에러가 발생할 수 있습니다.
 
-### 3. 최종 결론 및 패치 요약
+### 3. 최종 결론 및 수정 가이드
 
-**원인:** `backup_auth.js`의 `openAuthChangeModal()` 함수에서 모달 전환 로직 오류로 인해 **비밀번호 변경 모달이 표시되지 않고 로그인 모달이 표시됨**.
+**마스터 비밀번호 미설정 상태에서 모달이 안 뜨는 원인**:
+1.  **이중 `hidden` 클래스**: `#auth-modal-overlay`와 `#modal-auth-setup` 모두 `hidden` 상태이며, JS가 오버레이만 해제하고 내부 모달은 해제하지 않아 "빈 모달" 상태가 됩니다.
+2.  **이벤트 버블링 충돌**: `#auth-pw-btn` 클릭 이벤트가 `document` 레벨로 전파되어 전역 클릭 리스너와 충돌, 드롭다운/모달 상태가 불안정해집니다.
+3.  **스크립트 로드 순서**: `handleAuthPasswordClick()` 함수가 정의되지 않은 상태에서 버튼이 클릭되면 에러가 발생하여 모달이 열리지 않습니다.
 
-**해결 방안:**
-1.  `backup_auth.js`의 `openAuthChangeModal()` 함수 수정 (로그인 모달 숨김, 변경 모달 표시).
-2.  (선택) `web/app.py` 및 `core/auth.py` 수정으로 세션 관리 최적화 (재로그인 없이 세션 유지 또는 새 세션 발급).
-
-**검증 절차:**
-1.  `backup_auth.js` 수정 후, 브라우저 개발자 도구에서 `openAuthChangeModal()` 호출 시 `modal-auth-change`가 `hidden` 클래스를 제거되고 `modal-auth-login`이 `hidden` 클래스를 추가되는지 확인.
-2.  비밀번호 변경 제출 시, 네트워크 탭에서 `POST /api/auth/change-password` 요청이 200 OK를 반환하는지 확인.
-3.  성공 후, 대시보드에서 API 호출이 401 에러 없이 정상 작동하는지 확인.
+**수정 가이드**:
+1.  `handleAuthPasswordClick()` 함수에서 `#auth-modal-overlay`와 `#modal-auth-setup`의 `hidden` 클래스를 모두 제거하도록 수정.
+2.  `handleAuthPasswordClick()` 함수에서 `event.stopPropagation()`을 호출하여 전역 클릭 리스너와의 충돌을 방지.
+3.  `handleAuthPasswordClick()` 함수가 `backup_auth.js`에 정의되도록 이동하거나, `app.js`에서 `DOMContentLoaded` 이전에 함수를 정의하도록 확인.
+4.  전역 `document` 클릭 리스너에서 `#auth-modal-overlay` 내부 클릭을 감지하여 모달을 닫지 않도록 로직을 수정.

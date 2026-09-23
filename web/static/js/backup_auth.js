@@ -91,8 +91,13 @@ document.addEventListener('click', (e) => {
     }
 });
 
-function handleAuthPasswordClick() {
-    toggleAuthDropdown();
+function handleAuthPasswordClick(e) {
+    if (e && typeof e.stopPropagation === 'function') {
+        e.stopPropagation();
+    }
+    const dd = document.getElementById('auth-dropdown');
+    if (dd) dd.classList.add('hidden');
+
     if (!_authStatus.configured) {
         openAuthSetupModal();
     } else {
@@ -115,7 +120,10 @@ function openAuthSetupModal() {
     const setupModal = document.getElementById('modal-auth-setup');
     const loginModal = document.getElementById('modal-auth-login');
     const changeModal = document.getElementById('modal-auth-change');
-    if (overlay) overlay.classList.remove('hidden');
+    if (overlay) {
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+    }
     if (setupModal) setupModal.classList.remove('hidden');
     if (loginModal) loginModal.classList.add('hidden');
     if (changeModal) changeModal.classList.add('hidden');
@@ -135,7 +143,10 @@ function openAuthLoginModal() {
     const setupModal = document.getElementById('modal-auth-setup');
     const loginModal = document.getElementById('modal-auth-login');
     const changeModal = document.getElementById('modal-auth-change');
-    if (overlay) overlay.classList.remove('hidden');
+    if (overlay) {
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+    }
     if (setupModal) setupModal.classList.add('hidden');
     if (loginModal) loginModal.classList.remove('hidden');
     if (changeModal) changeModal.classList.add('hidden');
@@ -159,7 +170,10 @@ function openAuthChangeModal() {
     const setupModal = document.getElementById('modal-auth-setup');
     const loginModal = document.getElementById('modal-auth-login');
     const changeModal = document.getElementById('modal-auth-change');
-    if (overlay) overlay.classList.remove('hidden');
+    if (overlay) {
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+    }
     if (setupModal) setupModal.classList.add('hidden');
     if (loginModal) loginModal.classList.add('hidden');
     if (changeModal) changeModal.classList.remove('hidden');
@@ -168,7 +182,10 @@ function openAuthChangeModal() {
 
 function closeAuthModal() {
     const overlay = document.getElementById('auth-modal-overlay');
-    if (overlay) overlay.classList.add('hidden');
+    if (overlay) {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('flex');
+    }
 }
 
 async function submitAuthSetup(e) {

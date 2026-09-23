@@ -1,3 +1,8 @@
+﻿> [!IMPORTANT]
+> **이 파일은 프로젝트별 보조 규칙입니다.** 전역 표준(~/.gemini/config/GEMINI.md) 및 STEP 0 (Qwen 1차 오프로드 의무)가 항상 우선 적용됩니다. 코드 수정/파일 분석 시 첫 번째 도구 호출은 반드시 local_qwen_*이어야 합니다.
+
+---
+
 # 백업시스템 프로젝트 전용 작업 규칙 (Antigravity Agent Rules)
 
 ## 🖥️ 기기 식별 및 네트워크 매핑 (Device Identification)

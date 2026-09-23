@@ -38,7 +38,7 @@
             <div>
                 <h1 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
                     서버 & 시스템 백업 매니저
-                    <span class="text-[10px] px-2 py-0.5 bg-emerald-900/80 text-emerald-300 rounded-full font-medium border border-emerald-700/60">v2.8.4</span>
+                    <span class="text-[10px] px-2 py-0.5 bg-emerald-900/80 text-emerald-300 rounded-full font-medium border border-emerald-700/60">v2.8.5</span>
                 </h1>
                 <p class="text-[11px] text-slate-400">멀티코어 Zstandard 엔진 & 증분 스냅샷 중복제거</p>
             </div>
@@ -59,7 +59,7 @@
                         <i data-lucide="shield" class="w-3.5 h-3.5 text-blue-400"></i>
                         <span>보안 관리</span>
                     </div>
-                    <button id="auth-pw-btn" onclick="handleAuthPasswordClick()" class="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition flex items-center gap-2.5">
+                    <button id="auth-pw-btn" onclick="handleAuthPasswordClick(event)" class="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition flex items-center gap-2.5">
                         <i data-lucide="key-round" id="auth-pw-btn-icon" class="w-3.5 h-3.5 text-amber-400"></i> <span id="auth-pw-btn-text">비밀번호 변경</span>
                     </button>
                     <button onclick="toggleLocalhostBypass()" id="auth-bypass-toggle-btn" class="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition flex items-center justify-between">
@@ -929,6 +929,7 @@
                 </button>
             </div>
         </div>
+    </div>
     <!-- ============================================================
          Auth Modals (Tailwind Dark Theme)
          ============================================================ -->
