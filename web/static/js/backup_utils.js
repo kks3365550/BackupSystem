@@ -130,23 +130,54 @@ function dismissAlertBanner() {
 let _remoteReleaseDismissed = false;
 
 async function checkRemoteRelease() {
-    if (_remoteReleaseDismissed) return;
     try {
         const res = await fetchAPI('/api/system/check-remote-release');
         const banner = document.getElementById('remote-release-banner');
-        if (!banner || !res || !res.success) return;
+        const statusBadge = document.getElementById('header-release-status');
+        const statusText = document.getElementById('header-release-text');
+        const statusIcon = document.getElementById('header-release-icon');
 
+        if (!res || !res.success) return;
         const data = res.data || {};
-        if (data.update_available) {
-            const textElem = document.getElementById('remote-release-text');
-            if (textElem) {
-                textElem.innerText = `마스터 서버(K12)에 최신 릴리즈 ${data.remote_version}이 감지되었습니다. (현재 버전: v${data.current_version})`;
+
+        if (data.is_self) {
+            // 마스터 서버 자신 (K12)
+            if (statusBadge && statusText && statusIcon) {
+                statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1 border bg-blue-500/10 text-blue-400 border-blue-500/30';
+                statusIcon.setAttribute('data-lucide', 'server');
+                statusText.innerText = '마스터 오리진';
+                statusBadge.title = '현재 PC가 릴리즈 마스터 서버(K12)입니다.';
+                statusBadge.classList.remove('hidden');
             }
-            banner.classList.remove('hidden');
-            if (window.lucide) lucide.createIcons();
+            if (banner) banner.classList.add('hidden');
+        } else if (data.update_available) {
+            // 새 릴리즈 있음
+            if (statusBadge && statusText && statusIcon) {
+                statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1 border bg-indigo-500/20 text-indigo-300 border-indigo-500/40 animate-pulse';
+                statusIcon.setAttribute('data-lucide', 'sparkles');
+                statusText.innerText = `새 버전 ${data.remote_version}`;
+                statusBadge.title = `마스터 서버(K12)에 새로운 릴리즈 ${data.remote_version}이 있습니다.`;
+                statusBadge.classList.remove('hidden');
+            }
+            if (banner && !_remoteReleaseDismissed) {
+                const textElem = document.getElementById('remote-release-text');
+                if (textElem) {
+                    textElem.innerText = `마스터 서버(K12)에 최신 릴리즈 ${data.remote_version}이 감지되었습니다. (현재 버전: v${data.current_version})`;
+                }
+                banner.classList.remove('hidden');
+            }
         } else {
-            banner.classList.add('hidden');
+            // 버전 동일 (최신 버전 상태!)
+            if (statusBadge && statusText && statusIcon) {
+                statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1 border bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+                statusIcon.setAttribute('data-lucide', 'check-check');
+                statusText.innerText = '최신 버전';
+                statusBadge.title = '마스터 서버(K12)와 버전이 일치하는 최신 상태입니다.';
+                statusBadge.classList.remove('hidden');
+            }
+            if (banner) banner.classList.add('hidden');
         }
+        if (window.lucide) lucide.createIcons();
     } catch (e) {
         // 원격 조회 실패 시 조용히 스킵
     }
