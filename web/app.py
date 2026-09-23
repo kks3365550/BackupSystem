@@ -1647,3 +1647,14 @@ def trigger_firebase_sync(background_tasks: BackgroundTasks):
     except Exception as e:
         return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
+
+@app.get("/api/firebase/history")
+def get_firebase_cloud_history(limit: int = 50):
+    """Firestore backup_history 컬렉션에서 전체 기기의 백업 이력 반환"""
+    from core.firebase_sync import fetch_cloud_backup_history
+    try:
+        items = fetch_cloud_backup_history(limit=limit)
+        return {"success": True, "count": len(items), "history": items}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
