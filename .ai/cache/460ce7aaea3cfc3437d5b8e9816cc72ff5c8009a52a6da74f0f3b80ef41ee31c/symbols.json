@@ -1,0 +1,201 @@
+[
+  {
+    "name": "MetadataDB",
+    "type": "class",
+    "scope": "global",
+    "line_start": 9,
+    "line_end": 330,
+    "lines_count": 322,
+    "bases": [],
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "MetadataDB::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "MetadataDB",
+    "line_start": 12,
+    "line_end": 17,
+    "lines_count": 6,
+    "args": [
+      "self",
+      "repo_dir: str"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_get_connection",
+    "full_name": "MetadataDB::_get_connection",
+    "type": "function",
+    "is_async": false,
+    "scope": "MetadataDB",
+    "line_start": 20,
+    "line_end": 34,
+    "lines_count": 15,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "contextlib.contextmanager"
+    ]
+  },
+  {
+    "name": "_init_db",
+    "full_name": "MetadataDB::_init_db",
+    "type": "function",
+    "is_async": false,
+    "scope": "MetadataDB",
+    "line_start": 36,
+    "line_end": 82,
+    "lines_count": 47,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "record_new_blob",
+    "full_name": "MetadataDB::record_new_blob",
+    "type": "function",
+    "is_async": false,
+    "scope": "MetadataDB",
+    "line_start": 84,
+    "line_end": 110,
+    "lines_count": 27,
+    "args": [
+      "self",
+      "stored_size: int",
+      "count: int"
+    ],
+    "returns": "",
+    "docstring": "Atomically increments blob count and stored bytes in cache.",
+    "decorators": []
+  },
+  {
+    "name": "record_removed_blobs",
+    "full_name": "MetadataDB::record_removed_blobs",
+    "type": "function",
+    "is_async": false,
+    "scope": "MetadataDB",
+    "line_start": 112,
+    "line_end": 126,
+    "lines_count": 15,
+    "args": [
+      "self",
+      "deleted_count: int",
+      "freed_bytes: int"
+    ],
+    "returns": "",
+    "docstring": "Atomically decrements blob count and stored bytes.",
+    "decorators": []
+  },
+  {
+    "name": "rebuild_blobs_summary",
+    "full_name": "MetadataDB::rebuild_blobs_summary",
+    "type": "function",
+    "is_async": false,
+    "scope": "MetadataDB",
+    "line_start": 128,
+    "line_end": 154,
+    "lines_count": 27,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Scans disk to accurately recalculate blob totals (only run on first init or manual refresh).",
+    "decorators": []
+  },
+  {
+    "name": "sync_snapshots",
+    "full_name": "MetadataDB::sync_snapshots",
+    "type": "function",
+    "is_async": false,
+    "scope": "MetadataDB",
+    "line_start": 156,
+    "line_end": 230,
+    "lines_count": 75,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Synchronizes snapshot JSON metadata into SQLite.",
+    "decorators": []
+  },
+  {
+    "name": "update_snapshot_verification",
+    "full_name": "MetadataDB::update_snapshot_verification",
+    "type": "function",
+    "is_async": false,
+    "scope": "MetadataDB",
+    "line_start": 232,
+    "line_end": 245,
+    "lines_count": 14,
+    "args": [
+      "self",
+      "snapshot_id: str",
+      "is_verified: bool",
+      "error_count: int"
+    ],
+    "returns": "",
+    "docstring": "Updates verification status for a specific snapshot in SQLite.",
+    "decorators": []
+  },
+  {
+    "name": "list_snapshots",
+    "full_name": "MetadataDB::list_snapshots",
+    "type": "function",
+    "is_async": false,
+    "scope": "MetadataDB",
+    "line_start": 247,
+    "line_end": 292,
+    "lines_count": 46,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Returns snapshot metadata summaries in under 1ms.",
+    "decorators": []
+  },
+  {
+    "name": "get_storage_stats",
+    "full_name": "MetadataDB::get_storage_stats",
+    "type": "function",
+    "is_async": false,
+    "scope": "MetadataDB",
+    "line_start": 294,
+    "line_end": 322,
+    "lines_count": 29,
+    "args": [
+      "self",
+      "force_refresh: bool"
+    ],
+    "returns": "",
+    "docstring": "Calculates storage stats in 0.001s using SQLite cache.",
+    "decorators": []
+  },
+  {
+    "name": "delete_snapshot_record",
+    "full_name": "MetadataDB::delete_snapshot_record",
+    "type": "function",
+    "is_async": false,
+    "scope": "MetadataDB",
+    "line_start": 324,
+    "line_end": 330,
+    "lines_count": 7,
+    "args": [
+      "self",
+      "snapshot_id: str"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  }
+]

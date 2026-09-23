@@ -1,0 +1,79 @@
+[
+  {
+    "name": "TestSelfHealing",
+    "type": "class",
+    "scope": "global",
+    "line_start": 17,
+    "line_end": 127,
+    "lines_count": 111,
+    "bases": [
+      "unittest.TestCase"
+    ],
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "setUp",
+    "full_name": "TestSelfHealing::setUp",
+    "type": "method",
+    "is_async": false,
+    "scope": "TestSelfHealing",
+    "line_start": 18,
+    "line_end": 26,
+    "lines_count": 9,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "tearDown",
+    "full_name": "TestSelfHealing::tearDown",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestSelfHealing",
+    "line_start": 28,
+    "line_end": 39,
+    "lines_count": 12,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "test_self_healing_corrupted_blob_with_valid_source",
+    "full_name": "TestSelfHealing::test_self_healing_corrupted_blob_with_valid_source",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestSelfHealing",
+    "line_start": 41,
+    "line_end": 87,
+    "lines_count": 47,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "원본 소스가 온전한 경우 손상된 블롭이 복원 검증 시 자동 자가 치유(Self-Heal)되는지 검증.",
+    "decorators": []
+  },
+  {
+    "name": "test_self_healing_fails_when_source_missing",
+    "full_name": "TestSelfHealing::test_self_healing_fails_when_source_missing",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestSelfHealing",
+    "line_start": 89,
+    "line_end": 127,
+    "lines_count": 39,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "원본 소스가 없는 상태에서 블롭이 손상되었으면 정상적으로 RestoreVerificationError 발생 검증.",
+    "decorators": []
+  }
+]

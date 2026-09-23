@@ -1,0 +1,231 @@
+[
+  {
+    "name": "Ed25519Signer",
+    "type": "class",
+    "scope": "global",
+    "line_start": 44,
+    "line_end": 185,
+    "lines_count": 142,
+    "bases": [],
+    "docstring": "Ed25519 키 페어를 관리하고 Manifest에 대한 디지털 서명/검증을 수행하는 클래스.",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "Ed25519Signer::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "Ed25519Signer",
+    "line_start": 55,
+    "line_end": 62,
+    "lines_count": 8,
+    "args": [
+      "self",
+      "repo_dir: str"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "ensure_key_pair",
+    "full_name": "Ed25519Signer::ensure_key_pair",
+    "type": "function",
+    "is_async": false,
+    "scope": "Ed25519Signer",
+    "line_start": 64,
+    "line_end": 79,
+    "lines_count": 16,
+    "args": [
+      "self"
+    ],
+    "returns": "None",
+    "docstring": "Ed25519 키 페어가 존재하는지 확인하고, 없으면 생성하여 저장.",
+    "decorators": []
+  },
+  {
+    "name": "_get_private_key_instance",
+    "full_name": "Ed25519Signer::_get_private_key_instance",
+    "type": "function",
+    "is_async": false,
+    "scope": "Ed25519Signer",
+    "line_start": 81,
+    "line_end": 84,
+    "lines_count": 4,
+    "args": [
+      "self"
+    ],
+    "returns": "Ed25519PrivateKey",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_load_private_key",
+    "full_name": "Ed25519Signer::_load_private_key",
+    "type": "function",
+    "is_async": false,
+    "scope": "Ed25519Signer",
+    "line_start": 86,
+    "line_end": 92,
+    "lines_count": 7,
+    "args": [
+      "self"
+    ],
+    "returns": "None",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_save_private_key",
+    "full_name": "Ed25519Signer::_save_private_key",
+    "type": "function",
+    "is_async": false,
+    "scope": "Ed25519Signer",
+    "line_start": 94,
+    "line_end": 114,
+    "lines_count": 21,
+    "args": [
+      "self",
+      "private_key: Ed25519PrivateKey"
+    ],
+    "returns": "None",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_load_public_key",
+    "full_name": "Ed25519Signer::_load_public_key",
+    "type": "function",
+    "is_async": false,
+    "scope": "Ed25519Signer",
+    "line_start": 116,
+    "line_end": 122,
+    "lines_count": 7,
+    "args": [
+      "self"
+    ],
+    "returns": "None",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_save_public_key",
+    "full_name": "Ed25519Signer::_save_public_key",
+    "type": "function",
+    "is_async": false,
+    "scope": "Ed25519Signer",
+    "line_start": 124,
+    "line_end": 143,
+    "lines_count": 20,
+    "args": [
+      "self",
+      "public_key: Ed25519PublicKey"
+    ],
+    "returns": "None",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_prepare_manifest_payload",
+    "full_name": "Ed25519Signer::_prepare_manifest_payload",
+    "type": "function",
+    "is_async": false,
+    "scope": "Ed25519Signer",
+    "line_start": 145,
+    "line_end": 151,
+    "lines_count": 7,
+    "args": [
+      "self",
+      "manifest"
+    ],
+    "returns": "bytes",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "sign_manifest",
+    "full_name": "Ed25519Signer::sign_manifest",
+    "type": "function",
+    "is_async": false,
+    "scope": "Ed25519Signer",
+    "line_start": 153,
+    "line_end": 164,
+    "lines_count": 12,
+    "args": [
+      "self",
+      "manifest"
+    ],
+    "returns": "str",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "verify_manifest",
+    "full_name": "Ed25519Signer::verify_manifest",
+    "type": "function",
+    "is_async": false,
+    "scope": "Ed25519Signer",
+    "line_start": 166,
+    "line_end": 185,
+    "lines_count": 20,
+    "args": [
+      "self",
+      "manifest"
+    ],
+    "returns": "bool",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "verify_manifest_signature_ed25519",
+    "full_name": "verify_manifest_signature_ed25519",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 188,
+    "line_end": 218,
+    "lines_count": 31,
+    "args": [
+      "manifest",
+      "pub_key_path_or_bytes"
+    ],
+    "returns": "bool",
+    "docstring": "독립적인 Ed25519 서명 검증 함수.",
+    "decorators": []
+  },
+  {
+    "name": "sign_bytes_ed25519",
+    "full_name": "sign_bytes_ed25519",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 221,
+    "line_end": 232,
+    "lines_count": 12,
+    "args": [
+      "data: bytes",
+      "priv_key_path_or_bytes"
+    ],
+    "returns": "str",
+    "docstring": "임의의 바이트 데이터에 대한 Ed25519 서명 생성 (hex 반환).",
+    "decorators": []
+  },
+  {
+    "name": "verify_bytes_ed25519",
+    "full_name": "verify_bytes_ed25519",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 235,
+    "line_end": 252,
+    "lines_count": 18,
+    "args": [
+      "data: bytes",
+      "signature_hex: str",
+      "pub_key_path_or_bytes"
+    ],
+    "returns": "bool",
+    "docstring": "임의의 바이트 데이터에 대한 Ed25519 서명 검증.",
+    "decorators": []
+  }
+]

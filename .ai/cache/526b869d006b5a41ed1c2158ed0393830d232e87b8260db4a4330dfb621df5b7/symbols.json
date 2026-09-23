@@ -1,0 +1,16 @@
+[
+  {
+    "name": "build_package",
+    "full_name": "build_package",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 23,
+    "line_end": 102,
+    "lines_count": 80,
+    "args": [],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  }
+]

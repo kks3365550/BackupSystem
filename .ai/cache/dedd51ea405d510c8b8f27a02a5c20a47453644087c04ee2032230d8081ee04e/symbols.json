@@ -1,0 +1,169 @@
+[
+  {
+    "name": "AppPackageCollector",
+    "type": "class",
+    "scope": "global",
+    "line_start": 6,
+    "line_end": 89,
+    "lines_count": 84,
+    "bases": [],
+    "docstring": "Pre-indexes Start Menu shortcuts, AppData directories, and Registry Uninstall keys",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "AppPackageCollector::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "AppPackageCollector",
+    "line_start": 11,
+    "line_end": 21,
+    "lines_count": 11,
+    "args": [
+      "self",
+      "dest_dir: str"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_index_shortcuts",
+    "full_name": "AppPackageCollector::_index_shortcuts",
+    "type": "function",
+    "is_async": false,
+    "scope": "AppPackageCollector",
+    "line_start": 23,
+    "line_end": 37,
+    "lines_count": 15,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_index_appdata",
+    "full_name": "AppPackageCollector::_index_appdata",
+    "type": "function",
+    "is_async": false,
+    "scope": "AppPackageCollector",
+    "line_start": 39,
+    "line_end": 57,
+    "lines_count": 19,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_index_uninstall_registry",
+    "full_name": "AppPackageCollector::_index_uninstall_registry",
+    "type": "function",
+    "is_async": false,
+    "scope": "AppPackageCollector",
+    "line_start": 59,
+    "line_end": 89,
+    "lines_count": 31,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "find_app_start_menu_shortcuts",
+    "full_name": "find_app_start_menu_shortcuts",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 91,
+    "line_end": 102,
+    "lines_count": 12,
+    "args": [
+      "app_name: str",
+      "publisher: str",
+      "collector"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "find_app_data_directories",
+    "full_name": "find_app_data_directories",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 104,
+    "line_end": 115,
+    "lines_count": 12,
+    "args": [
+      "app_name: str",
+      "publisher: str",
+      "collector"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "export_universal_app_registry",
+    "full_name": "export_universal_app_registry",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 117,
+    "line_end": 178,
+    "lines_count": 62,
+    "args": [
+      "app_name: str",
+      "publisher: str",
+      "dest_dir: str",
+      "collector"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "import_registry_file",
+    "full_name": "import_registry_file",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 180,
+    "line_end": 191,
+    "lines_count": 12,
+    "args": [
+      "reg_filepath: str"
+    ],
+    "returns": "bool",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "collect_full_app_package",
+    "full_name": "collect_full_app_package",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 193,
+    "line_end": 214,
+    "lines_count": 22,
+    "args": [
+      "app_name: str",
+      "publisher: str",
+      "install_location: str",
+      "temp_reg_dir: str",
+      "collector"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  }
+]

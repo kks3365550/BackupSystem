@@ -1,0 +1,50 @@
+[
+  {
+    "name": "RetentionManager",
+    "type": "class",
+    "scope": "global",
+    "line_start": 16,
+    "line_end": 96,
+    "lines_count": 81,
+    "bases": [],
+    "docstring": "스토리지 보존 주기 및 여유 공간을 관리하는 엔진",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "RetentionManager::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "RetentionManager",
+    "line_start": 19,
+    "line_end": 20,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "repo_dir: str"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "apply_policy",
+    "full_name": "RetentionManager::apply_policy",
+    "type": "function",
+    "is_async": false,
+    "scope": "RetentionManager",
+    "line_start": 22,
+    "line_end": 96,
+    "lines_count": 75,
+    "args": [
+      "self",
+      "retention_count",
+      "retention_days",
+      "min_free_gb",
+      "authorized: bool"
+    ],
+    "returns": "",
+    "docstring": "저장소에 보존 정책을 적용하여 만료된 스냅샷을 정리하고 고아 청크를 회수.",
+    "decorators": []
+  }
+]

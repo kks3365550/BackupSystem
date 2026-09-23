@@ -1,0 +1,18 @@
+[
+  {
+    "name": "run_cli_backup",
+    "full_name": "run_cli_backup",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 15,
+    "line_end": 86,
+    "lines_count": 72,
+    "args": [
+      "profile_id: str"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  }
+]

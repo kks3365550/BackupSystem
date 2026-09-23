@@ -1,0 +1,159 @@
+[
+  {
+    "name": "TestCryptoAtRest",
+    "type": "class",
+    "scope": "global",
+    "line_start": 25,
+    "line_end": 166,
+    "lines_count": 142,
+    "bases": [
+      "unittest.TestCase"
+    ],
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "setUp",
+    "full_name": "TestCryptoAtRest::setUp",
+    "type": "method",
+    "is_async": false,
+    "scope": "TestCryptoAtRest",
+    "line_start": 26,
+    "line_end": 31,
+    "lines_count": 6,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "tearDown",
+    "full_name": "TestCryptoAtRest::tearDown",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestCryptoAtRest",
+    "line_start": 33,
+    "line_end": 41,
+    "lines_count": 9,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_onerror",
+    "full_name": "TestCryptoAtRest::tearDown::_onerror",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestCryptoAtRest::tearDown",
+    "line_start": 34,
+    "line_end": 40,
+    "lines_count": 7,
+    "args": [
+      "func",
+      "path",
+      "exc_info"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "test_01_cas_dedup_100_percent",
+    "full_name": "TestCryptoAtRest::test_01_cas_dedup_100_percent",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestCryptoAtRest",
+    "line_start": 43,
+    "line_end": 64,
+    "lines_count": 22,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "동일 데이터 암호화 저장 시 단 1개의 블롭 파일만 생성되고 신규 쓰기가 스킵되는지 검증 (CAS Dedup 보존)",
+    "decorators": []
+  },
+  {
+    "name": "test_02_v0_v1_backward_compatibility",
+    "full_name": "TestCryptoAtRest::test_02_v0_v1_backward_compatibility",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestCryptoAtRest",
+    "line_start": 66,
+    "line_end": 97,
+    "lines_count": 32,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "v0 평문 블롭(Zstd)과 v1 암호화 블롭(ENC\\x01)이 공존할 때 둘 다 100% 정상 복원되는지 검증",
+    "decorators": []
+  },
+  {
+    "name": "test_03_storage_key_derivation_and_scrypt_metadata",
+    "full_name": "TestCryptoAtRest::test_03_storage_key_derivation_and_scrypt_metadata",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestCryptoAtRest",
+    "line_start": 99,
+    "line_end": 114,
+    "lines_count": 16,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "동일 마스터키 + 메타데이터로부터 Storage Key가 100% 일치하게 재생성되는지 검증",
+    "decorators": []
+  },
+  {
+    "name": "test_04_concurrent_worker_same_blob_race",
+    "full_name": "TestCryptoAtRest::test_04_concurrent_worker_same_blob_race",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestCryptoAtRest",
+    "line_start": 116,
+    "line_end": 143,
+    "lines_count": 28,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "16개 워커 스레드가 동시에 동일한 블롭 저장을 시도할 때 충돌 없이 단 1개만 온전히 저장되는지 검증",
+    "decorators": []
+  },
+  {
+    "name": "worker",
+    "full_name": "TestCryptoAtRest::test_04_concurrent_worker_same_blob_race::worker",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestCryptoAtRest::test_04_concurrent_worker_same_blob_race",
+    "line_start": 122,
+    "line_end": 124,
+    "lines_count": 3,
+    "args": [],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "test_05_tamper_evident_aad_and_nonce",
+    "full_name": "TestCryptoAtRest::test_05_tamper_evident_aad_and_nonce",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestCryptoAtRest",
+    "line_start": 145,
+    "line_end": 166,
+    "lines_count": 22,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "암호문, Nonce, 또는 AAD 해시 중 1바이트라도 변조되면 복호화가 즉각 거부되는지 검증",
+    "decorators": []
+  }
+]

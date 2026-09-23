@@ -1,0 +1,127 @@
+[
+  {
+    "name": "TestV241Features",
+    "type": "class",
+    "scope": "global",
+    "line_start": 32,
+    "line_end": 225,
+    "lines_count": 194,
+    "bases": [
+      "unittest.TestCase"
+    ],
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "setUp",
+    "full_name": "TestV241Features::setUp",
+    "type": "method",
+    "is_async": false,
+    "scope": "TestV241Features",
+    "line_start": 34,
+    "line_end": 45,
+    "lines_count": 12,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "tearDown",
+    "full_name": "TestV241Features::tearDown",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestV241Features",
+    "line_start": 47,
+    "line_end": 60,
+    "lines_count": 14,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "test_worm_manager_file_and_directory",
+    "full_name": "TestV241Features::test_worm_manager_file_and_directory",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestV241Features",
+    "line_start": 62,
+    "line_end": 105,
+    "lines_count": 44,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "1. WORMManager를 통한 파일 및 디렉토리 WORM 잠금/해제 및 수정/삭제 차단 검증",
+    "decorators": []
+  },
+  {
+    "name": "test_audit_entire_repository_healthy",
+    "full_name": "TestV241Features::test_audit_entire_repository_healthy",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestV241Features",
+    "line_start": 107,
+    "line_end": 129,
+    "lines_count": 23,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "2. 정상 스냅샷 생성 후 audit_entire_repository() 수행 시 healthy 상태 검증",
+    "decorators": []
+  },
+  {
+    "name": "test_audit_entire_repository_detects_bit_rot",
+    "full_name": "TestV241Features::test_audit_entire_repository_detects_bit_rot",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestV241Features",
+    "line_start": 131,
+    "line_end": 159,
+    "lines_count": 29,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "3. 블롭 파일 강제 바이트 변조(Bit Rot) 시 audit_entire_repository() 탐지 검증",
+    "decorators": []
+  },
+  {
+    "name": "test_audit_entire_repository_detects_signature_tampering",
+    "full_name": "TestV241Features::test_audit_entire_repository_detects_signature_tampering",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestV241Features",
+    "line_start": 161,
+    "line_end": 191,
+    "lines_count": 31,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "4. 스냅샷 manifest 내용 위조 시 audit_entire_repository() 서명 위변조 탐지 검증",
+    "decorators": []
+  },
+  {
+    "name": "test_snapshot_engine_with_worm_and_offsite_replication",
+    "full_name": "TestV241Features::test_snapshot_engine_with_worm_and_offsite_replication",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestV241Features",
+    "line_start": 193,
+    "line_end": 225,
+    "lines_count": 33,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "5. SnapshotEngine WORM 보호 및 비동기 오프사이트 복제 파이프라인 검증",
+    "decorators": []
+  }
+]

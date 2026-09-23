@@ -1,0 +1,50 @@
+[
+  {
+    "name": "백업시스템 프로젝트 전용 작업 규칙 (Antigravity Agent Rules)",
+    "type": "h1",
+    "line_start": 6,
+    "line_end": 6
+  },
+  {
+    "name": "🖥️ 기기 식별 및 네트워크 매핑 (Device Identification)",
+    "type": "h2",
+    "line_start": 8,
+    "line_end": 8
+  },
+  {
+    "name": "⚙️ 기기별 백업 정책 수칙 (Device-Specific Backup Policies)",
+    "type": "h2",
+    "line_start": 15,
+    "line_end": 15
+  },
+  {
+    "name": "1. 🖥️ 내 미니피씨 (`100.72.224.71`) 백업 정책:",
+    "type": "h3",
+    "line_start": 17,
+    "line_end": 17
+  },
+  {
+    "name": "2. 🖥️ 내 데스크탑 (`100.90.20.59`) 백업 정책:",
+    "type": "h3",
+    "line_start": 24,
+    "line_end": 24
+  },
+  {
+    "name": "🚀 전자동 릴리즈 & 버전 관리 수칙 (Zero-Touch Auto Release)",
+    "type": "h2",
+    "line_start": 32,
+    "line_end": 32
+  },
+  {
+    "name": "자동 수행 및 보장 사항:",
+    "type": "h3",
+    "line_start": 39,
+    "line_end": 39
+  },
+  {
+    "name": "⛔ 코드 수정 및 리팩토링 사전 승인 원칙 (Strict User Approval Required)",
+    "type": "h2",
+    "line_start": 49,
+    "line_end": 49
+  }
+]

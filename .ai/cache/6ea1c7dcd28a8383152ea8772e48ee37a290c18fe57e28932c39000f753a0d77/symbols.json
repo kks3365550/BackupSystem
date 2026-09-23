@@ -1,0 +1,219 @@
+[
+  {
+    "name": "_get_auth_config_path",
+    "full_name": "_get_auth_config_path",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 28,
+    "line_end": 30,
+    "lines_count": 3,
+    "args": [],
+    "returns": "str",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_load_auth_config",
+    "full_name": "_load_auth_config",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 33,
+    "line_end": 57,
+    "lines_count": 25,
+    "args": [],
+    "returns": "dict",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_save_auth_config",
+    "full_name": "_save_auth_config",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 60,
+    "line_end": 66,
+    "lines_count": 7,
+    "args": [
+      "config: dict"
+    ],
+    "returns": "None",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_hash_password",
+    "full_name": "_hash_password",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 69,
+    "line_end": 77,
+    "lines_count": 9,
+    "args": [
+      "password: str",
+      "salt_hex: str"
+    ],
+    "returns": "str",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "is_auth_configured",
+    "full_name": "is_auth_configured",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 80,
+    "line_end": 84,
+    "lines_count": 5,
+    "args": [],
+    "returns": "bool",
+    "docstring": "마스터 비밀번호가 설정되어 있는지 확인",
+    "decorators": []
+  },
+  {
+    "name": "get_auth_status",
+    "full_name": "get_auth_status",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 87,
+    "line_end": 99,
+    "lines_count": 13,
+    "args": [
+      "client_ip"
+    ],
+    "returns": "dict",
+    "docstring": "인증 상태 요약 정보 반환",
+    "decorators": []
+  },
+  {
+    "name": "setup_master_password",
+    "full_name": "setup_master_password",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 102,
+    "line_end": 126,
+    "lines_count": 25,
+    "args": [
+      "password: str",
+      "allow_localhost_bypass: bool"
+    ],
+    "returns": "bool",
+    "docstring": "최초 마스터 비밀번호 설정",
+    "decorators": []
+  },
+  {
+    "name": "verify_master_password",
+    "full_name": "verify_master_password",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 129,
+    "line_end": 140,
+    "lines_count": 12,
+    "args": [
+      "password: str"
+    ],
+    "returns": "bool",
+    "docstring": "마스터 비밀번호 일치 여부 검증",
+    "decorators": []
+  },
+  {
+    "name": "change_master_password",
+    "full_name": "change_master_password",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 143,
+    "line_end": 171,
+    "lines_count": 29,
+    "args": [
+      "old_password: str",
+      "new_password: str"
+    ],
+    "returns": "bool",
+    "docstring": "마스터 비밀번호 변경",
+    "decorators": []
+  },
+  {
+    "name": "set_localhost_bypass",
+    "full_name": "set_localhost_bypass",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 174,
+    "line_end": 179,
+    "lines_count": 6,
+    "args": [
+      "enabled: bool"
+    ],
+    "returns": "None",
+    "docstring": "로컬 루프백 접속 시 인증 자동 우회 여부 설정",
+    "decorators": []
+  },
+  {
+    "name": "create_session",
+    "full_name": "create_session",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 182,
+    "line_end": 190,
+    "lines_count": 9,
+    "args": [],
+    "returns": "str",
+    "docstring": "유효한 세션 토큰을 생성하고 저장",
+    "decorators": []
+  },
+  {
+    "name": "validate_session",
+    "full_name": "validate_session",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 193,
+    "line_end": 205,
+    "lines_count": 13,
+    "args": [
+      "token"
+    ],
+    "returns": "bool",
+    "docstring": "세션 토큰의 유효성을 검사",
+    "decorators": []
+  },
+  {
+    "name": "revoke_session",
+    "full_name": "revoke_session",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 208,
+    "line_end": 213,
+    "lines_count": 6,
+    "args": [
+      "token"
+    ],
+    "returns": "None",
+    "docstring": "세션 토큰 폐기(로그아웃)",
+    "decorators": []
+  },
+  {
+    "name": "_cleanup_expired_sessions",
+    "full_name": "_cleanup_expired_sessions",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 216,
+    "line_end": 221,
+    "lines_count": 6,
+    "args": [],
+    "returns": "None",
+    "docstring": "만료된 세션 정리 (내부용, _lock 보유 상태에서 호출)",
+    "decorators": []
+  }
+]

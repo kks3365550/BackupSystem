@@ -1,0 +1,143 @@
+[
+  {
+    "name": "get_current_version",
+    "full_name": "get_current_version",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 27,
+    "line_end": 31,
+    "lines_count": 5,
+    "args": [],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "bump_version",
+    "full_name": "bump_version",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 33,
+    "line_end": 48,
+    "lines_count": 16,
+    "args": [
+      "current: str",
+      "bump_type: str"
+    ],
+    "returns": "str",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "update_source_versions",
+    "full_name": "update_source_versions",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 50,
+    "line_end": 82,
+    "lines_count": 33,
+    "args": [
+      "new_ver: str"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "run_git_release",
+    "full_name": "run_git_release",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 84,
+    "line_end": 94,
+    "lines_count": 11,
+    "args": [
+      "version: str",
+      "message: str"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "sync_install_directories",
+    "full_name": "sync_install_directories",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 96,
+    "line_end": 156,
+    "lines_count": 61,
+    "args": [],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "build_self_extracting_updater",
+    "full_name": "build_self_extracting_updater",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 158,
+    "line_end": 310,
+    "lines_count": 153,
+    "args": [
+      "version: str"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "remote_deploy_if_online",
+    "full_name": "remote_deploy_if_online",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 312,
+    "line_end": 352,
+    "lines_count": 41,
+    "args": [
+      "remote_ip: str",
+      "bat_path: str",
+      "sig_hex: str",
+      "raw_bytes: bytes"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "restart_local_server",
+    "full_name": "restart_local_server",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 354,
+    "line_end": 417,
+    "lines_count": 64,
+    "args": [],
+    "returns": "",
+    "docstring": "로컬 백업 서버(pythonw run.py)를 Kill 후 start_silent.vbs로 재시작하고, 포트 8765가 열릴 때까지 확인.",
+    "decorators": []
+  },
+  {
+    "name": "main",
+    "full_name": "main",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 419,
+    "line_end": 452,
+    "lines_count": 34,
+    "args": [],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  }
+]

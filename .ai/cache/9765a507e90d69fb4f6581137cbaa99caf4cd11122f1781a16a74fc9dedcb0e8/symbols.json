@@ -1,0 +1,50 @@
+[
+  {
+    "name": "safe_rmtree",
+    "full_name": "safe_rmtree",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 13,
+    "line_end": 22,
+    "lines_count": 10,
+    "args": [
+      "path"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_handle_readonly",
+    "full_name": "safe_rmtree::_handle_readonly",
+    "type": "function",
+    "is_async": false,
+    "scope": "safe_rmtree",
+    "line_start": 16,
+    "line_end": 21,
+    "lines_count": 6,
+    "args": [
+      "func",
+      "p",
+      "excinfo"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "test_full_system_flow",
+    "full_name": "test_full_system_flow",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 24,
+    "line_end": 209,
+    "lines_count": 186,
+    "args": [],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  }
+]

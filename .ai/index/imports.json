@@ -1,0 +1,916 @@
+{
+  "argparse": [
+    "cli.py",
+    "cli_backup.py",
+    "disaster_recovery.py",
+    "emergency_restore.py",
+    "tools/release.py"
+  ],
+  "sys": [
+    "cli.py",
+    "cli_backup.py",
+    "create_desktop_shortcut.py",
+    "disaster_recovery.py",
+    "emergency_restore.py",
+    "kakao_setup_helper.py",
+    "run.py",
+    "simulate_recovery.py",
+    "test_backup_system.py",
+    "tray_app.py",
+    "core/app_scanner.py",
+    "core/lock.py",
+    "core/registry_backup.py",
+    "core/restore.py",
+    "core/system_image.py",
+    "core/vss_manager.py",
+    "core/windows_task.py",
+    "core/worm.py",
+    "emergency_restore/emergency_restore.py",
+    "emergency_restore/python/zstandard/__init__.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_sprint1_durable_queue.py",
+    "tests/test_v241_features.py",
+    "tools/breakaway_launch.py",
+    "tools/build_exe.py",
+    "tools/release.py",
+    "web/app.py"
+  ],
+  "os": [
+    "cli.py",
+    "cli_backup.py",
+    "create_desktop_shortcut.py",
+    "create_recovery_files.py",
+    "disaster_recovery.py",
+    "emergency_restore.py",
+    "kakao_setup_helper.py",
+    "run.py",
+    "simulate_recovery.py",
+    "test_backup_system.py",
+    "tray_app.py",
+    "core/app_scanner.py",
+    "core/auth.py",
+    "core/config.py",
+    "core/crypto_at_rest.py",
+    "core/crypto_sign.py",
+    "core/driver_backup.py",
+    "core/filter.py",
+    "core/hasher.py",
+    "core/lock.py",
+    "core/metadata_db.py",
+    "core/notifier.py",
+    "core/registry_backup.py",
+    "core/replication.py",
+    "core/replication_queue.py",
+    "core/restore.py",
+    "core/retention.py",
+    "core/scheduler.py",
+    "core/snapshot.py",
+    "core/storage.py",
+    "core/system_image.py",
+    "core/verify.py",
+    "core/vss_manager.py",
+    "core/windows_task.py",
+    "core/worm.py",
+    "emergency_restore/emergency_restore.py",
+    "emergency_restore/python/zstandard/backend_cffi.py",
+    "emergency_restore/python/zstandard/__init__.py",
+    "tests/test_auth.py",
+    "tests/test_crypto_at_rest.py",
+    "tests/test_disaster_scenarios.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_live_mutating_file.py",
+    "tests/test_p0_fail_closed.py",
+    "tests/test_replication_qos.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_self_healing.py",
+    "tests/test_sprint1_durable_queue.py",
+    "tests/test_v239_verification.py",
+    "tests/test_v241_features.py",
+    "tests/test_vss_manager.py",
+    "tests/test_web_auth_api.py",
+    "tools/build_exe.py",
+    "tools/make_detached.py",
+    "tools/release.py",
+    "tools/start_detached_server.py",
+    "web/app.py"
+  ],
+  "json": [
+    "cli.py",
+    "disaster_recovery.py",
+    "emergency_restore.py",
+    "kakao_setup_helper.py",
+    "simulate_recovery.py",
+    "tray_app.py",
+    "core/auth.py",
+    "core/config.py",
+    "core/crypto_at_rest.py",
+    "core/crypto_sign.py",
+    "core/driver_backup.py",
+    "core/lock.py",
+    "core/metadata_db.py",
+    "core/notifier.py",
+    "core/replication.py",
+    "core/scheduler.py",
+    "core/snapshot.py",
+    "core/storage.py",
+    "core/verify.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_replication_qos.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_self_healing.py",
+    "tests/test_sprint1_durable_queue.py",
+    "tests/test_v241_features.py",
+    "tools/release.py",
+    "web/app.py"
+  ],
+  "core.snapshot": [
+    "cli.py",
+    "cli_backup.py",
+    "simulate_recovery.py",
+    "test_backup_system.py",
+    "core/restore.py",
+    "core/retention.py",
+    "core/scheduler.py",
+    "tests/test_disaster_scenarios.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_live_mutating_file.py",
+    "tests/test_p0_fail_closed.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_sprint1_durable_queue.py",
+    "tests/test_v239_verification.py",
+    "tests/test_v241_features.py",
+    "web/app.py"
+  ],
+  "core.restore": [
+    "cli.py",
+    "simulate_recovery.py",
+    "test_backup_system.py",
+    "tests/test_disaster_scenarios.py",
+    "web/app.py"
+  ],
+  "core.config": [
+    "cli.py",
+    "cli_backup.py",
+    "run.py",
+    "test_backup_system.py",
+    "core/scheduler.py",
+    "core/snapshot.py",
+    "web/app.py"
+  ],
+  "time": [
+    "cli_backup.py",
+    "disaster_recovery.py",
+    "emergency_restore.py",
+    "kakao_setup_helper.py",
+    "run.py",
+    "simulate_recovery.py",
+    "test_backup_system.py",
+    "tray_app.py",
+    "core/app_scanner.py",
+    "core/driver_backup.py",
+    "core/lock.py",
+    "core/metadata_db.py",
+    "core/notifier.py",
+    "core/replication.py",
+    "core/replication_queue.py",
+    "core/restore.py",
+    "core/retention.py",
+    "core/scheduler.py",
+    "core/snapshot.py",
+    "core/system_image.py",
+    "core/verify.py",
+    "tests/test_replication_qos.py",
+    "tests/test_sprint1_durable_queue.py",
+    "tests/test_v241_features.py",
+    "tools/release.py",
+    "tools/release.py",
+    "web/app.py"
+  ],
+  "datetime": [
+    "cli_backup.py",
+    "core/auth.py",
+    "core/auth.py",
+    "core/lock.py",
+    "core/scheduler.py",
+    "core/snapshot.py",
+    "core/system_image.py",
+    "web/app.py"
+  ],
+  "core.driver_backup": [
+    "cli_backup.py",
+    "web/app.py"
+  ],
+  "core.registry_backup": [
+    "cli_backup.py",
+    "core/restore.py",
+    "web/app.py",
+    "web/app.py"
+  ],
+  "core.notifier": [
+    "cli_backup.py",
+    "cli_backup.py",
+    "kakao_setup_helper.py",
+    "core/scheduler.py",
+    "core/scheduler.py",
+    "core/scheduler.py",
+    "core/scheduler.py",
+    "core/system_image.py",
+    "core/system_image.py",
+    "core/system_image.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py"
+  ],
+  "shutil": [
+    "create_desktop_shortcut.py",
+    "simulate_recovery.py",
+    "test_backup_system.py",
+    "core/config.py",
+    "core/replication.py",
+    "core/storage.py",
+    "core/system_image.py",
+    "tests/test_auth.py",
+    "tests/test_crypto_at_rest.py",
+    "tests/test_disaster_scenarios.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_p0_fail_closed.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_sprint1_durable_queue.py",
+    "tests/test_v239_verification.py",
+    "tests/test_v241_features.py",
+    "tests/test_web_auth_api.py",
+    "tools/build_exe.py",
+    "web/app.py"
+  ],
+  "subprocess": [
+    "create_desktop_shortcut.py",
+    "emergency_restore.py",
+    "emergency_restore.py",
+    "emergency_restore.py",
+    "run.py",
+    "tray_app.py",
+    "core/driver_backup.py",
+    "core/registry_backup.py",
+    "core/restore.py",
+    "core/system_image.py",
+    "core/vss_manager.py",
+    "core/windows_task.py",
+    "core/worm.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_repository_chaos.py",
+    "tools/breakaway_launch.py",
+    "tools/build_exe.py",
+    "tools/make_daemon_task.py",
+    "tools/release.py",
+    "tools/start_detached_server.py",
+    "web/app.py"
+  ],
+  "tempfile": [
+    "create_desktop_shortcut.py",
+    "test_backup_system.py",
+    "core/registry_backup.py",
+    "tests/test_auth.py",
+    "tests/test_crypto_at_rest.py",
+    "tests/test_disaster_scenarios.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_live_mutating_file.py",
+    "tests/test_p0_fail_closed.py",
+    "tests/test_replication_qos.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_self_healing.py",
+    "tests/test_sprint1_durable_queue.py",
+    "tests/test_v239_verification.py",
+    "tests/test_v241_features.py",
+    "tests/test_web_auth_api.py",
+    "web/app.py"
+  ],
+  "zlib": [
+    "disaster_recovery.py",
+    "emergency_restore.py",
+    "core/storage.py",
+    "core/verify.py"
+  ],
+  "hashlib": [
+    "disaster_recovery.py",
+    "emergency_restore.py",
+    "simulate_recovery.py",
+    "core/auth.py",
+    "core/crypto_at_rest.py",
+    "core/hasher.py",
+    "core/restore.py",
+    "core/storage.py",
+    "core/verify.py",
+    "tests/test_crypto_at_rest.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_live_mutating_file.py",
+    "tests/test_self_healing.py",
+    "tests/test_v241_features.py"
+  ],
+  "glob": [
+    "disaster_recovery.py",
+    "emergency_restore.py",
+    "core/scheduler.py"
+  ],
+  "concurrent.futures": [
+    "disaster_recovery.py",
+    "emergency_restore.py",
+    "core/replication.py",
+    "core/replication.py",
+    "core/restore.py",
+    "core/snapshot.py",
+    "tests/test_crypto_at_rest.py"
+  ],
+  "typing": [
+    "disaster_recovery.py",
+    "disaster_recovery.py",
+    "disaster_recovery.py",
+    "disaster_recovery.py",
+    "disaster_recovery.py",
+    "emergency_restore.py",
+    "emergency_restore.py",
+    "emergency_restore.py",
+    "emergency_restore.py",
+    "simulate_recovery.py",
+    "simulate_recovery.py",
+    "simulate_recovery.py",
+    "core/app_scanner.py",
+    "core/app_scanner.py",
+    "core/app_scanner.py",
+    "core/app_scanner.py",
+    "core/auth.py",
+    "core/auth.py",
+    "core/config.py",
+    "core/config.py",
+    "core/config.py",
+    "core/config.py",
+    "core/crypto_at_rest.py",
+    "core/crypto_at_rest.py",
+    "core/crypto_at_rest.py",
+    "core/crypto_at_rest.py",
+    "core/crypto_sign.py",
+    "core/crypto_sign.py",
+    "core/crypto_sign.py",
+    "core/driver_backup.py",
+    "core/driver_backup.py",
+    "core/filter.py",
+    "core/filter.py",
+    "core/filter.py",
+    "core/hasher.py",
+    "core/hasher.py",
+    "core/hasher.py",
+    "core/lock.py",
+    "core/lock.py",
+    "core/lock.py",
+    "core/metadata_db.py",
+    "core/metadata_db.py",
+    "core/metadata_db.py",
+    "core/metadata_db.py",
+    "core/metadata_db.py",
+    "core/notifier.py",
+    "core/notifier.py",
+    "core/notifier.py",
+    "core/registry_backup.py",
+    "core/registry_backup.py",
+    "core/registry_backup.py",
+    "core/registry_backup.py",
+    "core/registry_backup.py",
+    "core/replication.py",
+    "core/replication.py",
+    "core/replication.py",
+    "core/replication.py",
+    "core/replication.py",
+    "core/replication_queue.py",
+    "core/replication_queue.py",
+    "core/replication_queue.py",
+    "core/replication_queue.py",
+    "core/restore.py",
+    "core/restore.py",
+    "core/restore.py",
+    "core/restore.py",
+    "core/restore.py",
+    "core/retention.py",
+    "core/retention.py",
+    "core/retention.py",
+    "core/retention.py",
+    "core/scheduler.py",
+    "core/scheduler.py",
+    "core/scheduler.py",
+    "core/scheduler.py",
+    "core/scheduler.py",
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/storage.py",
+    "core/storage.py",
+    "core/storage.py",
+    "core/storage.py",
+    "core/storage.py",
+    "core/storage.py",
+    "core/system_image.py",
+    "core/system_image.py",
+    "core/system_image.py",
+    "core/system_image.py",
+    "core/verify.py",
+    "core/verify.py",
+    "core/verify.py",
+    "core/verify.py",
+    "core/verify.py",
+    "core/vss_manager.py",
+    "core/vss_manager.py",
+    "core/vss_manager.py",
+    "core/vss_manager.py",
+    "core/windows_task.py",
+    "core/windows_task.py",
+    "core/windows_task.py",
+    "core/worm.py",
+    "core/worm.py",
+    "emergency_restore/python/zstandard/__init__.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_replication_qos.py",
+    "tests/test_replication_qos.py",
+    "tests/test_replication_qos.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_repository_chaos.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py"
+  ],
+  "zstandard": [
+    "disaster_recovery.py",
+    "emergency_restore.py",
+    "core/crypto_at_rest.py",
+    "core/storage.py",
+    "core/verify.py",
+    "tests/test_crypto_at_rest.py"
+  ],
+  "cryptography.hazmat.primitives.serialization": [
+    "disaster_recovery.py",
+    "core/crypto_sign.py",
+    "core/crypto_sign.py",
+    "core/crypto_sign.py",
+    "core/crypto_sign.py",
+    "core/crypto_sign.py",
+    "core/crypto_sign.py"
+  ],
+  "psutil": [
+    "disaster_recovery.py",
+    "emergency_restore.py",
+    "core/lock.py",
+    "web/app.py"
+  ],
+  "stat": [
+    "disaster_recovery.py",
+    "emergency_restore.py",
+    "simulate_recovery.py",
+    "test_backup_system.py",
+    "core/crypto_at_rest.py",
+    "core/crypto_at_rest.py",
+    "core/crypto_at_rest.py",
+    "core/crypto_at_rest.py",
+    "core/storage.py",
+    "core/storage.py",
+    "core/storage.py",
+    "core/worm.py",
+    "tests/test_crypto_at_rest.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_self_healing.py"
+  ],
+  "core.crypto_at_rest": [
+    "disaster_recovery.py",
+    "disaster_recovery.py",
+    "core/snapshot.py",
+    "tests/test_crypto_at_rest.py",
+    "tests/test_crypto_at_rest.py",
+    "tests/test_crypto_at_rest.py",
+    "tests/test_crypto_at_rest.py",
+    "tests/test_crypto_at_rest.py",
+    "tests/test_crypto_at_rest.py",
+    "tests/test_encryption_chaos.py"
+  ],
+  "threading": [
+    "emergency_restore.py",
+    "run.py",
+    "tray_app.py",
+    "core/auth.py",
+    "core/crypto_at_rest.py",
+    "core/metadata_db.py",
+    "core/replication.py",
+    "core/replication_queue.py",
+    "core/restore.py",
+    "core/scheduler.py",
+    "core/snapshot.py",
+    "core/storage.py",
+    "core/system_image.py",
+    "web/app.py"
+  ],
+  "webbrowser": [
+    "kakao_setup_helper.py",
+    "run.py",
+    "tray_app.py"
+  ],
+  "urllib.parse": [
+    "kakao_setup_helper.py"
+  ],
+  "requests": [
+    "kakao_setup_helper.py",
+    "core/notifier.py"
+  ],
+  "socket": [
+    "run.py",
+    "core/lock.py",
+    "tools/release.py",
+    "web/app.py"
+  ],
+  "asyncio": [
+    "run.py"
+  ],
+  "warnings": [
+    "run.py"
+  ],
+  "uvicorn": [
+    "run.py"
+  ],
+  "ctypes": [
+    "run.py",
+    "tray_app.py",
+    "tray_app.py",
+    "core/lock.py",
+    "core/system_image.py",
+    "core/vss_manager.py",
+    "tools/win32_spawn.py",
+    "tools/win32_spawn.py"
+  ],
+  "traceback": [
+    "run.py",
+    "web/app.py",
+    "web/app.py"
+  ],
+  "core.storage": [
+    "simulate_recovery.py",
+    "simulate_recovery.py",
+    "simulate_recovery.py",
+    "test_backup_system.py",
+    "core/replication.py",
+    "core/replication.py",
+    "core/replication.py",
+    "core/replication.py",
+    "core/replication.py",
+    "core/replication.py",
+    "core/restore.py",
+    "core/retention.py",
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/verify.py",
+    "core/verify.py",
+    "core/verify.py",
+    "core/verify.py",
+    "tests/test_disaster_scenarios.py",
+    "tests/test_disaster_scenarios.py",
+    "tests/test_p0_fail_closed.py",
+    "tests/test_p0_fail_closed.py",
+    "tests/test_p0_fail_closed.py",
+    "tests/test_self_healing.py",
+    "tests/test_self_healing.py",
+    "tests/test_sprint1_durable_queue.py",
+    "tests/test_v239_verification.py",
+    "tests/test_v239_verification.py",
+    "tests/test_v241_features.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py"
+  ],
+  "core.hasher": [
+    "simulate_recovery.py",
+    "test_backup_system.py",
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/storage.py",
+    "core/storage.py"
+  ],
+  "urllib.request": [
+    "tray_app.py",
+    "tools/release.py"
+  ],
+  "urllib.error": [
+    "tray_app.py"
+  ],
+  "winreg": [
+    "core/app_scanner.py",
+    "core/registry_backup.py"
+  ],
+  "secrets": [
+    "core/auth.py",
+    "core/crypto_at_rest.py"
+  ],
+  "uuid": [
+    "core/config.py",
+    "core/snapshot.py"
+  ],
+  "pathlib": [
+    "core/crypto_at_rest.py",
+    "tests/test_repository_chaos.py"
+  ],
+  "cryptography.hazmat.primitives.ciphers.aead": [
+    "core/crypto_at_rest.py"
+  ],
+  "cryptography.hazmat.primitives.kdf.scrypt": [
+    "core/crypto_at_rest.py"
+  ],
+  "cryptography.exceptions": [
+    "core/crypto_at_rest.py",
+    "core/crypto_sign.py"
+  ],
+  "logging": [
+    "core/crypto_sign.py",
+    "core/vss_manager.py",
+    "core/worm.py"
+  ],
+  "cryptography.hazmat.primitives.asymmetric.ed25519": [
+    "core/crypto_sign.py",
+    "core/crypto_sign.py"
+  ],
+  "fnmatch": [
+    "core/filter.py"
+  ],
+  "msvcrt": [
+    "core/lock.py"
+  ],
+  "sqlite3": [
+    "core/metadata_db.py",
+    "core/replication_queue.py"
+  ],
+  "contextlib": [
+    "core/metadata_db.py",
+    "web/app.py"
+  ],
+  "core.replication": [
+    "core/replication_queue.py",
+    "core/snapshot.py",
+    "tests/test_disaster_scenarios.py",
+    "tests/test_replication_qos.py",
+    "tests/test_replication_qos.py"
+  ],
+  "core.crypto_sign": [
+    "core/scheduler.py",
+    "core/snapshot.py",
+    "core/verify.py",
+    "tests/test_disaster_scenarios.py",
+    "tests/test_disaster_scenarios.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_v241_features.py",
+    "tools/release.py",
+    "web/app.py"
+  ],
+  "core.verify": [
+    "core/scheduler.py",
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "tests/test_live_mutating_file.py",
+    "tests/test_self_healing.py",
+    "tests/test_self_healing.py",
+    "tests/test_v239_verification.py",
+    "tests/test_v239_verification.py",
+    "tests/test_v239_verification.py",
+    "tests/test_v239_verification.py",
+    "tests/test_v241_features.py",
+    "tests/test_v241_features.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py"
+  ],
+  "disaster_recovery": [
+    "core/scheduler.py",
+    "emergency_restore/emergency_restore.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_repository_chaos.py"
+  ],
+  "queue": [
+    "core/snapshot.py"
+  ],
+  "core.filter": [
+    "core/snapshot.py"
+  ],
+  "core.lock": [
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "web/app.py",
+    "web/app.py"
+  ],
+  "core.retention": [
+    "core/snapshot.py",
+    "tests/test_p0_fail_closed.py"
+  ],
+  "core.vss_manager": [
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "tests/test_v239_verification.py",
+    "tests/test_v239_verification.py",
+    "tests/test_vss_manager.py",
+    "tests/test_vss_manager.py",
+    "tests/test_vss_manager.py",
+    "tests/test_vss_manager.py",
+    "web/app.py",
+    "web/app.py"
+  ],
+  "core.worm": [
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/storage.py",
+    "core/storage.py",
+    "core/storage.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_sprint1_durable_queue.py",
+    "tests/test_sprint1_durable_queue.py",
+    "tests/test_v241_features.py"
+  ],
+  "core.replication_queue": [
+    "core/snapshot.py",
+    "tests/test_sprint1_durable_queue.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py"
+  ],
+  "core.metadata_db": [
+    "core/snapshot.py",
+    "core/snapshot.py",
+    "core/storage.py"
+  ],
+  "random": [
+    "core/verify.py"
+  ],
+  "re": [
+    "core/vss_manager.py",
+    "tools/release.py"
+  ],
+  "importlib.util": [
+    "emergency_restore/emergency_restore.py"
+  ],
+  "__future__": [
+    "emergency_restore/python/zstandard/backend_cffi.py",
+    "emergency_restore/python/zstandard/backend_cffi.py",
+    "emergency_restore/python/zstandard/__init__.py",
+    "emergency_restore/python/zstandard/__init__.py"
+  ],
+  "io": [
+    "emergency_restore/python/zstandard/backend_cffi.py",
+    "emergency_restore/python/zstandard/__init__.py",
+    "tools/release.py",
+    "web/app.py"
+  ],
+  "_cffi": [
+    "emergency_restore/python/zstandard/backend_cffi.py",
+    "emergency_restore/python/zstandard/backend_cffi.py"
+  ],
+  "builtins": [
+    "emergency_restore/python/zstandard/__init__.py"
+  ],
+  "platform": [
+    "emergency_restore/python/zstandard/__init__.py"
+  ],
+  "collections.abc": [
+    "emergency_restore/python/zstandard/__init__.py"
+  ],
+  "backend_c": [
+    "emergency_restore/python/zstandard/__init__.py",
+    "emergency_restore/python/zstandard/__init__.py",
+    "emergency_restore/python/zstandard/__init__.py",
+    "emergency_restore/python/zstandard/__init__.py"
+  ],
+  "backend_cffi": [
+    "emergency_restore/python/zstandard/__init__.py",
+    "emergency_restore/python/zstandard/__init__.py",
+    "emergency_restore/python/zstandard/__init__.py",
+    "emergency_restore/python/zstandard/__init__.py"
+  ],
+  "backend_rust": [
+    "emergency_restore/python/zstandard/__init__.py"
+  ],
+  "unittest": [
+    "tests/test_auth.py",
+    "tests/test_crypto_at_rest.py",
+    "tests/test_disaster_scenarios.py",
+    "tests/test_encryption_chaos.py",
+    "tests/test_live_mutating_file.py",
+    "tests/test_p0_fail_closed.py",
+    "tests/test_replication_qos.py",
+    "tests/test_repository_chaos.py",
+    "tests/test_self_healing.py",
+    "tests/test_sprint1_durable_queue.py",
+    "tests/test_v239_verification.py",
+    "tests/test_v241_features.py",
+    "tests/test_vss_manager.py",
+    "tests/test_web_auth_api.py"
+  ],
+  "unittest.mock": [
+    "tests/test_auth.py",
+    "tests/test_p0_fail_closed.py",
+    "tests/test_v239_verification.py",
+    "tests/test_vss_manager.py",
+    "tests/test_vss_manager.py",
+    "tests/test_web_auth_api.py"
+  ],
+  "core": [
+    "tests/test_auth.py",
+    "tests/test_web_auth_api.py",
+    "web/app.py"
+  ],
+  "starlette.testclient": [
+    "tests/test_web_auth_api.py"
+  ],
+  "web.app": [
+    "tests/test_web_auth_api.py"
+  ],
+  "base64": [
+    "tools/release.py",
+    "web/app.py"
+  ],
+  "zipfile": [
+    "tools/release.py",
+    "web/app.py"
+  ],
+  "collections": [
+    "web/app.py"
+  ],
+  "fastapi": [
+    "web/app.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py"
+  ],
+  "fastapi.responses": [
+    "web/app.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py"
+  ],
+  "fastapi.staticfiles": [
+    "web/app.py"
+  ],
+  "fastapi.templating": [
+    "web/app.py"
+  ],
+  "pydantic": [
+    "web/app.py",
+    "web/app.py"
+  ],
+  "core.scheduler": [
+    "web/app.py"
+  ],
+  "core.app_scanner": [
+    "web/app.py",
+    "web/app.py"
+  ],
+  "core.auth": [
+    "web/app.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py",
+    "web/app.py"
+  ],
+  "gc": [
+    "web/app.py",
+    "web/app.py"
+  ],
+  "core.windows_task": [
+    "web/app.py",
+    "web/app.py",
+    "web/app.py"
+  ],
+  "core.system_image": [
+    "web/app.py"
+  ],
+  "lucide": [
+    "web/static/vendor/lucide.min.js"
+  ]
+}

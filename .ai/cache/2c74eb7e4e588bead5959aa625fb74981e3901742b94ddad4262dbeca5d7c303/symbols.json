@@ -1,0 +1,140 @@
+[
+  {
+    "name": "SystemImageManager",
+    "type": "class",
+    "scope": "global",
+    "line_start": 11,
+    "line_end": 257,
+    "lines_count": 247,
+    "bases": [],
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "is_admin",
+    "full_name": "SystemImageManager::is_admin",
+    "type": "method",
+    "is_async": false,
+    "scope": "SystemImageManager",
+    "line_start": 18,
+    "line_end": 22,
+    "lines_count": 5,
+    "args": [
+      "cls"
+    ],
+    "returns": "bool",
+    "docstring": "",
+    "decorators": [
+      "classmethod"
+    ]
+  },
+  {
+    "name": "get_status",
+    "full_name": "SystemImageManager::get_status",
+    "type": "function",
+    "is_async": false,
+    "scope": "SystemImageManager",
+    "line_start": 25,
+    "line_end": 92,
+    "lines_count": 68,
+    "args": [
+      "cls",
+      "target_drive: str"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "classmethod"
+    ]
+  },
+  {
+    "name": "append_log",
+    "full_name": "SystemImageManager::append_log",
+    "type": "function",
+    "is_async": false,
+    "scope": "SystemImageManager",
+    "line_start": 95,
+    "line_end": 101,
+    "lines_count": 7,
+    "args": [
+      "cls",
+      "msg: str",
+      "level: str"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "classmethod"
+    ]
+  },
+  {
+    "name": "get_logs",
+    "full_name": "SystemImageManager::get_logs",
+    "type": "function",
+    "is_async": false,
+    "scope": "SystemImageManager",
+    "line_start": 104,
+    "line_end": 109,
+    "lines_count": 6,
+    "args": [
+      "cls"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "classmethod"
+    ]
+  },
+  {
+    "name": "start_backup",
+    "full_name": "SystemImageManager::start_backup",
+    "type": "function",
+    "is_async": false,
+    "scope": "SystemImageManager",
+    "line_start": 112,
+    "line_end": 240,
+    "lines_count": 129,
+    "args": [
+      "cls",
+      "target_drive: str",
+      "log_callback"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "classmethod"
+    ]
+  },
+  {
+    "name": "_run_worker",
+    "full_name": "SystemImageManager::start_backup::_run_worker",
+    "type": "function",
+    "is_async": false,
+    "scope": "SystemImageManager::start_backup",
+    "line_start": 123,
+    "line_end": 236,
+    "lines_count": 114,
+    "args": [],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "stop_backup",
+    "full_name": "SystemImageManager::stop_backup",
+    "type": "function",
+    "is_async": false,
+    "scope": "SystemImageManager",
+    "line_start": 243,
+    "line_end": 257,
+    "lines_count": 15,
+    "args": [
+      "cls"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "classmethod"
+    ]
+  }
+]

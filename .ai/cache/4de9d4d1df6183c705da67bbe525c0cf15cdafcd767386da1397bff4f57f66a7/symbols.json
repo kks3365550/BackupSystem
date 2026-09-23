@@ -1,0 +1,138 @@
+[
+  {
+    "name": "checkAuthStatus",
+    "type": "function",
+    "scope": "global",
+    "line_start": 12,
+    "line_end": 12,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "updateAuthBadgeUI",
+    "type": "function",
+    "scope": "global",
+    "line_start": 31,
+    "line_end": 31,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "toggleAuthDropdown",
+    "type": "function",
+    "scope": "global",
+    "line_start": 80,
+    "line_end": 80,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "handleAuthPasswordClick",
+    "type": "function",
+    "scope": "global",
+    "line_start": 94,
+    "line_end": 94,
+    "args": [
+      "e"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "openAuthSetupModal",
+    "type": "function",
+    "scope": "global",
+    "line_start": 108,
+    "line_end": 108,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "openAuthLoginModal",
+    "type": "function",
+    "scope": "global",
+    "line_start": 133,
+    "line_end": 133,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "openAuthChangeModal",
+    "type": "function",
+    "scope": "global",
+    "line_start": 156,
+    "line_end": 156,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "closeAuthModal",
+    "type": "function",
+    "scope": "global",
+    "line_start": 183,
+    "line_end": 183,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "submitAuthSetup",
+    "type": "function",
+    "scope": "global",
+    "line_start": 191,
+    "line_end": 191,
+    "args": [
+      "e"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "submitAuthLogin",
+    "type": "function",
+    "scope": "global",
+    "line_start": 223,
+    "line_end": 223,
+    "args": [
+      "e"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "submitAuthLoginDirect",
+    "type": "function",
+    "scope": "global",
+    "line_start": 229,
+    "line_end": 229,
+    "args": [
+      "password"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "submitAuthLogout",
+    "type": "function",
+    "scope": "global",
+    "line_start": 256,
+    "line_end": 256,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "submitAuthChangePassword",
+    "type": "function",
+    "scope": "global",
+    "line_start": 268,
+    "line_end": 268,
+    "args": [
+      "e"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "toggleLocalhostBypass",
+    "type": "function",
+    "scope": "global",
+    "line_start": 309,
+    "line_end": 309,
+    "args": [],
+    "docstring": ""
+  }
+]

@@ -1,0 +1,51 @@
+[
+  {
+    "name": "calculate_sha256",
+    "full_name": "calculate_sha256",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 5,
+    "line_end": 11,
+    "lines_count": 7,
+    "args": [
+      "filepath: str",
+      "block_size: int"
+    ],
+    "returns": "str",
+    "docstring": "Calculate SHA-256 hash of a file efficiently with 1MB buffer.",
+    "decorators": []
+  },
+  {
+    "name": "calculate_bytes_sha256",
+    "full_name": "calculate_bytes_sha256",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 13,
+    "line_end": 15,
+    "lines_count": 3,
+    "args": [
+      "data: bytes"
+    ],
+    "returns": "str",
+    "docstring": "Calculate SHA-256 of byte array.",
+    "decorators": []
+  },
+  {
+    "name": "get_file_stat",
+    "full_name": "get_file_stat",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 17,
+    "line_end": 30,
+    "lines_count": 14,
+    "args": [
+      "filepath: str"
+    ],
+    "returns": "",
+    "docstring": "Get file size and modified timestamp safely.",
+    "decorators": []
+  }
+]

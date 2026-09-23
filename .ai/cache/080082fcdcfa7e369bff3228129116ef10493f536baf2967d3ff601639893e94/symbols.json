@@ -1,0 +1,3408 @@
+[
+  {
+    "name": "_cpu_count",
+    "full_name": "_cpu_count",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 158,
+    "line_end": 172,
+    "lines_count": 15,
+    "args": [],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "BufferSegment",
+    "type": "class",
+    "scope": "global",
+    "line_start": 175,
+    "line_end": 195,
+    "lines_count": 21,
+    "bases": [],
+    "docstring": "Represents a segment within a ``BufferWithSegments``.",
+    "decorators": []
+  },
+  {
+    "name": "offset",
+    "full_name": "BufferSegment::offset",
+    "type": "method",
+    "is_async": false,
+    "scope": "BufferSegment",
+    "line_start": 185,
+    "line_end": 187,
+    "lines_count": 3,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "The byte offset of this segment within its parent buffer.",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "__len__",
+    "full_name": "BufferSegment::__len__",
+    "type": "function",
+    "is_async": false,
+    "scope": "BufferSegment",
+    "line_start": 189,
+    "line_end": 191,
+    "lines_count": 3,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Obtain the length of the segment, in bytes.",
+    "decorators": []
+  },
+  {
+    "name": "tobytes",
+    "full_name": "BufferSegment::tobytes",
+    "type": "function",
+    "is_async": false,
+    "scope": "BufferSegment",
+    "line_start": 193,
+    "line_end": 195,
+    "lines_count": 3,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Obtain bytes copy of this segment.",
+    "decorators": []
+  },
+  {
+    "name": "BufferSegments",
+    "type": "class",
+    "scope": "global",
+    "line_start": 198,
+    "line_end": 206,
+    "lines_count": 9,
+    "bases": [],
+    "docstring": "Represents an array of ``(offset, length)`` integers.",
+    "decorators": []
+  },
+  {
+    "name": "BufferWithSegments",
+    "type": "class",
+    "scope": "global",
+    "line_start": 209,
+    "line_end": 260,
+    "lines_count": 52,
+    "bases": [],
+    "docstring": "A memory buffer containing N discrete items of known lengths.",
+    "decorators": []
+  },
+  {
+    "name": "size",
+    "full_name": "BufferWithSegments::size",
+    "type": "method",
+    "is_async": false,
+    "scope": "BufferWithSegments",
+    "line_start": 231,
+    "line_end": 233,
+    "lines_count": 3,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Total sizein bytes of the backing buffer.",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "__len__",
+    "full_name": "BufferWithSegments::__len__",
+    "type": "function",
+    "is_async": false,
+    "scope": "BufferWithSegments",
+    "line_start": 235,
+    "line_end": 236,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__getitem__",
+    "full_name": "BufferWithSegments::__getitem__",
+    "type": "function",
+    "is_async": false,
+    "scope": "BufferWithSegments",
+    "line_start": 238,
+    "line_end": 248,
+    "lines_count": 11,
+    "args": [
+      "self",
+      "i"
+    ],
+    "returns": "",
+    "docstring": "Obtains a segment within the buffer.",
+    "decorators": []
+  },
+  {
+    "name": "segments",
+    "full_name": "BufferWithSegments::segments",
+    "type": "function",
+    "is_async": false,
+    "scope": "BufferWithSegments",
+    "line_start": 250,
+    "line_end": 256,
+    "lines_count": 7,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Obtain the array of ``(offset, length)`` segments in the buffer.",
+    "decorators": []
+  },
+  {
+    "name": "tobytes",
+    "full_name": "BufferWithSegments::tobytes",
+    "type": "function",
+    "is_async": false,
+    "scope": "BufferWithSegments",
+    "line_start": 258,
+    "line_end": 260,
+    "lines_count": 3,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Obtain bytes copy of this instance.",
+    "decorators": []
+  },
+  {
+    "name": "BufferWithSegmentsCollection",
+    "type": "class",
+    "scope": "global",
+    "line_start": 263,
+    "line_end": 282,
+    "lines_count": 20,
+    "bases": [],
+    "docstring": "A virtual spanning view over multiple BufferWithSegments.",
+    "decorators": []
+  },
+  {
+    "name": "__len__",
+    "full_name": "BufferWithSegmentsCollection::__len__",
+    "type": "method",
+    "is_async": false,
+    "scope": "BufferWithSegmentsCollection",
+    "line_start": 276,
+    "line_end": 278,
+    "lines_count": 3,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "The number of segments within all ``BufferWithSegments``.",
+    "decorators": []
+  },
+  {
+    "name": "__getitem__",
+    "full_name": "BufferWithSegmentsCollection::__getitem__",
+    "type": "function",
+    "is_async": false,
+    "scope": "BufferWithSegmentsCollection",
+    "line_start": 280,
+    "line_end": 282,
+    "lines_count": 3,
+    "args": [
+      "self",
+      "i"
+    ],
+    "returns": "",
+    "docstring": "Obtain the ``BufferSegment`` at an offset.",
+    "decorators": []
+  },
+  {
+    "name": "ZstdError",
+    "type": "class",
+    "scope": "global",
+    "line_start": 285,
+    "line_end": 286,
+    "lines_count": 2,
+    "bases": [
+      "Exception"
+    ],
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_zstd_error",
+    "full_name": "_zstd_error",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 289,
+    "line_end": 293,
+    "lines_count": 5,
+    "args": [
+      "zresult"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_make_cctx_params",
+    "full_name": "_make_cctx_params",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 296,
+    "line_end": 330,
+    "lines_count": 35,
+    "args": [
+      "params"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "ZstdCompressionParameters",
+    "type": "class",
+    "scope": "global",
+    "line_start": 333,
+    "line_end": 589,
+    "lines_count": 257,
+    "bases": [
+      "object"
+    ],
+    "docstring": "Low-level zstd compression parameters.",
+    "decorators": []
+  },
+  {
+    "name": "from_level",
+    "full_name": "ZstdCompressionParameters::from_level",
+    "type": "method",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 371,
+    "line_end": 399,
+    "lines_count": 29,
+    "args": [
+      "level",
+      "source_size",
+      "dict_size"
+    ],
+    "returns": "",
+    "docstring": "Create compression parameters from a compression level.",
+    "decorators": [
+      "staticmethod"
+    ]
+  },
+  {
+    "name": "__init__",
+    "full_name": "ZstdCompressionParameters::__init__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 401,
+    "line_end": 489,
+    "lines_count": 89,
+    "args": [
+      "self",
+      "format",
+      "compression_level",
+      "window_log",
+      "hash_log",
+      "chain_log",
+      "search_log",
+      "min_match",
+      "target_length",
+      "strategy",
+      "write_content_size",
+      "write_checksum",
+      "write_dict_id",
+      "job_size",
+      "overlap_log",
+      "force_max_window",
+      "enable_ldm",
+      "ldm_hash_log",
+      "ldm_min_match",
+      "ldm_bucket_size_log",
+      "ldm_hash_rate_log",
+      "threads"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "format",
+    "full_name": "ZstdCompressionParameters::format",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 492,
+    "line_end": 493,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "compression_level",
+    "full_name": "ZstdCompressionParameters::compression_level",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 496,
+    "line_end": 499,
+    "lines_count": 4,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "window_log",
+    "full_name": "ZstdCompressionParameters::window_log",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 502,
+    "line_end": 503,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "hash_log",
+    "full_name": "ZstdCompressionParameters::hash_log",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 506,
+    "line_end": 507,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "chain_log",
+    "full_name": "ZstdCompressionParameters::chain_log",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 510,
+    "line_end": 511,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "search_log",
+    "full_name": "ZstdCompressionParameters::search_log",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 514,
+    "line_end": 515,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "min_match",
+    "full_name": "ZstdCompressionParameters::min_match",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 518,
+    "line_end": 519,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "target_length",
+    "full_name": "ZstdCompressionParameters::target_length",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 522,
+    "line_end": 523,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "strategy",
+    "full_name": "ZstdCompressionParameters::strategy",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 526,
+    "line_end": 527,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "write_content_size",
+    "full_name": "ZstdCompressionParameters::write_content_size",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 530,
+    "line_end": 533,
+    "lines_count": 4,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "write_checksum",
+    "full_name": "ZstdCompressionParameters::write_checksum",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 536,
+    "line_end": 537,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "write_dict_id",
+    "full_name": "ZstdCompressionParameters::write_dict_id",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 540,
+    "line_end": 541,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "job_size",
+    "full_name": "ZstdCompressionParameters::job_size",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 544,
+    "line_end": 545,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "overlap_log",
+    "full_name": "ZstdCompressionParameters::overlap_log",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 548,
+    "line_end": 549,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "force_max_window",
+    "full_name": "ZstdCompressionParameters::force_max_window",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 552,
+    "line_end": 555,
+    "lines_count": 4,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "enable_ldm",
+    "full_name": "ZstdCompressionParameters::enable_ldm",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 558,
+    "line_end": 561,
+    "lines_count": 4,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "ldm_hash_log",
+    "full_name": "ZstdCompressionParameters::ldm_hash_log",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 564,
+    "line_end": 565,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "ldm_min_match",
+    "full_name": "ZstdCompressionParameters::ldm_min_match",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 568,
+    "line_end": 569,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "ldm_bucket_size_log",
+    "full_name": "ZstdCompressionParameters::ldm_bucket_size_log",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 572,
+    "line_end": 575,
+    "lines_count": 4,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "ldm_hash_rate_log",
+    "full_name": "ZstdCompressionParameters::ldm_hash_rate_log",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 578,
+    "line_end": 581,
+    "lines_count": 4,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "threads",
+    "full_name": "ZstdCompressionParameters::threads",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 584,
+    "line_end": 585,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "estimated_compression_context_size",
+    "full_name": "ZstdCompressionParameters::estimated_compression_context_size",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionParameters",
+    "line_start": 587,
+    "line_end": 589,
+    "lines_count": 3,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Estimated size in bytes needed to compress with these parameters.",
+    "decorators": []
+  },
+  {
+    "name": "estimate_decompression_context_size",
+    "full_name": "estimate_decompression_context_size",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 592,
+    "line_end": 598,
+    "lines_count": 7,
+    "args": [],
+    "returns": "",
+    "docstring": "Estimate the memory size requirements for a decompressor instance.",
+    "decorators": []
+  },
+  {
+    "name": "_set_compression_parameter",
+    "full_name": "_set_compression_parameter",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 601,
+    "line_end": 607,
+    "lines_count": 7,
+    "args": [
+      "params",
+      "param",
+      "value"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_get_compression_parameter",
+    "full_name": "_get_compression_parameter",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 610,
+    "line_end": 620,
+    "lines_count": 11,
+    "args": [
+      "params",
+      "param"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "ZstdCompressionWriter",
+    "type": "class",
+    "scope": "global",
+    "line_start": 623,
+    "line_end": 959,
+    "lines_count": 337,
+    "bases": [
+      "object"
+    ],
+    "docstring": "Writable compressing stream wrapper.",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "ZstdCompressionWriter::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 728,
+    "line_end": 757,
+    "lines_count": 30,
+    "args": [
+      "self",
+      "compressor",
+      "writer",
+      "source_size",
+      "write_size",
+      "write_return_read",
+      "closefd"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__enter__",
+    "full_name": "ZstdCompressionWriter::__enter__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 759,
+    "line_end": 767,
+    "lines_count": 9,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__exit__",
+    "full_name": "ZstdCompressionWriter::__exit__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 769,
+    "line_end": 774,
+    "lines_count": 6,
+    "args": [
+      "self",
+      "exc_type",
+      "exc_value",
+      "exc_tb"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__iter__",
+    "full_name": "ZstdCompressionWriter::__iter__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 776,
+    "line_end": 777,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__next__",
+    "full_name": "ZstdCompressionWriter::__next__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 779,
+    "line_end": 780,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "memory_size",
+    "full_name": "ZstdCompressionWriter::memory_size",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 782,
+    "line_end": 783,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "fileno",
+    "full_name": "ZstdCompressionWriter::fileno",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 785,
+    "line_end": 790,
+    "lines_count": 6,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "close",
+    "full_name": "ZstdCompressionWriter::close",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 792,
+    "line_end": 806,
+    "lines_count": 15,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "closed",
+    "full_name": "ZstdCompressionWriter::closed",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 809,
+    "line_end": 810,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "isatty",
+    "full_name": "ZstdCompressionWriter::isatty",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 812,
+    "line_end": 813,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readable",
+    "full_name": "ZstdCompressionWriter::readable",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 815,
+    "line_end": 816,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readline",
+    "full_name": "ZstdCompressionWriter::readline",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 818,
+    "line_end": 819,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "size"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readlines",
+    "full_name": "ZstdCompressionWriter::readlines",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 821,
+    "line_end": 822,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "hint"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "seek",
+    "full_name": "ZstdCompressionWriter::seek",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 824,
+    "line_end": 825,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "offset",
+      "whence"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "seekable",
+    "full_name": "ZstdCompressionWriter::seekable",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 827,
+    "line_end": 828,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "truncate",
+    "full_name": "ZstdCompressionWriter::truncate",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 830,
+    "line_end": 831,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "size"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "writable",
+    "full_name": "ZstdCompressionWriter::writable",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 833,
+    "line_end": 834,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "writelines",
+    "full_name": "ZstdCompressionWriter::writelines",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 836,
+    "line_end": 837,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "lines"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "read",
+    "full_name": "ZstdCompressionWriter::read",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 839,
+    "line_end": 840,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "size"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readall",
+    "full_name": "ZstdCompressionWriter::readall",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 842,
+    "line_end": 843,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readinto",
+    "full_name": "ZstdCompressionWriter::readinto",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 845,
+    "line_end": 846,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "b"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "write",
+    "full_name": "ZstdCompressionWriter::write",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 848,
+    "line_end": 888,
+    "lines_count": 41,
+    "args": [
+      "self",
+      "data"
+    ],
+    "returns": "",
+    "docstring": "Send data to the compressor and possibly to the inner stream.",
+    "decorators": []
+  },
+  {
+    "name": "flush",
+    "full_name": "ZstdCompressionWriter::flush",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 890,
+    "line_end": 956,
+    "lines_count": 67,
+    "args": [
+      "self",
+      "flush_mode"
+    ],
+    "returns": "",
+    "docstring": "Evict data from compressor's internal state and write it to inner stream.",
+    "decorators": []
+  },
+  {
+    "name": "tell",
+    "full_name": "ZstdCompressionWriter::tell",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionWriter",
+    "line_start": 958,
+    "line_end": 959,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "ZstdCompressionObj",
+    "type": "class",
+    "scope": "global",
+    "line_start": 962,
+    "line_end": 1138,
+    "lines_count": 177,
+    "bases": [
+      "object"
+    ],
+    "docstring": "A compressor conforming to the API in Python's standard library.",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "ZstdCompressionObj::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "ZstdCompressionObj",
+    "line_start": 1020,
+    "line_end": 1029,
+    "lines_count": 10,
+    "args": [
+      "self",
+      "compressor",
+      "write_size"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "compress",
+    "full_name": "ZstdCompressionObj::compress",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionObj",
+    "line_start": 1031,
+    "line_end": 1071,
+    "lines_count": 41,
+    "args": [
+      "self",
+      "data"
+    ],
+    "returns": "",
+    "docstring": "Send data to the compressor.",
+    "decorators": []
+  },
+  {
+    "name": "flush",
+    "full_name": "ZstdCompressionObj::flush",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionObj",
+    "line_start": 1073,
+    "line_end": 1138,
+    "lines_count": 66,
+    "args": [
+      "self",
+      "flush_mode"
+    ],
+    "returns": "",
+    "docstring": "Emit data accumulated in the compressor that hasn't been outputted yet.",
+    "decorators": []
+  },
+  {
+    "name": "ZstdCompressionChunker",
+    "type": "class",
+    "scope": "global",
+    "line_start": 1141,
+    "line_end": 1318,
+    "lines_count": 178,
+    "bases": [
+      "object"
+    ],
+    "docstring": "Compress data to uniformly sized chunks.",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "ZstdCompressionChunker::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "ZstdCompressionChunker",
+    "line_start": 1194,
+    "line_end": 1206,
+    "lines_count": 13,
+    "args": [
+      "self",
+      "compressor",
+      "chunk_size"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "compress",
+    "full_name": "ZstdCompressionChunker::compress",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionChunker",
+    "line_start": 1208,
+    "line_end": 1251,
+    "lines_count": 44,
+    "args": [
+      "self",
+      "data"
+    ],
+    "returns": "",
+    "docstring": "Feed new input data into the compressor.",
+    "decorators": []
+  },
+  {
+    "name": "flush",
+    "full_name": "ZstdCompressionChunker::flush",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionChunker",
+    "line_start": 1253,
+    "line_end": 1282,
+    "lines_count": 30,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Flushes all data currently in the compressor.",
+    "decorators": []
+  },
+  {
+    "name": "finish",
+    "full_name": "ZstdCompressionChunker::finish",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionChunker",
+    "line_start": 1284,
+    "line_end": 1318,
+    "lines_count": 35,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Signals the end of input data.",
+    "decorators": []
+  },
+  {
+    "name": "ZstdCompressionReader",
+    "type": "class",
+    "scope": "global",
+    "line_start": 1321,
+    "line_end": 1736,
+    "lines_count": 416,
+    "bases": [
+      "object"
+    ],
+    "docstring": "Readable compressing stream wrapper.",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "ZstdCompressionReader::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1388,
+    "line_end": 1401,
+    "lines_count": 14,
+    "args": [
+      "self",
+      "compressor",
+      "source",
+      "read_size",
+      "closefd"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__enter__",
+    "full_name": "ZstdCompressionReader::__enter__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1403,
+    "line_end": 1411,
+    "lines_count": 9,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__exit__",
+    "full_name": "ZstdCompressionReader::__exit__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1413,
+    "line_end": 1419,
+    "lines_count": 7,
+    "args": [
+      "self",
+      "exc_type",
+      "exc_value",
+      "exc_tb"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readable",
+    "full_name": "ZstdCompressionReader::readable",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1421,
+    "line_end": 1422,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "writable",
+    "full_name": "ZstdCompressionReader::writable",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1424,
+    "line_end": 1425,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "seekable",
+    "full_name": "ZstdCompressionReader::seekable",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1427,
+    "line_end": 1428,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readline",
+    "full_name": "ZstdCompressionReader::readline",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1430,
+    "line_end": 1431,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readlines",
+    "full_name": "ZstdCompressionReader::readlines",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1433,
+    "line_end": 1434,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "write",
+    "full_name": "ZstdCompressionReader::write",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1436,
+    "line_end": 1437,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "data"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "writelines",
+    "full_name": "ZstdCompressionReader::writelines",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1439,
+    "line_end": 1440,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "ignored"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "isatty",
+    "full_name": "ZstdCompressionReader::isatty",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1442,
+    "line_end": 1443,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "flush",
+    "full_name": "ZstdCompressionReader::flush",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1445,
+    "line_end": 1446,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "close",
+    "full_name": "ZstdCompressionReader::close",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1448,
+    "line_end": 1456,
+    "lines_count": 9,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "closed",
+    "full_name": "ZstdCompressionReader::closed",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1459,
+    "line_end": 1460,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "tell",
+    "full_name": "ZstdCompressionReader::tell",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1462,
+    "line_end": 1463,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readall",
+    "full_name": "ZstdCompressionReader::readall",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1465,
+    "line_end": 1475,
+    "lines_count": 11,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__iter__",
+    "full_name": "ZstdCompressionReader::__iter__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1477,
+    "line_end": 1478,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__next__",
+    "full_name": "ZstdCompressionReader::__next__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1480,
+    "line_end": 1481,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_read_input",
+    "full_name": "ZstdCompressionReader::_read_input",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1485,
+    "line_end": 1504,
+    "lines_count": 20,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_compress_into_buffer",
+    "full_name": "ZstdCompressionReader::_compress_into_buffer",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1506,
+    "line_end": 1533,
+    "lines_count": 28,
+    "args": [
+      "self",
+      "out_buffer"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "read",
+    "full_name": "ZstdCompressionReader::read",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1535,
+    "line_end": 1581,
+    "lines_count": 47,
+    "args": [
+      "self",
+      "size"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "read1",
+    "full_name": "ZstdCompressionReader::read1",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1583,
+    "line_end": 1647,
+    "lines_count": 65,
+    "args": [
+      "self",
+      "size"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readinto",
+    "full_name": "ZstdCompressionReader::readinto",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1649,
+    "line_end": 1688,
+    "lines_count": 40,
+    "args": [
+      "self",
+      "b"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readinto1",
+    "full_name": "ZstdCompressionReader::readinto1",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionReader",
+    "line_start": 1690,
+    "line_end": 1736,
+    "lines_count": 47,
+    "args": [
+      "self",
+      "b"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "ZstdCompressor",
+    "type": "class",
+    "scope": "global",
+    "line_start": 1739,
+    "line_end": 2490,
+    "lines_count": 752,
+    "bases": [
+      "object"
+    ],
+    "docstring": "Create an object used to perform Zstandard compression.",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "ZstdCompressor::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "ZstdCompressor",
+    "line_start": 1807,
+    "line_end": 1894,
+    "lines_count": 88,
+    "args": [
+      "self",
+      "level",
+      "dict_data",
+      "compression_params",
+      "write_checksum",
+      "write_content_size",
+      "write_dict_id",
+      "threads"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_setup_cctx",
+    "full_name": "ZstdCompressor::_setup_cctx",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressor",
+    "line_start": 1896,
+    "line_end": 1924,
+    "lines_count": 29,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "memory_size",
+    "full_name": "ZstdCompressor::memory_size",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressor",
+    "line_start": 1926,
+    "line_end": 1932,
+    "lines_count": 7,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Obtain the memory usage of this compressor, in bytes.",
+    "decorators": []
+  },
+  {
+    "name": "compress",
+    "full_name": "ZstdCompressor::compress",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressor",
+    "line_start": 1934,
+    "line_end": 1987,
+    "lines_count": 54,
+    "args": [
+      "self",
+      "data"
+    ],
+    "returns": "",
+    "docstring": "Compress data in a single operation.",
+    "decorators": []
+  },
+  {
+    "name": "compressobj",
+    "full_name": "ZstdCompressor::compressobj",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressor",
+    "line_start": 1989,
+    "line_end": 2013,
+    "lines_count": 25,
+    "args": [
+      "self",
+      "size"
+    ],
+    "returns": "",
+    "docstring": "Obtain a compressor exposing the Python standard library compression API.",
+    "decorators": []
+  },
+  {
+    "name": "chunker",
+    "full_name": "ZstdCompressor::chunker",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressor",
+    "line_start": 2015,
+    "line_end": 2040,
+    "lines_count": 26,
+    "args": [
+      "self",
+      "size",
+      "chunk_size"
+    ],
+    "returns": "",
+    "docstring": "Create an object for iterative compressing to same-sized chunks.",
+    "decorators": []
+  },
+  {
+    "name": "copy_stream",
+    "full_name": "ZstdCompressor::copy_stream",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressor",
+    "line_start": 2042,
+    "line_end": 2162,
+    "lines_count": 121,
+    "args": [
+      "self",
+      "ifh",
+      "ofh",
+      "size",
+      "read_size",
+      "write_size"
+    ],
+    "returns": "",
+    "docstring": "Copy data between 2 streams while compressing it.",
+    "decorators": []
+  },
+  {
+    "name": "stream_reader",
+    "full_name": "ZstdCompressor::stream_reader",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressor",
+    "line_start": 2164,
+    "line_end": 2212,
+    "lines_count": 49,
+    "args": [
+      "self",
+      "source",
+      "size",
+      "read_size",
+      "closefd"
+    ],
+    "returns": "",
+    "docstring": "Wrap a readable source with a stream that can read compressed data.",
+    "decorators": []
+  },
+  {
+    "name": "stream_writer",
+    "full_name": "ZstdCompressor::stream_writer",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressor",
+    "line_start": 2214,
+    "line_end": 2259,
+    "lines_count": 46,
+    "args": [
+      "self",
+      "writer",
+      "size",
+      "write_size",
+      "write_return_read",
+      "closefd"
+    ],
+    "returns": "",
+    "docstring": "Create a stream that will write compressed data into another stream.",
+    "decorators": []
+  },
+  {
+    "name": "read_to_iter",
+    "full_name": "ZstdCompressor::read_to_iter",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressor",
+    "line_start": 2261,
+    "line_end": 2428,
+    "lines_count": 168,
+    "args": [
+      "self",
+      "reader",
+      "size",
+      "read_size",
+      "write_size"
+    ],
+    "returns": "",
+    "docstring": "Read uncompressed data from a reader and return an iterator",
+    "decorators": []
+  },
+  {
+    "name": "multi_compress_to_buffer",
+    "full_name": "ZstdCompressor::multi_compress_to_buffer",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressor",
+    "line_start": 2430,
+    "line_end": 2477,
+    "lines_count": 48,
+    "args": [
+      "self",
+      "data",
+      "threads"
+    ],
+    "returns": "",
+    "docstring": "Compress multiple pieces of data as a single function call.",
+    "decorators": []
+  },
+  {
+    "name": "frame_progression",
+    "full_name": "ZstdCompressor::frame_progression",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressor",
+    "line_start": 2479,
+    "line_end": 2490,
+    "lines_count": 12,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Return information on how much work the compressor has done.",
+    "decorators": []
+  },
+  {
+    "name": "FrameParameters",
+    "type": "class",
+    "scope": "global",
+    "line_start": 2493,
+    "line_end": 2520,
+    "lines_count": 28,
+    "bases": [
+      "object"
+    ],
+    "docstring": "Information about a zstd frame.",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "FrameParameters::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "FrameParameters",
+    "line_start": 2516,
+    "line_end": 2520,
+    "lines_count": 5,
+    "args": [
+      "self",
+      "fparams"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "frame_content_size",
+    "full_name": "frame_content_size",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 2523,
+    "line_end": 2541,
+    "lines_count": 19,
+    "args": [
+      "data"
+    ],
+    "returns": "",
+    "docstring": "Obtain the decompressed size of a frame.",
+    "decorators": []
+  },
+  {
+    "name": "frame_header_size",
+    "full_name": "frame_header_size",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 2544,
+    "line_end": 2558,
+    "lines_count": 15,
+    "args": [
+      "data"
+    ],
+    "returns": "",
+    "docstring": "Obtain the size of a frame header.",
+    "decorators": []
+  },
+  {
+    "name": "get_frame_parameters",
+    "full_name": "get_frame_parameters",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 2561,
+    "line_end": 2593,
+    "lines_count": 33,
+    "args": [
+      "data",
+      "format"
+    ],
+    "returns": "",
+    "docstring": "Parse a zstd frame header into frame parameters.",
+    "decorators": []
+  },
+  {
+    "name": "ZstdCompressionDict",
+    "type": "class",
+    "scope": "global",
+    "line_start": 2596,
+    "line_end": 2766,
+    "lines_count": 171,
+    "bases": [
+      "object"
+    ],
+    "docstring": "Represents a computed compression dictionary.",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "ZstdCompressionDict::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "ZstdCompressionDict",
+    "line_start": 2677,
+    "line_end": 2694,
+    "lines_count": 18,
+    "args": [
+      "self",
+      "data",
+      "dict_type",
+      "k",
+      "d"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__len__",
+    "full_name": "ZstdCompressionDict::__len__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionDict",
+    "line_start": 2696,
+    "line_end": 2697,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "dict_id",
+    "full_name": "ZstdCompressionDict::dict_id",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionDict",
+    "line_start": 2699,
+    "line_end": 2701,
+    "lines_count": 3,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Obtain the integer ID of the dictionary.",
+    "decorators": []
+  },
+  {
+    "name": "as_bytes",
+    "full_name": "ZstdCompressionDict::as_bytes",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionDict",
+    "line_start": 2703,
+    "line_end": 2705,
+    "lines_count": 3,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Obtain the ``bytes`` representation of the dictionary.",
+    "decorators": []
+  },
+  {
+    "name": "precompute_compress",
+    "full_name": "ZstdCompressionDict::precompute_compress",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionDict",
+    "line_start": 2707,
+    "line_end": 2746,
+    "lines_count": 40,
+    "args": [
+      "self",
+      "level",
+      "compression_params"
+    ],
+    "returns": "",
+    "docstring": "Precompute a dictionary os it can be used by multiple compressors.",
+    "decorators": []
+  },
+  {
+    "name": "_ddict",
+    "full_name": "ZstdCompressionDict::_ddict",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdCompressionDict",
+    "line_start": 2749,
+    "line_end": 2766,
+    "lines_count": 18,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "train_dictionary",
+    "full_name": "train_dictionary",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 2769,
+    "line_end": 2909,
+    "lines_count": 141,
+    "args": [
+      "dict_size",
+      "samples",
+      "k",
+      "d",
+      "f",
+      "split_point",
+      "accel",
+      "notifications",
+      "dict_id",
+      "level",
+      "steps",
+      "threads"
+    ],
+    "returns": "",
+    "docstring": "Train a dictionary from sample data using the COVER algorithm.",
+    "decorators": []
+  },
+  {
+    "name": "ZstdDecompressionObj",
+    "type": "class",
+    "scope": "global",
+    "line_start": 2912,
+    "line_end": 3063,
+    "lines_count": 152,
+    "bases": [
+      "object"
+    ],
+    "docstring": "A standard library API compatible decompressor.",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "ZstdDecompressionObj::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "ZstdDecompressionObj",
+    "line_start": 2949,
+    "line_end": 2954,
+    "lines_count": 6,
+    "args": [
+      "self",
+      "decompressor",
+      "write_size",
+      "read_across_frames"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "decompress",
+    "full_name": "ZstdDecompressionObj::decompress",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionObj",
+    "line_start": 2956,
+    "line_end": 3031,
+    "lines_count": 76,
+    "args": [
+      "self",
+      "data"
+    ],
+    "returns": "",
+    "docstring": "Send compressed data to the decompressor and obtain decompressed data.",
+    "decorators": []
+  },
+  {
+    "name": "flush",
+    "full_name": "ZstdDecompressionObj::flush",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionObj",
+    "line_start": 3033,
+    "line_end": 3043,
+    "lines_count": 11,
+    "args": [
+      "self",
+      "length"
+    ],
+    "returns": "",
+    "docstring": "Effectively a no-op.",
+    "decorators": []
+  },
+  {
+    "name": "unused_data",
+    "full_name": "ZstdDecompressionObj::unused_data",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionObj",
+    "line_start": 3046,
+    "line_end": 3053,
+    "lines_count": 8,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Bytes past the end of compressed data.",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "unconsumed_tail",
+    "full_name": "ZstdDecompressionObj::unconsumed_tail",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionObj",
+    "line_start": 3056,
+    "line_end": 3058,
+    "lines_count": 3,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Data that has not yet been fed into the decompressor.",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "eof",
+    "full_name": "ZstdDecompressionObj::eof",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionObj",
+    "line_start": 3061,
+    "line_end": 3063,
+    "lines_count": 3,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Whether the end of the compressed data stream has been reached.",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "ZstdDecompressionReader",
+    "type": "class",
+    "scope": "global",
+    "line_start": 3066,
+    "line_end": 3450,
+    "lines_count": 385,
+    "bases": [
+      "object"
+    ],
+    "docstring": "Read only decompressor that pull uncompressed data from another stream.",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "ZstdDecompressionReader::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3129,
+    "line_end": 3149,
+    "lines_count": 21,
+    "args": [
+      "self",
+      "decompressor",
+      "source",
+      "read_size",
+      "read_across_frames",
+      "closefd"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__enter__",
+    "full_name": "ZstdDecompressionReader::__enter__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3151,
+    "line_end": 3159,
+    "lines_count": 9,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__exit__",
+    "full_name": "ZstdDecompressionReader::__exit__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3161,
+    "line_end": 3167,
+    "lines_count": 7,
+    "args": [
+      "self",
+      "exc_type",
+      "exc_value",
+      "exc_tb"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readable",
+    "full_name": "ZstdDecompressionReader::readable",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3169,
+    "line_end": 3170,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "writable",
+    "full_name": "ZstdDecompressionReader::writable",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3172,
+    "line_end": 3173,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "seekable",
+    "full_name": "ZstdDecompressionReader::seekable",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3175,
+    "line_end": 3176,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readline",
+    "full_name": "ZstdDecompressionReader::readline",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3178,
+    "line_end": 3179,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "size"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readlines",
+    "full_name": "ZstdDecompressionReader::readlines",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3181,
+    "line_end": 3182,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "hint"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "write",
+    "full_name": "ZstdDecompressionReader::write",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3184,
+    "line_end": 3185,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "data"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "writelines",
+    "full_name": "ZstdDecompressionReader::writelines",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3187,
+    "line_end": 3188,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "lines"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "isatty",
+    "full_name": "ZstdDecompressionReader::isatty",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3190,
+    "line_end": 3191,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "flush",
+    "full_name": "ZstdDecompressionReader::flush",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3193,
+    "line_end": 3194,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "close",
+    "full_name": "ZstdDecompressionReader::close",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3196,
+    "line_end": 3204,
+    "lines_count": 9,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "closed",
+    "full_name": "ZstdDecompressionReader::closed",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3207,
+    "line_end": 3208,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "tell",
+    "full_name": "ZstdDecompressionReader::tell",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3210,
+    "line_end": 3211,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readall",
+    "full_name": "ZstdDecompressionReader::readall",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3213,
+    "line_end": 3223,
+    "lines_count": 11,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__iter__",
+    "full_name": "ZstdDecompressionReader::__iter__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3225,
+    "line_end": 3226,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__next__",
+    "full_name": "ZstdDecompressionReader::__next__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3228,
+    "line_end": 3229,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_read_input",
+    "full_name": "ZstdDecompressionReader::_read_input",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3233,
+    "line_end": 3258,
+    "lines_count": 26,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_decompress_into_buffer",
+    "full_name": "ZstdDecompressionReader::_decompress_into_buffer",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3260,
+    "line_end": 3288,
+    "lines_count": 29,
+    "args": [
+      "self",
+      "out_buffer"
+    ],
+    "returns": "",
+    "docstring": "Decompress available input into an output buffer.",
+    "decorators": []
+  },
+  {
+    "name": "read",
+    "full_name": "ZstdDecompressionReader::read",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3290,
+    "line_end": 3324,
+    "lines_count": 35,
+    "args": [
+      "self",
+      "size"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readinto",
+    "full_name": "ZstdDecompressionReader::readinto",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3326,
+    "line_end": 3353,
+    "lines_count": 28,
+    "args": [
+      "self",
+      "b"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "read1",
+    "full_name": "ZstdDecompressionReader::read1",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3355,
+    "line_end": 3387,
+    "lines_count": 33,
+    "args": [
+      "self",
+      "size"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readinto1",
+    "full_name": "ZstdDecompressionReader::readinto1",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3389,
+    "line_end": 3413,
+    "lines_count": 25,
+    "args": [
+      "self",
+      "b"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "seek",
+    "full_name": "ZstdDecompressionReader::seek",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionReader",
+    "line_start": 3415,
+    "line_end": 3450,
+    "lines_count": 36,
+    "args": [
+      "self",
+      "pos",
+      "whence"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "ZstdDecompressionWriter",
+    "type": "class",
+    "scope": "global",
+    "line_start": 3453,
+    "line_end": 3658,
+    "lines_count": 206,
+    "bases": [
+      "object"
+    ],
+    "docstring": "Write-only stream wrapper that performs decompression.",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "ZstdDecompressionWriter::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3502,
+    "line_end": 3519,
+    "lines_count": 18,
+    "args": [
+      "self",
+      "decompressor",
+      "writer",
+      "write_size",
+      "write_return_read",
+      "closefd"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__enter__",
+    "full_name": "ZstdDecompressionWriter::__enter__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3521,
+    "line_end": 3530,
+    "lines_count": 10,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__exit__",
+    "full_name": "ZstdDecompressionWriter::__exit__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3532,
+    "line_end": 3536,
+    "lines_count": 5,
+    "args": [
+      "self",
+      "exc_type",
+      "exc_value",
+      "exc_tb"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__iter__",
+    "full_name": "ZstdDecompressionWriter::__iter__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3538,
+    "line_end": 3539,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__next__",
+    "full_name": "ZstdDecompressionWriter::__next__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3541,
+    "line_end": 3542,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "memory_size",
+    "full_name": "ZstdDecompressionWriter::memory_size",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3544,
+    "line_end": 3545,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "close",
+    "full_name": "ZstdDecompressionWriter::close",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3547,
+    "line_end": 3560,
+    "lines_count": 14,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "closed",
+    "full_name": "ZstdDecompressionWriter::closed",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3563,
+    "line_end": 3564,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": [
+      "property"
+    ]
+  },
+  {
+    "name": "fileno",
+    "full_name": "ZstdDecompressionWriter::fileno",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3566,
+    "line_end": 3571,
+    "lines_count": 6,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "flush",
+    "full_name": "ZstdDecompressionWriter::flush",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3573,
+    "line_end": 3579,
+    "lines_count": 7,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "isatty",
+    "full_name": "ZstdDecompressionWriter::isatty",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3581,
+    "line_end": 3582,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readable",
+    "full_name": "ZstdDecompressionWriter::readable",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3584,
+    "line_end": 3585,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readline",
+    "full_name": "ZstdDecompressionWriter::readline",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3587,
+    "line_end": 3588,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "size"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readlines",
+    "full_name": "ZstdDecompressionWriter::readlines",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3590,
+    "line_end": 3591,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "hint"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "seek",
+    "full_name": "ZstdDecompressionWriter::seek",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3593,
+    "line_end": 3594,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "offset",
+      "whence"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "seekable",
+    "full_name": "ZstdDecompressionWriter::seekable",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3596,
+    "line_end": 3597,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "tell",
+    "full_name": "ZstdDecompressionWriter::tell",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3599,
+    "line_end": 3600,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "truncate",
+    "full_name": "ZstdDecompressionWriter::truncate",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3602,
+    "line_end": 3603,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "size"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "writable",
+    "full_name": "ZstdDecompressionWriter::writable",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3605,
+    "line_end": 3606,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "writelines",
+    "full_name": "ZstdDecompressionWriter::writelines",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3608,
+    "line_end": 3609,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "lines"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "read",
+    "full_name": "ZstdDecompressionWriter::read",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3611,
+    "line_end": 3612,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "size"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readall",
+    "full_name": "ZstdDecompressionWriter::readall",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3614,
+    "line_end": 3615,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "readinto",
+    "full_name": "ZstdDecompressionWriter::readinto",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3617,
+    "line_end": 3618,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "b"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "write",
+    "full_name": "ZstdDecompressionWriter::write",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressionWriter",
+    "line_start": 3620,
+    "line_end": 3658,
+    "lines_count": 39,
+    "args": [
+      "self",
+      "data"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "ZstdDecompressor",
+    "type": "class",
+    "scope": "global",
+    "line_start": 3661,
+    "line_end": 4478,
+    "lines_count": 818,
+    "bases": [
+      "object"
+    ],
+    "docstring": "Context for performing zstandard decompression.",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "ZstdDecompressor::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "ZstdDecompressor",
+    "line_start": 3703,
+    "line_end": 3721,
+    "lines_count": 19,
+    "args": [
+      "self",
+      "dict_data",
+      "max_window_size",
+      "format"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "memory_size",
+    "full_name": "ZstdDecompressor::memory_size",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressor",
+    "line_start": 3723,
+    "line_end": 3729,
+    "lines_count": 7,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Size of decompression context, in bytes.",
+    "decorators": []
+  },
+  {
+    "name": "decompress",
+    "full_name": "ZstdDecompressor::decompress",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressor",
+    "line_start": 3731,
+    "line_end": 3875,
+    "lines_count": 145,
+    "args": [
+      "self",
+      "data",
+      "max_output_size",
+      "read_across_frames",
+      "allow_extra_data"
+    ],
+    "returns": "",
+    "docstring": "Decompress data in a single operation.",
+    "decorators": []
+  },
+  {
+    "name": "stream_reader",
+    "full_name": "ZstdDecompressor::stream_reader",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressor",
+    "line_start": 3877,
+    "line_end": 3912,
+    "lines_count": 36,
+    "args": [
+      "self",
+      "source",
+      "read_size",
+      "read_across_frames",
+      "closefd"
+    ],
+    "returns": "",
+    "docstring": "Read-only stream wrapper that performs decompression.",
+    "decorators": []
+  },
+  {
+    "name": "decompressobj",
+    "full_name": "ZstdDecompressor::decompressobj",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressor",
+    "line_start": 3914,
+    "line_end": 3938,
+    "lines_count": 25,
+    "args": [
+      "self",
+      "write_size",
+      "read_across_frames"
+    ],
+    "returns": "",
+    "docstring": "Obtain a standard library compatible incremental decompressor.",
+    "decorators": []
+  },
+  {
+    "name": "read_to_iter",
+    "full_name": "ZstdDecompressor::read_to_iter",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressor",
+    "line_start": 3940,
+    "line_end": 4084,
+    "lines_count": 145,
+    "args": [
+      "self",
+      "reader",
+      "read_size",
+      "write_size",
+      "skip_bytes"
+    ],
+    "returns": "",
+    "docstring": "Read compressed data to an iterator of uncompressed chunks.",
+    "decorators": []
+  },
+  {
+    "name": "stream_writer",
+    "full_name": "ZstdDecompressor::stream_writer",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressor",
+    "line_start": 4088,
+    "line_end": 4128,
+    "lines_count": 41,
+    "args": [
+      "self",
+      "writer",
+      "write_size",
+      "write_return_read",
+      "closefd"
+    ],
+    "returns": "",
+    "docstring": "Push-based stream wrapper that performs decompression.",
+    "decorators": []
+  },
+  {
+    "name": "copy_stream",
+    "full_name": "ZstdDecompressor::copy_stream",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressor",
+    "line_start": 4130,
+    "line_end": 4223,
+    "lines_count": 94,
+    "args": [
+      "self",
+      "ifh",
+      "ofh",
+      "read_size",
+      "write_size"
+    ],
+    "returns": "",
+    "docstring": "Copy data between streams, decompressing in the process.",
+    "decorators": []
+  },
+  {
+    "name": "decompress_content_dict_chain",
+    "full_name": "ZstdDecompressor::decompress_content_dict_chain",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressor",
+    "line_start": 4225,
+    "line_end": 4372,
+    "lines_count": 148,
+    "args": [
+      "self",
+      "frames"
+    ],
+    "returns": "",
+    "docstring": "Decompress a series of frames using the content dictionary chaining technique.",
+    "decorators": []
+  },
+  {
+    "name": "multi_decompress_to_buffer",
+    "full_name": "ZstdDecompressor::multi_decompress_to_buffer",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressor",
+    "line_start": 4374,
+    "line_end": 4450,
+    "lines_count": 77,
+    "args": [
+      "self",
+      "frames",
+      "decompressed_sizes",
+      "threads"
+    ],
+    "returns": "",
+    "docstring": "Decompress multiple zstd frames to output buffers as a single operation.",
+    "decorators": []
+  },
+  {
+    "name": "_ensure_dctx",
+    "full_name": "ZstdDecompressor::_ensure_dctx",
+    "type": "function",
+    "is_async": false,
+    "scope": "ZstdDecompressor",
+    "line_start": 4452,
+    "line_end": 4478,
+    "lines_count": 27,
+    "args": [
+      "self",
+      "load_dict"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  }
+]

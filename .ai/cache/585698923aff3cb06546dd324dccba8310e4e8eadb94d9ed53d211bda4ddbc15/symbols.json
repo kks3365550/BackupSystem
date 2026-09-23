@@ -1,0 +1,144 @@
+[
+  {
+    "name": "format_bytes",
+    "full_name": "format_bytes",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 16,
+    "line_end": 24,
+    "lines_count": 9,
+    "args": [
+      "size_bytes: int"
+    ],
+    "returns": "str",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "cmd_backup",
+    "full_name": "cmd_backup",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 26,
+    "line_end": 71,
+    "lines_count": 46,
+    "args": [
+      "args"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "on_progress",
+    "full_name": "cmd_backup::on_progress",
+    "type": "function",
+    "is_async": false,
+    "scope": "cmd_backup",
+    "line_start": 49,
+    "line_end": 50,
+    "lines_count": 2,
+    "args": [
+      "p"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "cmd_list",
+    "full_name": "cmd_list",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 73,
+    "line_end": 87,
+    "lines_count": 15,
+    "args": [
+      "args"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "cmd_restore",
+    "full_name": "cmd_restore",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 89,
+    "line_end": 108,
+    "lines_count": 20,
+    "args": [
+      "args"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "on_progress",
+    "full_name": "cmd_restore::on_progress",
+    "type": "function",
+    "is_async": false,
+    "scope": "cmd_restore",
+    "line_start": 96,
+    "line_end": 97,
+    "lines_count": 2,
+    "args": [
+      "p"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "cmd_verify",
+    "full_name": "cmd_verify",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 110,
+    "line_end": 118,
+    "lines_count": 9,
+    "args": [
+      "args"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "cmd_stats",
+    "full_name": "cmd_stats",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 120,
+    "line_end": 132,
+    "lines_count": 13,
+    "args": [
+      "args"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "main",
+    "full_name": "main",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 134,
+    "line_end": 171,
+    "lines_count": 38,
+    "args": [],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  }
+]

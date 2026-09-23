@@ -1,0 +1,77 @@
+[
+  {
+    "name": "RestoreEngine",
+    "type": "class",
+    "scope": "global",
+    "line_start": 10,
+    "line_end": 302,
+    "lines_count": 293,
+    "bases": [],
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "restore_snapshot",
+    "full_name": "RestoreEngine::restore_snapshot",
+    "type": "method",
+    "is_async": false,
+    "scope": "RestoreEngine",
+    "line_start": 12,
+    "line_end": 244,
+    "lines_count": 233,
+    "args": [
+      "cls",
+      "repo_dir: str",
+      "snapshot_id: str",
+      "target_dir",
+      "selected_rel_paths",
+      "overwrite: bool",
+      "verify_hash: bool",
+      "progress_callback",
+      "cancel_event",
+      "in_place: bool"
+    ],
+    "returns": "",
+    "docstring": "Restores files from a specific snapshot.",
+    "decorators": [
+      "classmethod"
+    ]
+  },
+  {
+    "name": "_restore_one",
+    "full_name": "RestoreEngine::restore_snapshot::_restore_one",
+    "type": "function",
+    "is_async": false,
+    "scope": "RestoreEngine::restore_snapshot",
+    "line_start": 88,
+    "line_end": 137,
+    "lines_count": 50,
+    "args": [
+      "entry"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "verify_snapshot_integrity",
+    "full_name": "RestoreEngine::verify_snapshot_integrity",
+    "type": "function",
+    "is_async": false,
+    "scope": "RestoreEngine",
+    "line_start": 247,
+    "line_end": 302,
+    "lines_count": 56,
+    "args": [
+      "cls",
+      "repo_dir: str",
+      "snapshot_id: str",
+      "progress_callback"
+    ],
+    "returns": "",
+    "docstring": "Verifies that all blobs referenced by this snapshot are present and uncorrupted.",
+    "decorators": [
+      "classmethod"
+    ]
+  }
+]

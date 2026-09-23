@@ -1,0 +1,635 @@
+[
+  {
+    "name": "formatBytes",
+    "type": "function",
+    "scope": "global",
+    "line_start": 23,
+    "line_end": 23,
+    "args": [
+      "bytes"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "formatDate",
+    "type": "function",
+    "scope": "global",
+    "line_start": 31,
+    "line_end": 31,
+    "args": [
+      "isoStr"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "switchTab",
+    "type": "function",
+    "scope": "global",
+    "line_start": 41,
+    "line_end": 41,
+    "args": [
+      "tabId"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "fetchAPI",
+    "type": "function",
+    "scope": "global",
+    "line_start": 65,
+    "line_end": 65,
+    "args": [
+      "url",
+      "options = {}"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "loadDashboard",
+    "type": "function",
+    "scope": "global",
+    "line_start": 83,
+    "line_end": 83,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "renderDashboardStats",
+    "type": "function",
+    "scope": "global",
+    "line_start": 105,
+    "line_end": 105,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "renderSystemDrives",
+    "type": "function",
+    "scope": "global",
+    "line_start": 117,
+    "line_end": 117,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "renderRecentSnapshots",
+    "type": "function",
+    "scope": "global",
+    "line_start": 138,
+    "line_end": 138,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "loadSnapshots",
+    "type": "function",
+    "scope": "global",
+    "line_start": 190,
+    "line_end": 190,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "renderSnapshotsTable",
+    "type": "function",
+    "scope": "global",
+    "line_start": 199,
+    "line_end": 199,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "inspectSnapshot",
+    "type": "function",
+    "scope": "global",
+    "line_start": 260,
+    "line_end": 260,
+    "args": [
+      "snapshotId"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "loadExplorerPath",
+    "type": "function",
+    "scope": "global",
+    "line_start": 288,
+    "line_end": 288,
+    "args": [
+      "subpath"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "renderExplorerBreadcrumb",
+    "type": "function",
+    "scope": "global",
+    "line_start": 311,
+    "line_end": 311,
+    "args": [
+      "subpath"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "filterExplorerItems",
+    "type": "function",
+    "scope": "global",
+    "line_start": 340,
+    "line_end": 340,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "renderExplorerItems",
+    "type": "function",
+    "scope": "global",
+    "line_start": 346,
+    "line_end": 346,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "verifySnapshot",
+    "type": "function",
+    "scope": "global",
+    "line_start": 412,
+    "line_end": 412,
+    "args": [
+      "snapshotId"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "deleteSnapshot",
+    "type": "function",
+    "scope": "global",
+    "line_start": 429,
+    "line_end": 429,
+    "args": [
+      "snapshotId"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "openRestoreModal",
+    "type": "function",
+    "scope": "global",
+    "line_start": 441,
+    "line_end": 441,
+    "args": [
+      "snapshotId",
+      "targetRelPath = null",
+      "targetName = null",
+      "targetType = null"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "clearSelectiveRestore",
+    "type": "function",
+    "scope": "global",
+    "line_start": 486,
+    "line_end": 486,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "toggleRestoreMode",
+    "type": "function",
+    "scope": "global",
+    "line_start": 493,
+    "line_end": 493,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "startRestore",
+    "type": "function",
+    "scope": "global",
+    "line_start": 521,
+    "line_end": 521,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "triggerQuickBackup",
+    "type": "function",
+    "scope": "global",
+    "line_start": 562,
+    "line_end": 562,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "cancelCurrentTask",
+    "type": "function",
+    "scope": "global",
+    "line_start": 578,
+    "line_end": 578,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "pollTaskStatus",
+    "type": "function",
+    "scope": "global",
+    "line_start": 588,
+    "line_end": 588,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "loadProfiles",
+    "type": "function",
+    "scope": "global",
+    "line_start": 656,
+    "line_end": 656,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "renderProfilesList",
+    "type": "function",
+    "scope": "global",
+    "line_start": 666,
+    "line_end": 666,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "onScheduleTypeChange",
+    "type": "function",
+    "scope": "global",
+    "line_start": 741,
+    "line_end": 741,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "openCreateProfileModal",
+    "type": "function",
+    "scope": "global",
+    "line_start": 758,
+    "line_end": 758,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "editProfile",
+    "type": "function",
+    "scope": "global",
+    "line_start": 775,
+    "line_end": 775,
+    "args": [
+      "profileId"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "saveProfileFromModal",
+    "type": "function",
+    "scope": "global",
+    "line_start": 800,
+    "line_end": 800,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "triggerProfileBackup",
+    "type": "function",
+    "scope": "global",
+    "line_start": 848,
+    "line_end": 848,
+    "args": [
+      "profileId"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "deleteProfile",
+    "type": "function",
+    "scope": "global",
+    "line_start": 860,
+    "line_end": 860,
+    "args": [
+      "profileId",
+      "profileName"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "loadWindowsTaskStatus",
+    "type": "function",
+    "scope": "global",
+    "line_start": 873,
+    "line_end": 873,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "registerWindowsTaskFromUI",
+    "type": "function",
+    "scope": "global",
+    "line_start": 894,
+    "line_end": 894,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "unregisterWindowsTaskFromUI",
+    "type": "function",
+    "scope": "global",
+    "line_start": 921,
+    "line_end": 921,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "runGarbageCollection",
+    "type": "function",
+    "scope": "global",
+    "line_start": 933,
+    "line_end": 933,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "openDirectoryPicker",
+    "type": "function",
+    "scope": "global",
+    "line_start": 945,
+    "line_end": 945,
+    "args": [
+      "targetInputId"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "browseToDirectory",
+    "type": "function",
+    "scope": "global",
+    "line_start": 960,
+    "line_end": 960,
+    "args": [
+      "path"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "selectBrowsePath",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1000,
+    "line_end": 1000,
+    "args": [
+      "path"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "selectCurrentBrowsePath",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1007,
+    "line_end": 1007,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "loadCustomSelectionData",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1015,
+    "line_end": 1015,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "renderInstalledApps",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1044,
+    "line_end": 1044,
+    "args": [
+      "filterText = ''"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "filterAppsList",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1090,
+    "line_end": 1090,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "saveCustomSelectionState",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1096,
+    "line_end": 1096,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "restoreCustomSelectionState",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1112,
+    "line_end": 1112,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "toggleAppSelectionByIndex",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1160,
+    "line_end": 1160,
+    "args": [
+      "idx"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "toggleAllApps",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1175,
+    "line_end": 1175,
+    "args": [
+      "select"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "renderAiProjects",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1188,
+    "line_end": 1188,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "toggleProjectSelectionByIndex",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1213,
+    "line_end": 1213,
+    "args": [
+      "idx"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "toggleAllProjects",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1227,
+    "line_end": 1227,
+    "args": [
+      "select"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "openDirectoryPickerForCustom",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1238,
+    "line_end": 1238,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "removeCustomFolder",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1251,
+    "line_end": 1251,
+    "args": [
+      "idx"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "renderCustomFoldersList",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1258,
+    "line_end": 1258,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "updateCustomSummary",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1282,
+    "line_end": 1282,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "startCustomSelectionBackup",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1308,
+    "line_end": 1308,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "loadSystemImageStatus",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1346,
+    "line_end": 1346,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "updateSystemImageRunningUI",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1400,
+    "line_end": 1400,
+    "args": [
+      "isRunning"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "startSystemImageBackup",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1431,
+    "line_end": 1431,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "startPollingSystemImageLogs",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1467,
+    "line_end": 1467,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "stopSystemImageBackup",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1499,
+    "line_end": 1499,
+    "args": [],
+    "docstring": ""
+  },
+  {
+    "name": "verifySnapshot",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1509,
+    "line_end": 1509,
+    "args": [
+      "snapshotId"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "openModal",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1528,
+    "line_end": 1528,
+    "args": [
+      "id"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "closeModal",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1533,
+    "line_end": 1533,
+    "args": [
+      "id"
+    ],
+    "docstring": ""
+  },
+  {
+    "name": "shutdownServer",
+    "type": "function",
+    "scope": "global",
+    "line_start": 1538,
+    "line_end": 1538,
+    "args": [],
+    "docstring": ""
+  }
+]

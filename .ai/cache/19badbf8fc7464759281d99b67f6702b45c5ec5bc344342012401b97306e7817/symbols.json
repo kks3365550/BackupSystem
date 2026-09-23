@@ -1,0 +1,290 @@
+[
+  {
+    "name": "InsufficientDiskSpaceError",
+    "type": "class",
+    "scope": "global",
+    "line_start": 18,
+    "line_end": 20,
+    "lines_count": 3,
+    "bases": [
+      "Exception"
+    ],
+    "docstring": "Raised when repository disk free space is below the safety threshold (Fail-Closed safeguard).",
+    "decorators": []
+  },
+  {
+    "name": "get_disk_free_gb",
+    "full_name": "get_disk_free_gb",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 24,
+    "line_end": 30,
+    "lines_count": 7,
+    "args": [
+      "path: str"
+    ],
+    "returns": "float",
+    "docstring": "Returns free disk space in gigabytes for the volume containing path.",
+    "decorators": []
+  },
+  {
+    "name": "verify_disk_space_or_fail",
+    "full_name": "verify_disk_space_or_fail",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 32,
+    "line_end": 45,
+    "lines_count": 14,
+    "args": [
+      "path: str",
+      "min_free_gb: float"
+    ],
+    "returns": "float",
+    "docstring": "Fail-Closed Disk Space Verification:",
+    "decorators": []
+  },
+  {
+    "name": "BlobStorage",
+    "type": "class",
+    "scope": "global",
+    "line_start": 55,
+    "line_end": 539,
+    "lines_count": 485,
+    "bases": [],
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "BlobStorage::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "BlobStorage",
+    "line_start": 61,
+    "line_end": 75,
+    "lines_count": 15,
+    "args": [
+      "self",
+      "repo_dir: str",
+      "crypto_engine"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "init_repo",
+    "full_name": "BlobStorage::init_repo",
+    "type": "function",
+    "is_async": false,
+    "scope": "BlobStorage",
+    "line_start": 77,
+    "line_end": 93,
+    "lines_count": 17,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "get_blob_rel_path",
+    "full_name": "BlobStorage::get_blob_rel_path",
+    "type": "function",
+    "is_async": false,
+    "scope": "BlobStorage",
+    "line_start": 95,
+    "line_end": 99,
+    "lines_count": 5,
+    "args": [
+      "self",
+      "sha256_hash: str"
+    ],
+    "returns": "str",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "get_blob_abs_path",
+    "full_name": "BlobStorage::get_blob_abs_path",
+    "type": "function",
+    "is_async": false,
+    "scope": "BlobStorage",
+    "line_start": 101,
+    "line_end": 104,
+    "lines_count": 4,
+    "args": [
+      "self",
+      "sha256_hash: str"
+    ],
+    "returns": "str",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "has_blob",
+    "full_name": "BlobStorage::has_blob",
+    "type": "function",
+    "is_async": false,
+    "scope": "BlobStorage",
+    "line_start": 106,
+    "line_end": 117,
+    "lines_count": 12,
+    "args": [
+      "self",
+      "sha256_hash: str"
+    ],
+    "returns": "bool",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "bulk_add_blob_cache",
+    "full_name": "BlobStorage::bulk_add_blob_cache",
+    "type": "function",
+    "is_async": false,
+    "scope": "BlobStorage",
+    "line_start": 119,
+    "line_end": 124,
+    "lines_count": 6,
+    "args": [
+      "self",
+      "blob_ids"
+    ],
+    "returns": "None",
+    "docstring": "Pre-populates the in-memory blob cache to eliminate disk syscalls (os.path.exists) during diffing.",
+    "decorators": []
+  },
+  {
+    "name": "put_file_blob",
+    "full_name": "BlobStorage::put_file_blob",
+    "type": "function",
+    "is_async": false,
+    "scope": "BlobStorage",
+    "line_start": 126,
+    "line_end": 198,
+    "lines_count": 73,
+    "args": [
+      "self",
+      "filepath: str",
+      "sha256_hash",
+      "compress_level: int",
+      "read_path"
+    ],
+    "returns": "",
+    "docstring": "Compresses and saves a file as a content-addressed blob.",
+    "decorators": []
+  },
+  {
+    "name": "put_file_blob_onepass",
+    "full_name": "BlobStorage::put_file_blob_onepass",
+    "type": "function",
+    "is_async": false,
+    "scope": "BlobStorage",
+    "line_start": 200,
+    "line_end": 337,
+    "lines_count": 138,
+    "args": [
+      "self",
+      "filepath: str",
+      "compress_level: int",
+      "cancel_event",
+      "read_path"
+    ],
+    "returns": "",
+    "docstring": "High-Performance Single-Pass (One-Pass) hashing & deduplication:",
+    "decorators": []
+  },
+  {
+    "name": "put_bytes_blob",
+    "full_name": "BlobStorage::put_bytes_blob",
+    "type": "function",
+    "is_async": false,
+    "scope": "BlobStorage",
+    "line_start": 339,
+    "line_end": 375,
+    "lines_count": 37,
+    "args": [
+      "self",
+      "data: bytes",
+      "compress_level: int"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "extract_blob_to_file",
+    "full_name": "BlobStorage::extract_blob_to_file",
+    "type": "function",
+    "is_async": false,
+    "scope": "BlobStorage",
+    "line_start": 377,
+    "line_end": 491,
+    "lines_count": 115,
+    "args": [
+      "self",
+      "sha256_hash: str",
+      "dest_filepath: str",
+      "verify_hash: bool",
+      "direct_write: bool"
+    ],
+    "returns": "bool",
+    "docstring": "Decompresses blob directly to dest_filepath with HYBRID automatic format detection.",
+    "decorators": []
+  },
+  {
+    "name": "read_blob_bytes",
+    "full_name": "BlobStorage::read_blob_bytes",
+    "type": "function",
+    "is_async": false,
+    "scope": "BlobStorage",
+    "line_start": 493,
+    "line_end": 510,
+    "lines_count": 18,
+    "args": [
+      "self",
+      "sha256_hash: str"
+    ],
+    "returns": "bytes",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "prune_unreferenced_blobs",
+    "full_name": "BlobStorage::prune_unreferenced_blobs",
+    "type": "function",
+    "is_async": false,
+    "scope": "BlobStorage",
+    "line_start": 512,
+    "line_end": 535,
+    "lines_count": 24,
+    "args": [
+      "self",
+      "active_hashes"
+    ],
+    "returns": "",
+    "docstring": "Deletes blobs that are not present in active_hashes set. Returns (deleted_count, freed_bytes).",
+    "decorators": []
+  },
+  {
+    "name": "get_storage_stats",
+    "full_name": "BlobStorage::get_storage_stats",
+    "type": "function",
+    "is_async": false,
+    "scope": "BlobStorage",
+    "line_start": 537,
+    "line_end": 539,
+    "lines_count": 3,
+    "args": [
+      "self",
+      "force_refresh: bool"
+    ],
+    "returns": "",
+    "docstring": "Returns storage stats instantly via SQLite metadata cache.",
+    "decorators": []
+  }
+]

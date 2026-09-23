@@ -1,0 +1,19 @@
+[
+  {
+    "name": "write_crlf",
+    "full_name": "write_crlf",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 147,
+    "line_end": 150,
+    "lines_count": 4,
+    "args": [
+      "filepath: str",
+      "text: str"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  }
+]

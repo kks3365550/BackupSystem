@@ -1,0 +1,163 @@
+[
+  {
+    "name": "BackupAlreadyRunningError",
+    "type": "class",
+    "scope": "global",
+    "line_start": 30,
+    "line_end": 34,
+    "lines_count": 5,
+    "bases": [
+      "Exception"
+    ],
+    "docstring": "이미 다른 백업 프로세스가 실행 중일 때 발생하는 예외",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "BackupAlreadyRunningError::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "BackupAlreadyRunningError",
+    "line_start": 32,
+    "line_end": 34,
+    "lines_count": 3,
+    "args": [
+      "self",
+      "message: str",
+      "lock_info"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "BackupLock",
+    "type": "class",
+    "scope": "global",
+    "line_start": 37,
+    "line_end": 192,
+    "lines_count": 156,
+    "bases": [],
+    "docstring": "저장소(repo_dir) 레벨의 상호 배제 백업 락.",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "BackupLock::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "BackupLock",
+    "line_start": 45,
+    "line_end": 51,
+    "lines_count": 7,
+    "args": [
+      "self",
+      "repo_dir: str",
+      "timeout_sec: float",
+      "process_desc: str"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_is_pid_alive",
+    "full_name": "BackupLock::_is_pid_alive",
+    "type": "function",
+    "is_async": false,
+    "scope": "BackupLock",
+    "line_start": 53,
+    "line_end": 74,
+    "lines_count": 22,
+    "args": [
+      "self",
+      "pid: int"
+    ],
+    "returns": "bool",
+    "docstring": "해당 PID를 가진 프로세스가 실제로 시스템에 살아있는지 검사",
+    "decorators": []
+  },
+  {
+    "name": "_read_lock_info",
+    "full_name": "BackupLock::_read_lock_info",
+    "type": "function",
+    "is_async": false,
+    "scope": "BackupLock",
+    "line_start": 76,
+    "line_end": 84,
+    "lines_count": 9,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "기존 락 파일의 메타데이터 조회",
+    "decorators": []
+  },
+  {
+    "name": "acquire",
+    "full_name": "BackupLock::acquire",
+    "type": "function",
+    "is_async": false,
+    "scope": "BackupLock",
+    "line_start": 86,
+    "line_end": 158,
+    "lines_count": 73,
+    "args": [
+      "self"
+    ],
+    "returns": "bool",
+    "docstring": "락 획득 시도.",
+    "decorators": []
+  },
+  {
+    "name": "release",
+    "full_name": "BackupLock::release",
+    "type": "function",
+    "is_async": false,
+    "scope": "BackupLock",
+    "line_start": 160,
+    "line_end": 185,
+    "lines_count": 26,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "락 해제 및 락 파일 정리",
+    "decorators": []
+  },
+  {
+    "name": "__enter__",
+    "full_name": "BackupLock::__enter__",
+    "type": "function",
+    "is_async": false,
+    "scope": "BackupLock",
+    "line_start": 187,
+    "line_end": 189,
+    "lines_count": 3,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__exit__",
+    "full_name": "BackupLock::__exit__",
+    "type": "function",
+    "is_async": false,
+    "scope": "BackupLock",
+    "line_start": 191,
+    "line_end": 192,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "exc_type",
+      "exc_val",
+      "exc_tb"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  }
+]

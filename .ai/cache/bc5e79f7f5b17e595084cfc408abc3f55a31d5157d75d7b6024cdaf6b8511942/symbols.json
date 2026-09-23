@@ -1,0 +1,127 @@
+[
+  {
+    "name": "TestV239Verification",
+    "type": "class",
+    "scope": "global",
+    "line_start": 25,
+    "line_end": 139,
+    "lines_count": 115,
+    "bases": [
+      "unittest.TestCase"
+    ],
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "setUp",
+    "full_name": "TestV239Verification::setUp",
+    "type": "method",
+    "is_async": false,
+    "scope": "TestV239Verification",
+    "line_start": 26,
+    "line_end": 44,
+    "lines_count": 19,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "tearDown",
+    "full_name": "TestV239Verification::tearDown",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestV239Verification",
+    "line_start": 46,
+    "line_end": 53,
+    "lines_count": 8,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "test_vss_strict_mode_blocks_unauthorized_backup",
+    "full_name": "TestV239Verification::test_vss_strict_mode_blocks_unauthorized_backup",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestV239Verification",
+    "line_start": 55,
+    "line_end": 61,
+    "lines_count": 7,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "VSS Strict 모드: 관리자 권한 미부여 시 Silent Fallback 없이 VSSRequiredError 발생",
+    "decorators": []
+  },
+  {
+    "name": "test_vss_optional_mode_allows_fallback",
+    "full_name": "TestV239Verification::test_vss_optional_mode_allows_fallback",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestV239Verification",
+    "line_start": 63,
+    "line_end": 68,
+    "lines_count": 6,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "VSS Optional 모드: 관리자 권한 미부여 시 일반 직접 읽기 모드로 fallback 허용",
+    "decorators": []
+  },
+  {
+    "name": "test_manifest_signature_and_tamper_detection",
+    "full_name": "TestV239Verification::test_manifest_signature_and_tamper_detection",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestV239Verification",
+    "line_start": 70,
+    "line_end": 90,
+    "lines_count": 21,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "Manifest 서명 생성 및 위변조 탐지 검증",
+    "decorators": []
+  },
+  {
+    "name": "test_automated_restore_verification_pipeline",
+    "full_name": "TestV239Verification::test_automated_restore_verification_pipeline",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestV239Verification",
+    "line_start": 92,
+    "line_end": 113,
+    "lines_count": 22,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "백업 생성 시 Automated Restore Verification 및 Manifest Signature 자동 적용 검증",
+    "decorators": []
+  },
+  {
+    "name": "test_restore_verification_detects_corrupted_blob",
+    "full_name": "TestV239Verification::test_restore_verification_detects_corrupted_blob",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestV239Verification",
+    "line_start": 115,
+    "line_end": 139,
+    "lines_count": 25,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "블롭 파일이 손상되었을 때 verify_restore_sampling이 RestoreVerificationError를 감지하는지 검증",
+    "decorators": []
+  }
+]

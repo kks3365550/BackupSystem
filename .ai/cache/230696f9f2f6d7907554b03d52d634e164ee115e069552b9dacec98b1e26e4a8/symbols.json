@@ -1,0 +1,101 @@
+[
+  {
+    "name": "PathFilter",
+    "type": "class",
+    "scope": "global",
+    "line_start": 107,
+    "line_end": 188,
+    "lines_count": 82,
+    "bases": [],
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "PathFilter::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "PathFilter",
+    "line_start": 108,
+    "line_end": 136,
+    "lines_count": 29,
+    "args": [
+      "self",
+      "exclude_patterns",
+      "include_patterns",
+      "use_defaults: bool"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_matches_common",
+    "full_name": "PathFilter::_matches_common",
+    "type": "function",
+    "is_async": false,
+    "scope": "PathFilter",
+    "line_start": 138,
+    "line_end": 148,
+    "lines_count": 11,
+    "args": [
+      "self",
+      "name_lower: str"
+    ],
+    "returns": "bool",
+    "docstring": "Helper to match exact names, substrings, and complex patterns cleanly.",
+    "decorators": []
+  },
+  {
+    "name": "is_dir_excluded",
+    "full_name": "PathFilter::is_dir_excluded",
+    "type": "function",
+    "is_async": false,
+    "scope": "PathFilter",
+    "line_start": 150,
+    "line_end": 155,
+    "lines_count": 6,
+    "args": [
+      "self",
+      "dirname: str"
+    ],
+    "returns": "bool",
+    "docstring": "Fast O(1) check for directory exclusion (Prunes entire directory trees).",
+    "decorators": []
+  },
+  {
+    "name": "is_file_excluded",
+    "full_name": "PathFilter::is_file_excluded",
+    "type": "function",
+    "is_async": false,
+    "scope": "PathFilter",
+    "line_start": 157,
+    "line_end": 163,
+    "lines_count": 7,
+    "args": [
+      "self",
+      "filename: str"
+    ],
+    "returns": "bool",
+    "docstring": "Fast O(1) check for file exclusion.",
+    "decorators": []
+  },
+  {
+    "name": "is_excluded",
+    "full_name": "PathFilter::is_excluded",
+    "type": "function",
+    "is_async": false,
+    "scope": "PathFilter",
+    "line_start": 165,
+    "line_end": 188,
+    "lines_count": 24,
+    "args": [
+      "self",
+      "path: str",
+      "is_dir: bool"
+    ],
+    "returns": "bool",
+    "docstring": "",
+    "decorators": []
+  }
+]

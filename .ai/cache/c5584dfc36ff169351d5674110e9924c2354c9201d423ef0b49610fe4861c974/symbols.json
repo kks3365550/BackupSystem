@@ -1,0 +1,84 @@
+[
+  {
+    "name": "get_kakao_token_data",
+    "full_name": "get_kakao_token_data",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 11,
+    "line_end": 18,
+    "lines_count": 8,
+    "args": [],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "save_kakao_token_data",
+    "full_name": "save_kakao_token_data",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 20,
+    "line_end": 23,
+    "lines_count": 4,
+    "args": [
+      "token_data"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "refresh_kakao_access_token",
+    "full_name": "refresh_kakao_access_token",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 25,
+    "line_end": 55,
+    "lines_count": 31,
+    "args": [
+      "rest_api_key: str",
+      "refresh_token: str",
+      "client_secret"
+    ],
+    "returns": "",
+    "docstring": "Refreshes the Kakao access token using the refresh token.",
+    "decorators": []
+  },
+  {
+    "name": "send_kakao_message",
+    "full_name": "send_kakao_message",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 57,
+    "line_end": 122,
+    "lines_count": 66,
+    "args": [
+      "text: str"
+    ],
+    "returns": "bool",
+    "docstring": "Sends a message to the user's own KakaoTalk chat (나에게 보내기).",
+    "decorators": []
+  },
+  {
+    "name": "notify_backup_result",
+    "full_name": "notify_backup_result",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 124,
+    "line_end": 162,
+    "lines_count": 39,
+    "args": [
+      "manifest",
+      "error_msg",
+      "profile_name: str"
+    ],
+    "returns": "",
+    "docstring": "Formats and broadcasts backup summary notification to KakaoTalk.",
+    "decorators": []
+  }
+]

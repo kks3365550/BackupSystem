@@ -1,0 +1,59 @@
+[
+  {
+    "name": "open",
+    "full_name": "open",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 97,
+    "line_end": 181,
+    "lines_count": 85,
+    "args": [
+      "filename",
+      "mode",
+      "cctx",
+      "dctx",
+      "encoding",
+      "errors",
+      "newline",
+      "closefd"
+    ],
+    "returns": "",
+    "docstring": "Create a file object with zstd (de)compression.",
+    "decorators": []
+  },
+  {
+    "name": "compress",
+    "full_name": "compress",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 184,
+    "line_end": 199,
+    "lines_count": 16,
+    "args": [
+      "data: Buffer",
+      "level: int"
+    ],
+    "returns": "bytes",
+    "docstring": "Compress source data using the zstd compression format.",
+    "decorators": []
+  },
+  {
+    "name": "decompress",
+    "full_name": "decompress",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 202,
+    "line_end": 217,
+    "lines_count": 16,
+    "args": [
+      "data: Buffer",
+      "max_output_size: int"
+    ],
+    "returns": "bytes",
+    "docstring": "Decompress a zstd frame into its original data.",
+    "decorators": []
+  }
+]

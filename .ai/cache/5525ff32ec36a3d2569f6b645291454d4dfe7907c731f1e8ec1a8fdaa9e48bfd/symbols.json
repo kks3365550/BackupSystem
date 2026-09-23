@@ -1,0 +1,17 @@
+[
+  {
+    "name": "hV",
+    "type": "arrow_function",
+    "scope": "global",
+    "line_start": 8,
+    "line_end": 8,
+    "args": [
+      "{icons:h=aV",
+      "nameAttr:t=\"data-lucide\"",
+      "attrs:c={}",
+      "root:d=document",
+      "inTemplates:M}={}"
+    ],
+    "docstring": ""
+  }
+]

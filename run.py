@@ -10,21 +10,21 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # Handle headless execution where stdio might be None (Critical for pythonw.exe)
+_log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+try:
+    os.makedirs(_log_dir, exist_ok=True)
+    _server_log = open(os.path.join(_log_dir, "server.log"), "a", encoding="utf-8", buffering=1)
+except Exception:
+    _server_log = None
+
 if sys.stdin is None:
     try:
         sys.stdin = open(os.devnull, 'r')
     except Exception:
         pass
-if sys.stdout is None:
-    try:
-        sys.stdout = open(os.devnull, 'w', encoding='utf-8')
-    except Exception:
-        pass
-if sys.stderr is None:
-    try:
-        sys.stderr = open(os.devnull, 'w', encoding='utf-8')
-    except Exception:
-        pass
+if _server_log:
+    sys.stdout = _server_log
+    sys.stderr = _server_log
 
 def ensure_dependencies():
     required = ["uvicorn", "fastapi", "cryptography", "psutil", "jinja2", "requests", "pydantic", "zstandard"]

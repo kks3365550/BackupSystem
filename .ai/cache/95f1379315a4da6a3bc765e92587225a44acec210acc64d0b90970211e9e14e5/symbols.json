@@ -1,0 +1,79 @@
+[
+  {
+    "name": "TestVSSManager",
+    "type": "class",
+    "scope": "global",
+    "line_start": 19,
+    "line_end": 82,
+    "lines_count": 64,
+    "bases": [
+      "unittest.TestCase"
+    ],
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "test_extract_drive_letter",
+    "full_name": "TestVSSManager::test_extract_drive_letter",
+    "type": "method",
+    "is_async": false,
+    "scope": "TestVSSManager",
+    "line_start": 20,
+    "line_end": 29,
+    "lines_count": 10,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "test_get_shadow_path_mapping",
+    "full_name": "TestVSSManager::test_get_shadow_path_mapping",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestVSSManager",
+    "line_start": 31,
+    "line_end": 51,
+    "lines_count": 21,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "VSS 활성화 시 원본 경로가 Shadow Copy 장치 경로로 정확히 변환되는지 검증",
+    "decorators": []
+  },
+  {
+    "name": "test_fallback_when_not_admin",
+    "full_name": "TestVSSManager::test_fallback_when_not_admin",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestVSSManager",
+    "line_start": 53,
+    "line_end": 60,
+    "lines_count": 8,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "관리자 권한이 없을 때 strict=False인 경우 예외 없이 직접 읽기 모드로 graceful fallback하는지 검증",
+    "decorators": []
+  },
+  {
+    "name": "test_cleanup_on_exception",
+    "full_name": "TestVSSManager::test_cleanup_on_exception",
+    "type": "function",
+    "is_async": false,
+    "scope": "TestVSSManager",
+    "line_start": 62,
+    "line_end": 82,
+    "lines_count": 21,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "컨텍스트 블록 내에서 예외가 발생하더라도 _delete_shadow가 반드시 호출되어 리소스가 정리되는지 검증",
+    "decorators": []
+  }
+]

@@ -1,0 +1,198 @@
+[
+  {
+    "name": "StorageKeyDeriver",
+    "type": "class",
+    "scope": "global",
+    "line_start": 58,
+    "line_end": 72,
+    "lines_count": 15,
+    "bases": [],
+    "docstring": "Scrypt KDF 기반 스토리지 대칭키(Storage Key) 파생 및 메타데이터 관리",
+    "decorators": []
+  },
+  {
+    "name": "derive",
+    "full_name": "StorageKeyDeriver::derive",
+    "type": "method",
+    "is_async": false,
+    "scope": "StorageKeyDeriver",
+    "line_start": 62,
+    "line_end": 72,
+    "lines_count": 11,
+    "args": [
+      "master_key_bytes: bytes",
+      "salt: bytes",
+      "n: int",
+      "r: int",
+      "p: int"
+    ],
+    "returns": "bytes",
+    "docstring": "",
+    "decorators": [
+      "staticmethod"
+    ]
+  },
+  {
+    "name": "CryptoAtRestEngine",
+    "type": "class",
+    "scope": "global",
+    "line_start": 75,
+    "line_end": 321,
+    "lines_count": 247,
+    "bases": [],
+    "docstring": "CAS Dedup 100% 보존 저장 데이터 암호화/복호화 엔진",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "CryptoAtRestEngine::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "CryptoAtRestEngine",
+    "line_start": 80,
+    "line_end": 88,
+    "lines_count": 9,
+    "args": [
+      "self",
+      "storage_key: bytes",
+      "kdf_metadata"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "from_passphrase",
+    "full_name": "CryptoAtRestEngine::from_passphrase",
+    "type": "function",
+    "is_async": false,
+    "scope": "CryptoAtRestEngine",
+    "line_start": 91,
+    "line_end": 126,
+    "lines_count": 36,
+    "args": [
+      "cls",
+      "passphrase: str",
+      "repo_dir: str",
+      "create_if_missing: bool"
+    ],
+    "returns": "CryptoAtRestEngine",
+    "docstring": "패스프레이즈 및 저장소 메타데이터(keys/key_metadata.json)로부터 엔진 인스턴스 초기화",
+    "decorators": [
+      "classmethod"
+    ]
+  },
+  {
+    "name": "from_key_file",
+    "full_name": "CryptoAtRestEngine::from_key_file",
+    "type": "function",
+    "is_async": false,
+    "scope": "CryptoAtRestEngine",
+    "line_start": 129,
+    "line_end": 151,
+    "lines_count": 23,
+    "args": [
+      "cls",
+      "key_file_path: str",
+      "repo_dir: str"
+    ],
+    "returns": "CryptoAtRestEngine",
+    "docstring": "오프라인 백업 키 파일 또는 마스터 키 파일로부터 로드",
+    "decorators": [
+      "classmethod"
+    ]
+  },
+  {
+    "name": "build_blob_aad",
+    "full_name": "CryptoAtRestEngine::build_blob_aad",
+    "type": "function",
+    "is_async": false,
+    "scope": "CryptoAtRestEngine",
+    "line_start": 154,
+    "line_end": 163,
+    "lines_count": 10,
+    "args": [
+      "plaintext_sha256: str"
+    ],
+    "returns": "bytes",
+    "docstring": "블롭 암호화용 AAD (특정 snapshot_id에 바인딩하지 않음으로써 스냅샷 간 블롭 공유 보장)",
+    "decorators": [
+      "staticmethod"
+    ]
+  },
+  {
+    "name": "encrypt_blob_data",
+    "full_name": "CryptoAtRestEngine::encrypt_blob_data",
+    "type": "function",
+    "is_async": false,
+    "scope": "CryptoAtRestEngine",
+    "line_start": 165,
+    "line_end": 187,
+    "lines_count": 23,
+    "args": [
+      "self",
+      "plaintext_data: bytes",
+      "plaintext_sha256: str",
+      "compress_level: int"
+    ],
+    "returns": "bytes",
+    "docstring": "평문 데이터를 Zstd 압축 후 AES-256-GCM 암호화",
+    "decorators": []
+  },
+  {
+    "name": "decrypt_blob_data",
+    "full_name": "CryptoAtRestEngine::decrypt_blob_data",
+    "type": "function",
+    "is_async": false,
+    "scope": "CryptoAtRestEngine",
+    "line_start": 189,
+    "line_end": 234,
+    "lines_count": 46,
+    "args": [
+      "self",
+      "blob_bytes: bytes",
+      "expected_plaintext_sha256: str"
+    ],
+    "returns": "bytes",
+    "docstring": "블롭 바이트열을 복호화하고 Zstd 압축 해제하여 원본 평문 반환",
+    "decorators": []
+  },
+  {
+    "name": "save_blob_atomic",
+    "full_name": "CryptoAtRestEngine::save_blob_atomic",
+    "type": "function",
+    "is_async": false,
+    "scope": "CryptoAtRestEngine",
+    "line_start": 236,
+    "line_end": 306,
+    "lines_count": 71,
+    "args": [
+      "self",
+      "repo_dir: str",
+      "plaintext_data: bytes",
+      "plaintext_sha256: str",
+      "compress_level: int"
+    ],
+    "returns": "",
+    "docstring": "CAS 원자적 저장 함수 (CAS Dedup 100% 보존 보장)",
+    "decorators": []
+  },
+  {
+    "name": "export_key_backup",
+    "full_name": "CryptoAtRestEngine::export_key_backup",
+    "type": "function",
+    "is_async": false,
+    "scope": "CryptoAtRestEngine",
+    "line_start": 308,
+    "line_end": 321,
+    "lines_count": 14,
+    "args": [
+      "self",
+      "backup_file_path: str",
+      "passphrase_hint: str"
+    ],
+    "returns": "",
+    "docstring": "키 분실 방지를 위한 오프라인 키 백업 파일 생성 (Chaos 22 대응용)",
+    "decorators": []
+  }
+]

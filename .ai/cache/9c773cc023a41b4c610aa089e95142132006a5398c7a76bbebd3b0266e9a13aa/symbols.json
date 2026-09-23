@@ -1,0 +1,301 @@
+[
+  {
+    "name": "ReplicationQueueManager",
+    "type": "class",
+    "scope": "global",
+    "line_start": 17,
+    "line_end": 334,
+    "lines_count": 318,
+    "bases": [],
+    "docstring": "SQLite WAL 모드를 활용한 Durable 오프사이트 복제 큐 관리자.",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "ReplicationQueueManager::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 25,
+    "line_end": 41,
+    "lines_count": 17,
+    "args": [
+      "self",
+      "db_path_or_repo_dir: str"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_get_connection",
+    "full_name": "ReplicationQueueManager::_get_connection",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 43,
+    "line_end": 49,
+    "lines_count": 7,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_init_db",
+    "full_name": "ReplicationQueueManager::_init_db",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 51,
+    "line_end": 74,
+    "lines_count": 24,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "enqueue",
+    "full_name": "ReplicationQueueManager::enqueue",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 76,
+    "line_end": 113,
+    "lines_count": 38,
+    "args": [
+      "self",
+      "snapshot_id: str",
+      "repo_dir: str",
+      "remote_repo_dir: str"
+    ],
+    "returns": "int",
+    "docstring": "PENDING 상태로 큐에 등록. 이미 존재하는 경우 id를 반환하고 미완료면 PENDING 유지.",
+    "decorators": []
+  },
+  {
+    "name": "get_status",
+    "full_name": "ReplicationQueueManager::get_status",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 115,
+    "line_end": 146,
+    "lines_count": 32,
+    "args": [
+      "self",
+      "snapshot_id: str"
+    ],
+    "returns": "",
+    "docstring": "스냅샷의 현재 복제 상태를 조회합니다.",
+    "decorators": []
+  },
+  {
+    "name": "_update_state",
+    "full_name": "ReplicationQueueManager::_update_state",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 148,
+    "line_end": 163,
+    "lines_count": 16,
+    "args": [
+      "self",
+      "task_id: int",
+      "state: str",
+      "error_msg"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_increment_attempts",
+    "full_name": "ReplicationQueueManager::_increment_attempts",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 165,
+    "line_end": 173,
+    "lines_count": 9,
+    "args": [
+      "self",
+      "task_id: int"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "process_next_task",
+    "full_name": "ReplicationQueueManager::process_next_task",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 175,
+    "line_end": 212,
+    "lines_count": 38,
+    "args": [
+      "self"
+    ],
+    "returns": "bool",
+    "docstring": "대기(PENDING) 또는 중단 복구(TRANSFERRING) 작업을 1건 처리합니다.",
+    "decorators": []
+  },
+  {
+    "name": "_fetch_next_task",
+    "full_name": "ReplicationQueueManager::_fetch_next_task",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 214,
+    "line_end": 239,
+    "lines_count": 26,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "resume_all_interrupted",
+    "full_name": "ReplicationQueueManager::resume_all_interrupted",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 241,
+    "line_end": 254,
+    "lines_count": 14,
+    "args": [
+      "self"
+    ],
+    "returns": "int",
+    "docstring": "PC 비정상 종료(Power-off/Crash)로 중단된 모든 TRANSFERRING 작업을 PENDING으로 리셋하여 재개합니다.",
+    "decorators": []
+  },
+  {
+    "name": "start_background_worker",
+    "full_name": "ReplicationQueueManager::start_background_worker",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 256,
+    "line_end": 270,
+    "lines_count": 15,
+    "args": [
+      "self",
+      "poll_interval: float"
+    ],
+    "returns": "",
+    "docstring": "백그라운드 스레드로 큐를 감시하며 대기 작업을 순차 처리합니다.",
+    "decorators": []
+  },
+  {
+    "name": "stop_background_worker",
+    "full_name": "ReplicationQueueManager::stop_background_worker",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 272,
+    "line_end": 275,
+    "lines_count": 4,
+    "args": [
+      "self",
+      "timeout: float"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_worker_loop",
+    "full_name": "ReplicationQueueManager::_worker_loop",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 277,
+    "line_end": 286,
+    "lines_count": 10,
+    "args": [
+      "self",
+      "poll_interval: float"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "list_tasks",
+    "full_name": "ReplicationQueueManager::list_tasks",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 288,
+    "line_end": 317,
+    "lines_count": 30,
+    "args": [
+      "self",
+      "limit: int"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "close",
+    "full_name": "ReplicationQueueManager::close",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 319,
+    "line_end": 328,
+    "lines_count": 10,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__enter__",
+    "full_name": "ReplicationQueueManager::__enter__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 330,
+    "line_end": 331,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__exit__",
+    "full_name": "ReplicationQueueManager::__exit__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ReplicationQueueManager",
+    "line_start": 333,
+    "line_end": 334,
+    "lines_count": 2,
+    "args": [
+      "self",
+      "exc_type",
+      "exc_val",
+      "exc_tb"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  }
+]

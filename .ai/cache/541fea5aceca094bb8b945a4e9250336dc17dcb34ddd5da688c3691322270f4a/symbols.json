@@ -1,0 +1,291 @@
+[
+  {
+    "name": "VSSRequiredError",
+    "type": "class",
+    "scope": "global",
+    "line_start": 22,
+    "line_end": 24,
+    "lines_count": 3,
+    "bases": [
+      "Exception"
+    ],
+    "docstring": "VSS strict mode에서 섀도 복사본 생성 실패 시 발생하는 예외 (무단 Silent Fallback 방지).",
+    "decorators": []
+  },
+  {
+    "name": "VSSCreationError",
+    "type": "class",
+    "scope": "global",
+    "line_start": 27,
+    "line_end": 29,
+    "lines_count": 3,
+    "bases": [
+      "Exception"
+    ],
+    "docstring": "VSS 섀도 복사본 생성 실패 시 내부적으로 발생하는 예외.",
+    "decorators": []
+  },
+  {
+    "name": "is_admin",
+    "full_name": "is_admin",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 32,
+    "line_end": 39,
+    "lines_count": 8,
+    "args": [],
+    "returns": "bool",
+    "docstring": "현재 프로세스가 Windows 관리자 권한으로 실행 중인지 확인.",
+    "decorators": []
+  },
+  {
+    "name": "extract_drive_letter",
+    "full_name": "extract_drive_letter",
+    "type": "function",
+    "is_async": false,
+    "scope": "global",
+    "line_start": 42,
+    "line_end": 53,
+    "lines_count": 12,
+    "args": [
+      "path: str"
+    ],
+    "returns": "",
+    "docstring": "경로에서 드라이브 문자(예: 'C:')를 추출.",
+    "decorators": []
+  },
+  {
+    "name": "ShadowCopyRecord",
+    "type": "class",
+    "scope": "global",
+    "line_start": 56,
+    "line_end": 66,
+    "lines_count": 11,
+    "bases": [],
+    "docstring": "단일 드라이브에 대한 VSS 섀도 복사본 정보 레코드",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "ShadowCopyRecord::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "ShadowCopyRecord",
+    "line_start": 60,
+    "line_end": 63,
+    "lines_count": 4,
+    "args": [
+      "self",
+      "drive: str",
+      "shadow_id: str",
+      "device_path: str"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__repr__",
+    "full_name": "ShadowCopyRecord::__repr__",
+    "type": "function",
+    "is_async": false,
+    "scope": "ShadowCopyRecord",
+    "line_start": 65,
+    "line_end": 66,
+    "lines_count": 2,
+    "args": [
+      "self"
+    ],
+    "returns": "str",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "VSSContext",
+    "type": "class",
+    "scope": "global",
+    "line_start": 69,
+    "line_end": 268,
+    "lines_count": 200,
+    "bases": [],
+    "docstring": "백업 세션 동안 볼륨 섀도 복사본(VSS)을 생성하고 작업 완료/예외 시 안전하게 해제하는 컨텍스트 매니저.",
+    "decorators": []
+  },
+  {
+    "name": "__init__",
+    "full_name": "VSSContext::__init__",
+    "type": "method",
+    "is_async": false,
+    "scope": "VSSContext",
+    "line_start": 80,
+    "line_end": 87,
+    "lines_count": 8,
+    "args": [
+      "self",
+      "source_paths",
+      "enabled: bool",
+      "strict: bool"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__enter__",
+    "full_name": "VSSContext::__enter__",
+    "type": "function",
+    "is_async": false,
+    "scope": "VSSContext",
+    "line_start": 89,
+    "line_end": 112,
+    "lines_count": 24,
+    "args": [
+      "self"
+    ],
+    "returns": "VSSContext",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "__exit__",
+    "full_name": "VSSContext::__exit__",
+    "type": "function",
+    "is_async": false,
+    "scope": "VSSContext",
+    "line_start": 114,
+    "line_end": 116,
+    "lines_count": 3,
+    "args": [
+      "self",
+      "exc_type",
+      "exc_val",
+      "exc_tb"
+    ],
+    "returns": "",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_setup",
+    "full_name": "VSSContext::_setup",
+    "type": "function",
+    "is_async": false,
+    "scope": "VSSContext",
+    "line_start": 118,
+    "line_end": 163,
+    "lines_count": 46,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "백업 소스 경로들이 속한 모든 고유 볼륨에 대해 VSS 섀도 복사본 생성.",
+    "decorators": []
+  },
+  {
+    "name": "_run_cmd",
+    "full_name": "VSSContext::_run_cmd",
+    "type": "function",
+    "is_async": false,
+    "scope": "VSSContext",
+    "line_start": 166,
+    "line_end": 186,
+    "lines_count": 21,
+    "args": [
+      "cmd",
+      "timeout: int"
+    ],
+    "returns": "",
+    "docstring": "subprocess 안전 실행 및 윈도우 인코딩 다중 디코딩",
+    "decorators": [
+      "staticmethod"
+    ]
+  },
+  {
+    "name": "decode_bytes",
+    "full_name": "VSSContext::_run_cmd::decode_bytes",
+    "type": "function",
+    "is_async": false,
+    "scope": "VSSContext::_run_cmd",
+    "line_start": 176,
+    "line_end": 182,
+    "lines_count": 7,
+    "args": [
+      "b: bytes"
+    ],
+    "returns": "str",
+    "docstring": "",
+    "decorators": []
+  },
+  {
+    "name": "_create_shadow",
+    "full_name": "VSSContext::_create_shadow",
+    "type": "function",
+    "is_async": false,
+    "scope": "VSSContext",
+    "line_start": 189,
+    "line_end": 220,
+    "lines_count": 32,
+    "args": [
+      "cls",
+      "drive: str"
+    ],
+    "returns": "ShadowCopyRecord",
+    "docstring": "vssadmin create shadow /for=C: 를 호출하여 섀도 복사본 생성.",
+    "decorators": [
+      "classmethod"
+    ]
+  },
+  {
+    "name": "_delete_shadow",
+    "full_name": "VSSContext::_delete_shadow",
+    "type": "function",
+    "is_async": false,
+    "scope": "VSSContext",
+    "line_start": 223,
+    "line_end": 231,
+    "lines_count": 9,
+    "args": [
+      "cls",
+      "shadow_id: str"
+    ],
+    "returns": "bool",
+    "docstring": "vssadmin delete shadows /shadow={id} /quiet 호출로 섀도 복사본 삭제.",
+    "decorators": [
+      "classmethod"
+    ]
+  },
+  {
+    "name": "cleanup",
+    "full_name": "VSSContext::cleanup",
+    "type": "function",
+    "is_async": false,
+    "scope": "VSSContext",
+    "line_start": 233,
+    "line_end": 250,
+    "lines_count": 18,
+    "args": [
+      "self"
+    ],
+    "returns": "",
+    "docstring": "생성된 모든 섀도 복사본을 100% 누수 없이 해제.",
+    "decorators": []
+  },
+  {
+    "name": "get_shadow_path",
+    "full_name": "VSSContext::get_shadow_path",
+    "type": "function",
+    "is_async": false,
+    "scope": "VSSContext",
+    "line_start": 252,
+    "line_end": 268,
+    "lines_count": 17,
+    "args": [
+      "self",
+      "original_path: str"
+    ],
+    "returns": "str",
+    "docstring": "원본 파일 경로를 섀도 복사본 장치 경로로 매핑.",
+    "decorators": []
+  }
+]
