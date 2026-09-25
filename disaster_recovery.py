@@ -475,13 +475,10 @@ def restore_snapshot(
             return False, f"블롭 누락: {h[:12]} ({src_path})"
 
         if dest_base:
-            if entry.get("rel_path"):
-                rel = entry.get("rel_path")
-            elif common_prefix and src_path.startswith(common_prefix):
-                rel = os.path.relpath(src_path, common_prefix)
-            else:
-                rel = src_path.replace(":", "")
-            target_out = os.path.join(dest_base, rel.lstrip("\\/"))
+            # src_path에서 드라이브 문자(예: C:)를 제거하여 원본 디렉터리 트리 보존
+            drive, path_part = os.path.splitdrive(src_path)
+            rel = path_part.lstrip("\\/")
+            target_out = os.path.join(dest_base, rel)
         else:
             target_out = src_path
 

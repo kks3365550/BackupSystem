@@ -3,7 +3,7 @@
 ; =========================================================================
 
 #define MyAppName "백업시스템"
-#define MyAppVersion "2.9.5"
+#define MyAppVersion "2.9.6"
 #define MyAppPublisher "삼영데리카후레쉬"
 #define MyAppURL "http://127.0.0.1:8765"
 #define MyAppExeName "BackupSystem.exe"

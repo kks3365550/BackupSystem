@@ -34,7 +34,7 @@
   },
   "qwen_latest_review.md": {
     "source_hash": "",
-    "generated_at": "2026-09-26 00:16:23",
+    "generated_at": "2026-09-26 07:48:42",
     "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
     "version": "2.2"
   },
@@ -70,5 +70,20 @@
     "generated_at": "2026-09-26 00:16:23",
     "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
     "version": "2.2"
+  },
+  "qwen_analysis_mapreduce_1790376522_4a7ee7.md": {
+    "source_hash": "",
+    "generated_at": "2026-09-26 07:48:42",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2"
+  },
+  "patch_disaster_recovery_1790376618_0ad2d0.txt": {
+    "source_hash": "4bd9591e2b83c86d035f050310e064c7457d59c022a776159821740faae168cc",
+    "generated_at": "2026-09-26 07:50:18",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2",
+    "target_file": "c:\\Users\\kksjmj\\Desktop\\ai\\백업시스템\\disaster_recovery.py",
+    "target_sha256": "ece66bcee67841f3fd79e921745c0863058045cb0ab5e9ad5d4597eed4ed6204",
+    "occurrence": 1
   }
 }
