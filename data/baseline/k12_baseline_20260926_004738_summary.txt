@@ -1,0 +1,28 @@
+﻿============================================================
+ [K12 Ground Truth Baseline Summary Report]
+============================================================
+Capture Time   : 2026-09-26T00:47:38+09:00
+Host Name      : 품질김기수2
+User Name      : kksjmj
+User Profile   : C:\Users\kksjmj
+OS Version     : Microsoft Windows 11 Pro (10.0.26200)
+------------------------------------------------------------
+1. Environment & PATH
+ - System Variables : 16
+ - User Variables   : 15
+ - System PATH Items: 9
+ - User PATH Items  : 13
+2. Software & Runtimes
+ - Installed Apps   : 67
+ - VC++ Runtimes    : 13
+3. Developer Tools
+ - Detected Pythons : 15
+ - pip Packages     : 206
+ - Git Version      : git version 2.54.0.windows.1
+ - Node Version     : v22.23.1
+4. Automation & Services
+ - Active Tasks     : 163
+ - Auto Services    : 85
+5. Storage
+ - Mounted Drives   : D:, C:
+============================================================

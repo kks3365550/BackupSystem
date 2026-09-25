@@ -34,7 +34,7 @@
   },
   "qwen_latest_review.md": {
     "source_hash": "",
-    "generated_at": "2026-09-24 00:32:10",
+    "generated_at": "2026-09-26 00:16:23",
     "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
     "version": "2.2"
   },
@@ -62,6 +62,12 @@
   "qwen_analysis_mapreduce_1790177530_87770e.md": {
     "source_hash": "",
     "generated_at": "2026-09-24 00:32:10",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2"
+  },
+  "qwen_analysis_mapreduce_1790349383_99c171.md": {
+    "source_hash": "",
+    "generated_at": "2026-09-26 00:16:23",
     "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
     "version": "2.2"
   }

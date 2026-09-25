@@ -1,0 +1,3079 @@
+﻿{
+    "Meta":  {
+                 "CaptureTime":  "2026-09-26T00:47:38+09:00",
+                 "Hostname":  "품질김기수2",
+                 "Username":  "kksjmj",
+                 "UserProfile":  "C:\\Users\\kksjmj",
+                 "OSVersion":  "Microsoft Windows 11 Pro (10.0.26200)",
+                 "Tag":  "20260926_004738",
+                 "ScriptVersion":  "1.0.0"
+             },
+    "Environment":  {
+                        "SystemVariables":  {
+                                                "ComSpec":  "C:\\WINDOWS\\system32\\cmd.exe",
+                                                "DriverData":  "C:\\Windows\\System32\\Drivers\\DriverData",
+                                                "HIP_VISIBLE_DEVICES":  "0",
+                                                "HSA_OVERRIDE_GFX_VERSION":  "11.0.2",
+                                                "NUMBER_OF_PROCESSORS":  "16",
+                                                "OS":  "Windows_NT",
+                                                "Path":  "C:\\WINDOWS\\system32;C:\\WINDOWS;C:\\WINDOWS\\System32\\Wbem;C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\;C:\\WINDOWS\\System32\\OpenSSH\\;C:\\Program Files\\Bandizip\\;C:\\Program Files\\dotnet\\;C:\\Program Files\\Tailscale\\;C:\\Program Files (x86)\\cloudflared\\",
+                                                "PATHEXT":  ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC",
+                                                "PROCESSOR_ARCHITECTURE":  "AMD64",
+                                                "PROCESSOR_IDENTIFIER":  "AMD64 Family 25 Model 117 Stepping 2, AuthenticAMD",
+                                                "PROCESSOR_LEVEL":  "25",
+                                                "PROCESSOR_REVISION":  "7502",
+                                                "TEMP":  "C:\\WINDOWS\\TEMP",
+                                                "TMP":  "C:\\WINDOWS\\TEMP",
+                                                "USERNAME":  "SYSTEM",
+                                                "windir":  "C:\\WINDOWS"
+                                            },
+                        "UserVariables":  {
+                                              "HERMES_GIT_BASH_PATH":  "C:\\Users\\kksjmj\\AppData\\Local\\hermes\\git\\bin\\bash.exe",
+                                              "HERMES_HOME":  "C:\\Users\\kksjmj\\AppData\\Local\\hermes",
+                                              "HIP_VISIBLE_DEVICES":  "-1",
+                                              "HSA_OVERRIDE_GFX_VERSION":  "11.0.2",
+                                              "OLLAMA_IGPU_ENABLE":  "1",
+                                              "OLLAMA_KEEP_ALIVE":  "24h",
+                                              "OLLAMA_MAX_LOADED_MODELS":  "1",
+                                              "OLLAMA_NUM_PARALLEL":  "1",
+                                              "OLLAMA_VULKAN":  "1",
+                                              "OneDrive":  "C:\\Users\\kksjmj\\OneDrive",
+                                              "Path":  "C:\\Users\\kksjmj\\.unsloth\\studio\\bin;C:\\Users\\kksjmj\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts;C:\\Users\\kksjmj\\AppData\\Local\\hermes\\bin;C:\\Users\\kksjmj\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Users\\kksjmj\\AppData\\Local\\Python\\bin;C:\\Users\\kksjmj\\AppData\\Local\\Programs\\Ollama;C:\\Users\\kksjmj\\AppData\\Local\\hermes\\git\\cmd;C:\\Users\\kksjmj\\AppData\\Local\\hermes\\git\\bin;C:\\Users\\kksjmj\\AppData\\Local\\hermes\\git\\usr\\bin;C:\\Users\\kksjmj\\AppData\\Local\\hermes\\node;C:\\Users\\kksjmj\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe\\ripgrep-15.2.0-x86_64-pc-windows-msvc;C:\\Users\\kksjmj\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1.2-full_build\\bin;;C:\\Users\\kksjmj\\.lmstudio\\bin",
+                                              "ROCR_VISIBLE_DEVICES":  "-1",
+                                              "TEMP":  "C:\\Users\\kksjmj\\AppData\\Local\\Temp",
+                                              "TMP":  "C:\\Users\\kksjmj\\AppData\\Local\\Temp",
+                                              "TORCHINDUCTOR_CACHE_DIR":  "C:\\Users\\kksjmj\\.unsloth\\studio\\TORCHINDUCTOR_CACHE_DIR"
+                                          },
+                        "SystemPathOrder":  [
+                                                "C:\\WINDOWS\\system32",
+                                                "C:\\WINDOWS",
+                                                "C:\\WINDOWS\\System32\\Wbem",
+                                                "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\",
+                                                "C:\\WINDOWS\\System32\\OpenSSH\\",
+                                                "C:\\Program Files\\Bandizip\\",
+                                                "C:\\Program Files\\dotnet\\",
+                                                "C:\\Program Files\\Tailscale\\",
+                                                "C:\\Program Files (x86)\\cloudflared\\"
+                                            ],
+                        "UserPathOrder":  [
+                                              "C:\\Users\\kksjmj\\.unsloth\\studio\\bin",
+                                              "C:\\Users\\kksjmj\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts",
+                                              "C:\\Users\\kksjmj\\AppData\\Local\\hermes\\bin",
+                                              "C:\\Users\\kksjmj\\AppData\\Local\\Microsoft\\WindowsApps",
+                                              "C:\\Users\\kksjmj\\AppData\\Local\\Python\\bin",
+                                              "C:\\Users\\kksjmj\\AppData\\Local\\Programs\\Ollama",
+                                              "C:\\Users\\kksjmj\\AppData\\Local\\hermes\\git\\cmd",
+                                              "C:\\Users\\kksjmj\\AppData\\Local\\hermes\\git\\bin",
+                                              "C:\\Users\\kksjmj\\AppData\\Local\\hermes\\git\\usr\\bin",
+                                              "C:\\Users\\kksjmj\\AppData\\Local\\hermes\\node",
+                                              "C:\\Users\\kksjmj\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe\\ripgrep-15.2.0-x86_64-pc-windows-msvc",
+                                              "C:\\Users\\kksjmj\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1.2-full_build\\bin",
+                                              "C:\\Users\\kksjmj\\.lmstudio\\bin"
+                                          ],
+                        "RuntimePathOrder":  [
+                                                 "C:/Users/kksjmj/.gemini/antigravity/bin",
+                                                 "C:\\Users\\kksjmj\\AppData\\Roaming\\Antigravity\\bin",
+                                                 "C:\\WINDOWS\\system32",
+                                                 "C:\\WINDOWS",
+                                                 "C:\\WINDOWS\\System32\\Wbem",
+                                                 "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\",
+                                                 "C:\\WINDOWS\\System32\\OpenSSH\\",
+                                                 "C:\\Program Files\\Bandizip\\",
+                                                 "C:\\Program Files\\dotnet\\",
+                                                 "C:\\Program Files\\Tailscale\\",
+                                                 "C:\\Program Files (x86)\\cloudflared\\",
+                                                 "C:\\Users\\kksjmj\\.unsloth\\studio\\bin",
+                                                 "C:\\Users\\kksjmj\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts",
+                                                 "C:\\Users\\kksjmj\\AppData\\Local\\hermes\\bin",
+                                                 "C:\\Users\\kksjmj\\AppData\\Local\\Microsoft\\WindowsApps",
+                                                 "C:\\Users\\kksjmj\\AppData\\Local\\Python\\bin",
+                                                 "C:\\Users\\kksjmj\\AppData\\Local\\Programs\\Ollama",
+                                                 "C:\\Users\\kksjmj\\AppData\\Local\\hermes\\git\\cmd",
+                                                 "C:\\Users\\kksjmj\\AppData\\Local\\hermes\\git\\bin",
+                                                 "C:\\Users\\kksjmj\\AppData\\Local\\hermes\\git\\usr\\bin",
+                                                 "C:\\Users\\kksjmj\\AppData\\Local\\hermes\\node",
+                                                 "C:\\Users\\kksjmj\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe\\ripgrep-15.2.0-x86_64-pc-windows-msvc",
+                                                 "C:\\Users\\kksjmj\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1.2-full_build\\bin",
+                                                 "C:\\Users\\kksjmj\\.lmstudio\\bin"
+                                             ]
+                    },
+    "InstalledSoftware":  [
+                              {
+                                  "DisplayName":  "3DMark",
+                                  "DisplayVersion":  "",
+                                  "Publisher":  "UL Solutions",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  "C:\\Program Files (x86)\\Steam\\steamapps\\common\\3DMark"
+                              },
+                              {
+                                  "DisplayName":  "AMD Chipset Software",
+                                  "DisplayVersion":  "8.08.12.551",
+                                  "Publisher":  "Advanced Micro Devices, Inc.",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "AMD DVR",
+                                  "DisplayVersion":  "26.10.26223.2125",
+                                  "Publisher":  "Advanced Micro Devices, Inc.",
+                                  "InstallDate":  "20260831",
+                                  "InstallLocation":  "C:\\Program Files\\AMD\\CNext\\CNext\\"
+                              },
+                              {
+                                  "DisplayName":  "AMD GPIO2 Driver",
+                                  "DisplayVersion":  "2.2.0.136",
+                                  "Publisher":  "Advanced Micro Devices, Inc.",
+                                  "InstallDate":  "20260816",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "AMD Install Manager",
+                                  "DisplayVersion":  "26.10.26223.2118",
+                                  "Publisher":  "Advanced Micro Devices, Inc.",
+                                  "InstallDate":  "20260831",
+                                  "InstallLocation":  "C:\\Program Files\\AMD\\AMDInstallManager\\"
+                              },
+                              {
+                                  "DisplayName":  "AMD Interface Driver",
+                                  "DisplayVersion":  "2.0.0.29",
+                                  "Publisher":  "Advanced Micro Devices, Inc.",
+                                  "InstallDate":  "20260816",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "AMD MicroPEP Driver",
+                                  "DisplayVersion":  "1.0.47.0",
+                                  "Publisher":  "Advanced Micro Devices, Inc.",
+                                  "InstallDate":  "20260816",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "AMD PPM Provisioning File Driver",
+                                  "DisplayVersion":  "8.0.0.59",
+                                  "Publisher":  "Advanced Micro Devices, Inc.",
+                                  "InstallDate":  "20260816",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "AMD PSP Driver",
+                                  "DisplayVersion":  "5.40.0.0",
+                                  "Publisher":  "Advanced Micro Devices, Inc.",
+                                  "InstallDate":  "20260816",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "AMD Settings",
+                                  "DisplayVersion":  "2026.0811.2128.2099",
+                                  "Publisher":  "Advanced Micro Devices, Inc.",
+                                  "InstallDate":  "20260831",
+                                  "InstallLocation":  "C:\\Program Files\\AMD\\CNext\\CNext\\"
+                              },
+                              {
+                                  "DisplayName":  "AMD Software",
+                                  "DisplayVersion":  "26.8.1",
+                                  "Publisher":  "Advanced Micro Devices, Inc.",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  "C:\\Program Files\\AMD\\CIM\\BIN64"
+                              },
+                              {
+                                  "DisplayName":  "AMD WVR64",
+                                  "DisplayVersion":  "26.10.26223.2124",
+                                  "Publisher":  "Advanced Micro Devices, Inc.",
+                                  "InstallDate":  "20260831",
+                                  "InstallLocation":  "C:\\Program Files\\AMD\\WVR\\"
+                              },
+                              {
+                                  "DisplayName":  "AMD_Chipset_Drivers",
+                                  "DisplayVersion":  "8.08.12.551",
+                                  "Publisher":  "Advanced Micro Devices, Inc.",
+                                  "InstallDate":  "20260816",
+                                  "InstallLocation":  "C:\\Chipset_Software\\"
+                              },
+                              {
+                                  "DisplayName":  "Android Studio",
+                                  "DisplayVersion":  "2026.1",
+                                  "Publisher":  "Google LLC",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "AntiCheatExpert",
+                                  "DisplayVersion":  "24.3.2511.846",
+                                  "Publisher":  "",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  "C:\\Program Files\\AntiCheatExpert"
+                              },
+                              {
+                                  "DisplayName":  "Antigravity 2.17.0",
+                                  "DisplayVersion":  "2.17.0",
+                                  "Publisher":  "Google",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "AULA F99",
+                                  "DisplayVersion":  "2.0",
+                                  "Publisher":  "AULA",
+                                  "InstallDate":  "20260727",
+                                  "InstallLocation":  "C:\\Program Files (x86)\\AULA\\F99\\"
+                              },
+                              {
+                                  "DisplayName":  "Bandizip",
+                                  "DisplayVersion":  "7.46",
+                                  "Publisher":  "Bandisoft.com",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  "C:\\Program Files\\Bandizip\\"
+                              },
+                              {
+                                  "DisplayName":  "Branding64",
+                                  "DisplayVersion":  "1.00.0009",
+                                  "Publisher":  "Advanced Micro Devices, Inc.",
+                                  "InstallDate":  "20260831",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "cloudflared",
+                                  "DisplayVersion":  "2026.7.3",
+                                  "Publisher":  "cloudflare",
+                                  "InstallDate":  "20260813",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "FFmpeg",
+                                  "DisplayVersion":  "8.1.2",
+                                  "Publisher":  "Gyan",
+                                  "InstallDate":  "20260724",
+                                  "InstallLocation":  "C:\\Users\\kksjmj\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe"
+                              },
+                              {
+                                  "DisplayName":  "Futuremark SystemInfo",
+                                  "DisplayVersion":  "5.92.1497.0",
+                                  "Publisher":  "Futuremark",
+                                  "InstallDate":  "20260710",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "GalaxyConnectMSOfficeAddIn",
+                                  "DisplayVersion":  "1.0.20",
+                                  "Publisher":  "Samsung",
+                                  "InstallDate":  "20260914",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "GRYPHLINK",
+                                  "DisplayVersion":  "1.5.0.1507",
+                                  "Publisher":  "Shanghai Hypergryph Network Technology Co., Ltd.",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  "C:\\Program Files\\GRYPHLINK"
+                              },
+                              {
+                                  "DisplayName":  "HDVR CMS Application Ver 0.5.1",
+                                  "DisplayVersion":  "0.5.1",
+                                  "Publisher":  "skyrex",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Lazesoft Recovery Suite 5.2 Home Edition",
+                                  "DisplayVersion":  "5.2",
+                                  "Publisher":  "Lazesoft",
+                                  "InstallDate":  "20260903",
+                                  "InstallLocation":  "C:\\Program Files (x86)\\Lazesoft Recovery Suite\\"
+                              },
+                              {
+                                  "DisplayName":  "marktext",
+                                  "DisplayVersion":  "0.19.1",
+                                  "Publisher":  "Jocs",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft .NET Host - 10.0.12 (x64)",
+                                  "DisplayVersion":  "80.48.58476",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260909",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft .NET Host FX Resolver - 10.0.12 (x64)",
+                                  "DisplayVersion":  "80.48.58476",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260909",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft .NET Runtime - 10.0.12 (x64)",
+                                  "DisplayVersion":  "80.48.58476",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260909",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Edge",
+                                  "DisplayVersion":  "153.0.4234.48",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260920",
+                                  "InstallLocation":  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application"
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Edge WebView2 런타임",
+                                  "DisplayVersion":  "153.0.4234.48",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260920",
+                                  "InstallLocation":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application"
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Office Professional Plus 2024 - ko-kr",
+                                  "DisplayVersion":  "16.0.20326.20158",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  "C:\\Program Files\\Microsoft Office"
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Visual C++ 2008 Redistributable - x86 9.0.30729.6161",
+                                  "DisplayVersion":  "9.0.30729.6161",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260714",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Visual C++ 2012 Redistributable (x64) - 11.0.61030",
+                                  "DisplayVersion":  "11.0.61030.0",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Visual C++ 2012 Redistributable (x86) - 11.0.61030",
+                                  "DisplayVersion":  "11.0.61030.0",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Visual C++ 2012 x64 Additional Runtime - 11.0.61030",
+                                  "DisplayVersion":  "11.0.61030",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260710",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Visual C++ 2012 x64 Minimum Runtime - 11.0.61030",
+                                  "DisplayVersion":  "11.0.61030",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260710",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Visual C++ 2012 x86 Additional Runtime - 11.0.61030",
+                                  "DisplayVersion":  "11.0.61030",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260710",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Visual C++ 2012 x86 Minimum Runtime - 11.0.61030",
+                                  "DisplayVersion":  "11.0.61030",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260710",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Visual C++ 2022 X64 Additional Runtime - 14.51.36247",
+                                  "DisplayVersion":  "14.51.36247",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260710",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Visual C++ 2022 X64 Minimum Runtime - 14.51.36247",
+                                  "DisplayVersion":  "14.51.36247",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260710",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Visual C++ 2022 X86 Additional Runtime - 14.51.36247",
+                                  "DisplayVersion":  "14.51.36247",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260710",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Visual C++ 2022 X86 Minimum Runtime - 14.51.36247",
+                                  "DisplayVersion":  "14.51.36247",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260710",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Visual C++ v14 Redistributable (x64) - 14.51.36247",
+                                  "DisplayVersion":  "14.51.36247.0",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Visual C++ v14 Redistributable (x86) - 14.51.36247",
+                                  "DisplayVersion":  "14.51.36247.0",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Windows Application Compatibility Fix Database",
+                                  "DisplayVersion":  "",
+                                  "Publisher":  "",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Windows Desktop Runtime - 10.0.12 (x64)",
+                                  "DisplayVersion":  "80.48.58476",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260909",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Microsoft Windows Desktop Runtime 10.0.12 (x64)",
+                                  "DisplayVersion":  "10.0.12.50000",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260909",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "nProtect Online Security V1.0(PFS)",
+                                  "DisplayVersion":  "2026.8.14.1",
+                                  "Publisher":  "INCA Internet Co., Ltd.",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Office 16 Click-to-Run Extensibility Component",
+                                  "DisplayVersion":  "16.0.20326.20072",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260824",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Office 16 Click-to-Run Localization Component",
+                                  "DisplayVersion":  "16.0.20326.20100",
+                                  "Publisher":  "Microsoft Corporation",
+                                  "InstallDate":  "20260824",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Ollama version 0.32.8",
+                                  "DisplayVersion":  "0.32.8",
+                                  "Publisher":  "Ollama",
+                                  "InstallDate":  "20260811",
+                                  "InstallLocation":  "C:\\Users\\kksjmj\\AppData\\Local\\Programs\\Ollama\\"
+                              },
+                              {
+                                  "DisplayName":  "OpenTTD",
+                                  "DisplayVersion":  "",
+                                  "Publisher":  "OpenTTD",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  "C:\\Program Files (x86)\\Steam\\steamapps\\common\\OpenTTD"
+                              },
+                              {
+                                  "DisplayName":  "PawnIO",
+                                  "DisplayVersion":  "2.2.0.0",
+                                  "Publisher":  "namazso",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  "C:\\Program Files\\PawnIO"
+                              },
+                              {
+                                  "DisplayName":  "Python 3.14.6",
+                                  "DisplayVersion":  "3.14-64",
+                                  "Publisher":  "Python Software Foundation",
+                                  "InstallDate":  "20260711",
+                                  "InstallLocation":  "C:\\Users\\kksjmj\\AppData\\Local\\Python\\pythoncore-3.14-64"
+                              },
+                              {
+                                  "DisplayName":  "Realtek Ethernet Controller Driver",
+                                  "DisplayVersion":  "10.80.50.407",
+                                  "Publisher":  "Realtek",
+                                  "InstallDate":  "20260709",
+                                  "InstallLocation":  "C:\\Program Files (x86)\\Realtek\\NICDRV_8169"
+                              },
+                              {
+                                  "DisplayName":  "Receipt Manager 버전 1.0.12",
+                                  "DisplayVersion":  "1.0.12",
+                                  "Publisher":  "Receipt Manager",
+                                  "InstallDate":  "20260911",
+                                  "InstallLocation":  "C:\\Users\\kksjmj\\Desktop\\영수증\\1.0.12\\"
+                              },
+                              {
+                                  "DisplayName":  "RipGrep MSVC",
+                                  "DisplayVersion":  "15.2.0",
+                                  "Publisher":  "BurntSushi",
+                                  "InstallDate":  "20260724",
+                                  "InstallLocation":  "C:\\Users\\kksjmj\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe"
+                              },
+                              {
+                                  "DisplayName":  "Steam",
+                                  "DisplayVersion":  "2.10.91.91",
+                                  "Publisher":  "Valve Corporation",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "Tailscale",
+                                  "DisplayVersion":  "1.102.2",
+                                  "Publisher":  "Tailscale Inc.",
+                                  "InstallDate":  "20260811",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "TBH: 태스크바 히어로",
+                                  "DisplayVersion":  "",
+                                  "Publisher":  "Nugem Studio",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  "C:\\Program Files (x86)\\Steam\\steamapps\\common\\TaskbarHero"
+                              },
+                              {
+                                  "DisplayName":  "VMS version 2.5.9",
+                                  "DisplayVersion":  "2.5.9",
+                                  "Publisher":  "GLOBALINET Co,. Ltd.",
+                                  "InstallDate":  "20260715",
+                                  "InstallLocation":  "C:\\Users\\kksjmj\\AppData\\Local\\Programs\\VMS\\"
+                              },
+                              {
+                                  "DisplayName":  "Wallpaper Engine",
+                                  "DisplayVersion":  "",
+                                  "Publisher":  "Wallpaper Engine Team",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  "C:\\Program Files (x86)\\Steam\\steamapps\\common\\wallpaper_engine"
+                              },
+                              {
+                                  "DisplayName":  "삼성 브라우저",
+                                  "DisplayVersion":  "31.0.0.55",
+                                  "Publisher":  "Samsung Electronics Co., Ltd.",
+                                  "InstallDate":  "20260921",
+                                  "InstallLocation":  "C:\\Program Files\\Samsung\\Internet\\Application"
+                              },
+                              {
+                                  "DisplayName":  "카카오톡",
+                                  "DisplayVersion":  "26.8.1.5315",
+                                  "Publisher":  "Kakao Corp.",
+                                  "InstallDate":  "",
+                                  "InstallLocation":  ""
+                              },
+                              {
+                                  "DisplayName":  "한컴오피스 한글 2010",
+                                  "DisplayVersion":  "8.0.1",
+                                  "Publisher":  "Hancom",
+                                  "InstallDate":  "2026-07-29",
+                                  "InstallLocation":  "C:\\Program Files (x86)\\Hnc\\"
+                              }
+                          ],
+    "VCRuntimes":  [
+                       {
+                           "DisplayName":  "Microsoft Visual C++ 2008 Redistributable - x86 9.0.30729.6161",
+                           "DisplayVersion":  "9.0.30729.6161",
+                           "Publisher":  "Microsoft Corporation",
+                           "InstallDate":  "20260714",
+                           "InstallLocation":  ""
+                       },
+                       {
+                           "DisplayName":  "Microsoft Visual C++ 2012 Redistributable (x64) - 11.0.61030",
+                           "DisplayVersion":  "11.0.61030.0",
+                           "Publisher":  "Microsoft Corporation",
+                           "InstallDate":  "",
+                           "InstallLocation":  ""
+                       },
+                       {
+                           "DisplayName":  "Microsoft Visual C++ 2012 Redistributable (x86) - 11.0.61030",
+                           "DisplayVersion":  "11.0.61030.0",
+                           "Publisher":  "Microsoft Corporation",
+                           "InstallDate":  "",
+                           "InstallLocation":  ""
+                       },
+                       {
+                           "DisplayName":  "Microsoft Visual C++ 2012 x64 Additional Runtime - 11.0.61030",
+                           "DisplayVersion":  "11.0.61030",
+                           "Publisher":  "Microsoft Corporation",
+                           "InstallDate":  "20260710",
+                           "InstallLocation":  ""
+                       },
+                       {
+                           "DisplayName":  "Microsoft Visual C++ 2012 x64 Minimum Runtime - 11.0.61030",
+                           "DisplayVersion":  "11.0.61030",
+                           "Publisher":  "Microsoft Corporation",
+                           "InstallDate":  "20260710",
+                           "InstallLocation":  ""
+                       },
+                       {
+                           "DisplayName":  "Microsoft Visual C++ 2012 x86 Additional Runtime - 11.0.61030",
+                           "DisplayVersion":  "11.0.61030",
+                           "Publisher":  "Microsoft Corporation",
+                           "InstallDate":  "20260710",
+                           "InstallLocation":  ""
+                       },
+                       {
+                           "DisplayName":  "Microsoft Visual C++ 2012 x86 Minimum Runtime - 11.0.61030",
+                           "DisplayVersion":  "11.0.61030",
+                           "Publisher":  "Microsoft Corporation",
+                           "InstallDate":  "20260710",
+                           "InstallLocation":  ""
+                       },
+                       {
+                           "DisplayName":  "Microsoft Visual C++ 2022 X64 Additional Runtime - 14.51.36247",
+                           "DisplayVersion":  "14.51.36247",
+                           "Publisher":  "Microsoft Corporation",
+                           "InstallDate":  "20260710",
+                           "InstallLocation":  ""
+                       },
+                       {
+                           "DisplayName":  "Microsoft Visual C++ 2022 X64 Minimum Runtime - 14.51.36247",
+                           "DisplayVersion":  "14.51.36247",
+                           "Publisher":  "Microsoft Corporation",
+                           "InstallDate":  "20260710",
+                           "InstallLocation":  ""
+                       },
+                       {
+                           "DisplayName":  "Microsoft Visual C++ 2022 X86 Additional Runtime - 14.51.36247",
+                           "DisplayVersion":  "14.51.36247",
+                           "Publisher":  "Microsoft Corporation",
+                           "InstallDate":  "20260710",
+                           "InstallLocation":  ""
+                       },
+                       {
+                           "DisplayName":  "Microsoft Visual C++ 2022 X86 Minimum Runtime - 14.51.36247",
+                           "DisplayVersion":  "14.51.36247",
+                           "Publisher":  "Microsoft Corporation",
+                           "InstallDate":  "20260710",
+                           "InstallLocation":  ""
+                       },
+                       {
+                           "DisplayName":  "Microsoft Visual C++ v14 Redistributable (x64) - 14.51.36247",
+                           "DisplayVersion":  "14.51.36247.0",
+                           "Publisher":  "Microsoft Corporation",
+                           "InstallDate":  "",
+                           "InstallLocation":  ""
+                       },
+                       {
+                           "DisplayName":  "Microsoft Visual C++ v14 Redistributable (x86) - 14.51.36247",
+                           "DisplayVersion":  "14.51.36247.0",
+                           "Publisher":  "Microsoft Corporation",
+                           "InstallDate":  "",
+                           "InstallLocation":  ""
+                       }
+                   ],
+    "DeveloperTools":  {
+                           "PythonExecutables":  [
+                                                     {
+                                                         "Path":  "C:\\Users\\kksjmj\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+                                                         "Version":  "Python 3.11.15"
+                                                     },
+                                                     {
+                                                         "Path":  "C:\\Users\\kksjmj\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe",
+                                                         "Version":  "Python 3.14.6"
+                                                     },
+                                                     {
+                                                         "Path":  "C:\\Users\\kksjmj\\AppData\\Local\\Python\\bin\\python.exe",
+                                                         "Version":  "Python 3.11.15"
+                                                     },
+                                                     {
+                                                         "Path":  "C:\\Users\\kksjmj\\AppData\\Local\\Python\\bin\\python3.14.exe",
+                                                         "Version":  "Python 3.11.15"
+                                                     },
+                                                     {
+                                                         "Path":  "C:\\Users\\kksjmj\\AppData\\Local\\Python\\bin\\python3.14-64.exe",
+                                                         "Version":  "Python 3.11.15"
+                                                     },
+                                                     {
+                                                         "Path":  "C:\\Users\\kksjmj\\AppData\\Local\\Microsoft\\WindowsApps\\python3.exe",
+                                                         "Version":  "Python 3.14.6"
+                                                     },
+                                                     {
+                                                         "Path":  "C:\\Users\\kksjmj\\AppData\\Local\\Python\\bin\\python3.exe",
+                                                         "Version":  "Python 3.11.15"
+                                                     },
+                                                     {
+                                                         "Path":  "C:\\Users\\kksjmj\\AppData\\Local\\Python\\bin\\python3-64.exe",
+                                                         "Version":  "Python 3.11.15"
+                                                     },
+                                                     {
+                                                         "Path":  "C:\\Users\\kksjmj\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\pythonw.exe",
+                                                         "Version":  "Python 3.11.15"
+                                                     },
+                                                     {
+                                                         "Path":  "C:\\Users\\kksjmj\\AppData\\Local\\Microsoft\\WindowsApps\\pythonw.exe",
+                                                         "Version":  "Python 3.14.6"
+                                                     },
+                                                     {
+                                                         "Path":  "C:\\Users\\kksjmj\\AppData\\Local\\Python\\bin\\pythonw.exe",
+                                                         "Version":  ""
+                                                     },
+                                                     {
+                                                         "Path":  "C:\\Users\\kksjmj\\AppData\\Local\\Python\\bin\\pythonw3.14.exe",
+                                                         "Version":  ""
+                                                     },
+                                                     {
+                                                         "Path":  "C:\\Users\\kksjmj\\AppData\\Local\\Python\\bin\\pythonw3.14-64.exe",
+                                                         "Version":  ""
+                                                     },
+                                                     {
+                                                         "Path":  "C:\\Users\\kksjmj\\AppData\\Local\\Python\\bin\\pythonw3.exe",
+                                                         "Version":  ""
+                                                     },
+                                                     {
+                                                         "Path":  "C:\\Users\\kksjmj\\AppData\\Local\\Python\\bin\\pythonw3-64.exe",
+                                                         "Version":  ""
+                                                     }
+                                                 ],
+                           "PipPackagesCount":  206,
+                           "PipPackages":  [
+                                               {
+                                                   "Name":  "agent-client-protocol",
+                                                   "Version":  "0.9.0"
+                                               },
+                                               {
+                                                   "Name":  "aiohappyeyeballs",
+                                                   "Version":  "2.6.1"
+                                               },
+                                               {
+                                                   "Name":  "aiohttp",
+                                                   "Version":  "3.14.1"
+                                               },
+                                               {
+                                                   "Name":  "aiosignal",
+                                                   "Version":  "1.4.0"
+                                               },
+                                               {
+                                                   "Name":  "altair",
+                                                   "Version":  "6.2.2"
+                                               },
+                                               {
+                                                   "Name":  "altgraph",
+                                                   "Version":  "0.17.5"
+                                               },
+                                               {
+                                                   "Name":  "annotated-doc",
+                                                   "Version":  "0.0.4"
+                                               },
+                                               {
+                                                   "Name":  "annotated-types",
+                                                   "Version":  "0.7.0"
+                                               },
+                                               {
+                                                   "Name":  "anyio",
+                                                   "Version":  "4.12.1"
+                                               },
+                                               {
+                                                   "Name":  "arabic-reshaper",
+                                                   "Version":  "3.0.1"
+                                               },
+                                               {
+                                                   "Name":  "asn1crypto",
+                                                   "Version":  "1.5.1"
+                                               },
+                                               {
+                                                   "Name":  "attrs",
+                                                   "Version":  "25.4.0"
+                                               },
+                                               {
+                                                   "Name":  "beautifulsoup4",
+                                                   "Version":  "4.15.0"
+                                               },
+                                               {
+                                                   "Name":  "boto3",
+                                                   "Version":  "1.42.89"
+                                               },
+                                               {
+                                                   "Name":  "botocore",
+                                                   "Version":  "1.42.97"
+                                               },
+                                               {
+                                                   "Name":  "brotli",
+                                                   "Version":  "1.2.0"
+                                               },
+                                               {
+                                                   "Name":  "certifi",
+                                                   "Version":  "2026.5.20"
+                                               },
+                                               {
+                                                   "Name":  "cffi",
+                                                   "Version":  "2.0.0"
+                                               },
+                                               {
+                                                   "Name":  "charset-normalizer",
+                                                   "Version":  "3.4.4"
+                                               },
+                                               {
+                                                   "Name":  "click",
+                                                   "Version":  "8.4.2"
+                                               },
+                                               {
+                                                   "Name":  "colorama",
+                                                   "Version":  "0.4.6"
+                                               },
+                                               {
+                                                   "Name":  "concurrent-log-handler",
+                                                   "Version":  "0.9.29"
+                                               },
+                                               {
+                                                   "Name":  "contourpy",
+                                                   "Version":  "1.3.3"
+                                               },
+                                               {
+                                                   "Name":  "croniter",
+                                                   "Version":  "6.0.0"
+                                               },
+                                               {
+                                                   "Name":  "cryptography",
+                                                   "Version":  "50.0.0"
+                                               },
+                                               {
+                                                   "Name":  "cssselect2",
+                                                   "Version":  "0.9.0"
+                                               },
+                                               {
+                                                   "Name":  "cycler",
+                                                   "Version":  "0.12.1"
+                                               },
+                                               {
+                                                   "Name":  "defusedxml",
+                                                   "Version":  "0.7.1"
+                                               },
+                                               {
+                                                   "Name":  "diskcache",
+                                                   "Version":  "5.6.3"
+                                               },
+                                               {
+                                                   "Name":  "distro",
+                                                   "Version":  "1.9.0"
+                                               },
+                                               {
+                                                   "Name":  "dncil",
+                                                   "Version":  "1.0.2"
+                                               },
+                                               {
+                                                   "Name":  "dnfile",
+                                                   "Version":  "0.18.0"
+                                               },
+                                               {
+                                                   "Name":  "docker",
+                                                   "Version":  "7.2.0"
+                                               },
+                                               {
+                                                   "Name":  "edge-tts",
+                                                   "Version":  "7.2.7"
+                                               },
+                                               {
+                                                   "Name":  "et_xmlfile",
+                                                   "Version":  "2.0.0"
+                                               },
+                                               {
+                                                   "Name":  "fastapi",
+                                                   "Version":  "0.133.1"
+                                               },
+                                               {
+                                                   "Name":  "filelock",
+                                                   "Version":  "3.32.2"
+                                               },
+                                               {
+                                                   "Name":  "fire",
+                                                   "Version":  "0.7.1"
+                                               },
+                                               {
+                                                   "Name":  "FLAML",
+                                                   "Version":  "2.6.0"
+                                               },
+                                               {
+                                                   "Name":  "flatbuffers",
+                                                   "Version":  "25.12.19"
+                                               },
+                                               {
+                                                   "Name":  "fonttools",
+                                                   "Version":  "4.63.0"
+                                               },
+                                               {
+                                                   "Name":  "frozenlist",
+                                                   "Version":  "1.8.0"
+                                               },
+                                               {
+                                                   "Name":  "fsspec",
+                                                   "Version":  "2026.7.0"
+                                               },
+                                               {
+                                                   "Name":  "google-api-core",
+                                                   "Version":  "2.30.3"
+                                               },
+                                               {
+                                                   "Name":  "google-api-python-client",
+                                                   "Version":  "2.194.0"
+                                               },
+                                               {
+                                                   "Name":  "google-auth",
+                                                   "Version":  "2.58.0"
+                                               },
+                                               {
+                                                   "Name":  "google-auth-httplib2",
+                                                   "Version":  "0.3.1"
+                                               },
+                                               {
+                                                   "Name":  "google-auth-oauthlib",
+                                                   "Version":  "1.3.1"
+                                               },
+                                               {
+                                                   "Name":  "google-genai",
+                                                   "Version":  "2.23.0"
+                                               },
+                                               {
+                                                   "Name":  "googleapis-common-protos",
+                                                   "Version":  "1.73.0"
+                                               },
+                                               {
+                                                   "Name":  "gradio",
+                                                   "Version":  "6.22.0"
+                                               },
+                                               {
+                                                   "Name":  "gradio_client",
+                                                   "Version":  "2.6.0"
+                                               },
+                                               {
+                                                   "Name":  "greenlet",
+                                                   "Version":  "3.5.5"
+                                               },
+                                               {
+                                                   "Name":  "groovy",
+                                                   "Version":  "0.1.2"
+                                               },
+                                               {
+                                                   "Name":  "h11",
+                                                   "Version":  "0.16.0"
+                                               },
+                                               {
+                                                   "Name":  "hermes-agent",
+                                                   "Version":  "0.19.0"
+                                               },
+                                               {
+                                                   "Name":  "hf-gradio",
+                                                   "Version":  "0.4.1"
+                                               },
+                                               {
+                                                   "Name":  "hf-xet",
+                                                   "Version":  "1.6.0"
+                                               },
+                                               {
+                                                   "Name":  "html5lib",
+                                                   "Version":  "1.1"
+                                               },
+                                               {
+                                                   "Name":  "httpcore",
+                                                   "Version":  "1.0.9"
+                                               },
+                                               {
+                                                   "Name":  "httplib2",
+                                                   "Version":  "0.31.2"
+                                               },
+                                               {
+                                                   "Name":  "httptools",
+                                                   "Version":  "0.7.1"
+                                               },
+                                               {
+                                                   "Name":  "httpx",
+                                                   "Version":  "0.28.1"
+                                               },
+                                               {
+                                                   "Name":  "httpx-sse",
+                                                   "Version":  "0.4.3"
+                                               },
+                                               {
+                                                   "Name":  "huggingface_hub",
+                                                   "Version":  "1.26.1"
+                                               },
+                                               {
+                                                   "Name":  "idna",
+                                                   "Version":  "3.15"
+                                               },
+                                               {
+                                                   "Name":  "itsdangerous",
+                                                   "Version":  "2.2.0"
+                                               },
+                                               {
+                                                   "Name":  "Jinja2",
+                                                   "Version":  "3.1.6"
+                                               },
+                                               {
+                                                   "Name":  "jiter",
+                                                   "Version":  "0.13.0"
+                                               },
+                                               {
+                                                   "Name":  "jmespath",
+                                                   "Version":  "1.1.0"
+                                               },
+                                               {
+                                                   "Name":  "jsonschema",
+                                                   "Version":  "4.26.0"
+                                               },
+                                               {
+                                                   "Name":  "jsonschema-specifications",
+                                                   "Version":  "2025.9.1"
+                                               },
+                                               {
+                                                   "Name":  "keyboard",
+                                                   "Version":  "0.13.5"
+                                               },
+                                               {
+                                                   "Name":  "kiwisolver",
+                                                   "Version":  "1.5.0"
+                                               },
+                                               {
+                                                   "Name":  "lxml",
+                                                   "Version":  "6.1.1"
+                                               },
+                                               {
+                                                   "Name":  "Markdown",
+                                                   "Version":  "3.10.2"
+                                               },
+                                               {
+                                                   "Name":  "markdown-it-py",
+                                                   "Version":  "4.0.0"
+                                               },
+                                               {
+                                                   "Name":  "markdown2",
+                                                   "Version":  "2.5.5"
+                                               },
+                                               {
+                                                   "Name":  "MarkupSafe",
+                                                   "Version":  "3.0.3"
+                                               },
+                                               {
+                                                   "Name":  "matplotlib",
+                                                   "Version":  "3.11.1"
+                                               },
+                                               {
+                                                   "Name":  "mcp",
+                                                   "Version":  "1.26.0"
+                                               },
+                                               {
+                                                   "Name":  "mdurl",
+                                                   "Version":  "0.1.2"
+                                               },
+                                               {
+                                                   "Name":  "MouseInfo",
+                                                   "Version":  "0.1.3"
+                                               },
+                                               {
+                                                   "Name":  "multidict",
+                                                   "Version":  "6.7.1"
+                                               },
+                                               {
+                                                   "Name":  "narwhals",
+                                                   "Version":  "2.26.0"
+                                               },
+                                               {
+                                                   "Name":  "numpy",
+                                                   "Version":  "2.4.6"
+                                               },
+                                               {
+                                                   "Name":  "oauthlib",
+                                                   "Version":  "3.3.1"
+                                               },
+                                               {
+                                                   "Name":  "olefile",
+                                                   "Version":  "0.47"
+                                               },
+                                               {
+                                                   "Name":  "onnxruntime",
+                                                   "Version":  "1.30.0"
+                                               },
+                                               {
+                                                   "Name":  "openai",
+                                                   "Version":  "2.24.0"
+                                               },
+                                               {
+                                                   "Name":  "opencv-python",
+                                                   "Version":  "5.0.0.93"
+                                               },
+                                               {
+                                                   "Name":  "openpyxl",
+                                                   "Version":  "3.1.5"
+                                               },
+                                               {
+                                                   "Name":  "orjson",
+                                                   "Version":  "3.11.9"
+                                               },
+                                               {
+                                                   "Name":  "oscrypto",
+                                                   "Version":  "1.3.0"
+                                               },
+                                               {
+                                                   "Name":  "packaging",
+                                                   "Version":  "26.0"
+                                               },
+                                               {
+                                                   "Name":  "pandas",
+                                                   "Version":  "3.0.5"
+                                               },
+                                               {
+                                                   "Name":  "pathspec",
+                                                   "Version":  "1.1.1"
+                                               },
+                                               {
+                                                   "Name":  "pefile",
+                                                   "Version":  "2024.8.26"
+                                               },
+                                               {
+                                                   "Name":  "pillow",
+                                                   "Version":  "12.2.0"
+                                               },
+                                               {
+                                                   "Name":  "pip",
+                                                   "Version":  "26.2.1"
+                                               },
+                                               {
+                                                   "Name":  "playwright",
+                                                   "Version":  "1.62.0"
+                                               },
+                                               {
+                                                   "Name":  "portalocker",
+                                                   "Version":  "3.2.0"
+                                               },
+                                               {
+                                                   "Name":  "prompt_toolkit",
+                                                   "Version":  "3.0.52"
+                                               },
+                                               {
+                                                   "Name":  "propcache",
+                                                   "Version":  "0.4.1"
+                                               },
+                                               {
+                                                   "Name":  "proto-plus",
+                                                   "Version":  "1.27.2"
+                                               },
+                                               {
+                                                   "Name":  "protobuf",
+                                                   "Version":  "6.33.5"
+                                               },
+                                               {
+                                                   "Name":  "psutil",
+                                                   "Version":  "7.2.2"
+                                               },
+                                               {
+                                                   "Name":  "pyarrow",
+                                                   "Version":  "25.0.1"
+                                               },
+                                               {
+                                                   "Name":  "pyasn1",
+                                                   "Version":  "0.6.3"
+                                               },
+                                               {
+                                                   "Name":  "pyasn1_modules",
+                                                   "Version":  "0.4.2"
+                                               },
+                                               {
+                                                   "Name":  "pyautogen",
+                                                   "Version":  "0.2.35"
+                                               },
+                                               {
+                                                   "Name":  "PyAutoGUI",
+                                                   "Version":  "0.9.54"
+                                               },
+                                               {
+                                                   "Name":  "pycdc",
+                                                   "Version":  "0.1.0"
+                                               },
+                                               {
+                                                   "Name":  "pyclipper",
+                                                   "Version":  "1.4.0"
+                                               },
+                                               {
+                                                   "Name":  "pycparser",
+                                                   "Version":  "3.0"
+                                               },
+                                               {
+                                                   "Name":  "pydantic",
+                                                   "Version":  "2.13.4"
+                                               },
+                                               {
+                                                   "Name":  "pydantic_core",
+                                                   "Version":  "2.46.4"
+                                               },
+                                               {
+                                                   "Name":  "pydantic-settings",
+                                                   "Version":  "2.13.1"
+                                               },
+                                               {
+                                                   "Name":  "pydeck",
+                                                   "Version":  "0.9.3"
+                                               },
+                                               {
+                                                   "Name":  "pydub",
+                                                   "Version":  "0.25.1"
+                                               },
+                                               {
+                                                   "Name":  "pyee",
+                                                   "Version":  "13.0.1"
+                                               },
+                                               {
+                                                   "Name":  "PyGetWindow",
+                                                   "Version":  "0.0.9"
+                                               },
+                                               {
+                                                   "Name":  "Pygments",
+                                                   "Version":  "2.19.2"
+                                               },
+                                               {
+                                                   "Name":  "pyHanko",
+                                                   "Version":  "0.36.2"
+                                               },
+                                               {
+                                                   "Name":  "pyhanko-certvalidator",
+                                                   "Version":  "0.31.4"
+                                               },
+                                               {
+                                                   "Name":  "pyhwp",
+                                                   "Version":  "0.1b15"
+                                               },
+                                               {
+                                                   "Name":  "pyinstaller",
+                                                   "Version":  "6.21.0"
+                                               },
+                                               {
+                                                   "Name":  "pyinstaller-hooks-contrib",
+                                                   "Version":  "2026.6"
+                                               },
+                                               {
+                                                   "Name":  "PyJWT",
+                                                   "Version":  "2.13.0"
+                                               },
+                                               {
+                                                   "Name":  "PyMsgBox",
+                                                   "Version":  "2.0.1"
+                                               },
+                                               {
+                                                   "Name":  "PyMySQL",
+                                                   "Version":  "1.2.0"
+                                               },
+                                               {
+                                                   "Name":  "pyparsing",
+                                                   "Version":  "3.3.2"
+                                               },
+                                               {
+                                                   "Name":  "pypdf",
+                                                   "Version":  "6.15.0"
+                                               },
+                                               {
+                                                   "Name":  "pyperclip",
+                                                   "Version":  "1.11.0"
+                                               },
+                                               {
+                                                   "Name":  "PyRect",
+                                                   "Version":  "0.2.0"
+                                               },
+                                               {
+                                                   "Name":  "PyScreeze",
+                                                   "Version":  "1.0.1"
+                                               },
+                                               {
+                                                   "Name":  "python-bidi",
+                                                   "Version":  "0.6.11"
+                                               },
+                                               {
+                                                   "Name":  "python-dateutil",
+                                                   "Version":  "2.9.0.post0"
+                                               },
+                                               {
+                                                   "Name":  "python-docx",
+                                                   "Version":  "1.2.0"
+                                               },
+                                               {
+                                                   "Name":  "python-dotenv",
+                                                   "Version":  "1.2.2"
+                                               },
+                                               {
+                                                   "Name":  "python-multipart",
+                                                   "Version":  "0.0.27"
+                                               },
+                                               {
+                                                   "Name":  "python-pptx",
+                                                   "Version":  "1.0.2"
+                                               },
+                                               {
+                                                   "Name":  "pytweening",
+                                                   "Version":  "1.2.0"
+                                               },
+                                               {
+                                                   "Name":  "pytz",
+                                                   "Version":  "2025.2"
+                                               },
+                                               {
+                                                   "Name":  "pywin32",
+                                                   "Version":  "311"
+                                               },
+                                               {
+                                                   "Name":  "pywin32-ctypes",
+                                                   "Version":  "0.2.3"
+                                               },
+                                               {
+                                                   "Name":  "pywinpty",
+                                                   "Version":  "2.0.15"
+                                               },
+                                               {
+                                                   "Name":  "PyYAML",
+                                                   "Version":  "6.0.3"
+                                               },
+                                               {
+                                                   "Name":  "rapidocr-onnxruntime",
+                                                   "Version":  "1.4.4"
+                                               },
+                                               {
+                                                   "Name":  "referencing",
+                                                   "Version":  "0.37.0"
+                                               },
+                                               {
+                                                   "Name":  "regex",
+                                                   "Version":  "2026.7.19"
+                                               },
+                                               {
+                                                   "Name":  "reportlab",
+                                                   "Version":  "4.5.1"
+                                               },
+                                               {
+                                                   "Name":  "requests",
+                                                   "Version":  "2.33.0"
+                                               },
+                                               {
+                                                   "Name":  "requests-oauthlib",
+                                                   "Version":  "2.0.0"
+                                               },
+                                               {
+                                                   "Name":  "rich",
+                                                   "Version":  "14.3.3"
+                                               },
+                                               {
+                                                   "Name":  "rpds-py",
+                                                   "Version":  "0.30.0"
+                                               },
+                                               {
+                                                   "Name":  "ruamel.yaml",
+                                                   "Version":  "0.18.17"
+                                               },
+                                               {
+                                                   "Name":  "ruamel.yaml.clib",
+                                                   "Version":  "0.2.15"
+                                               },
+                                               {
+                                                   "Name":  "s3transfer",
+                                                   "Version":  "0.16.1"
+                                               },
+                                               {
+                                                   "Name":  "safehttpx",
+                                                   "Version":  "0.1.7"
+                                               },
+                                               {
+                                                   "Name":  "seaborn",
+                                                   "Version":  "0.13.2"
+                                               },
+                                               {
+                                                   "Name":  "semantic-version",
+                                                   "Version":  "2.10.0"
+                                               },
+                                               {
+                                                   "Name":  "setuptools",
+                                                   "Version":  "79.0.1"
+                                               },
+                                               {
+                                                   "Name":  "shapely",
+                                                   "Version":  "2.1.2"
+                                               },
+                                               {
+                                                   "Name":  "shellingham",
+                                                   "Version":  "1.5.4"
+                                               },
+                                               {
+                                                   "Name":  "simple-term-menu",
+                                                   "Version":  "1.6.6"
+                                               },
+                                               {
+                                                   "Name":  "six",
+                                                   "Version":  "1.17.0"
+                                               },
+                                               {
+                                                   "Name":  "sniffio",
+                                                   "Version":  "1.3.1"
+                                               },
+                                               {
+                                                   "Name":  "socksio",
+                                                   "Version":  "1.0.0"
+                                               },
+                                               {
+                                                   "Name":  "soupsieve",
+                                                   "Version":  "2.9.1"
+                                               },
+                                               {
+                                                   "Name":  "spark-parser",
+                                                   "Version":  "1.9.0"
+                                               },
+                                               {
+                                                   "Name":  "sse-starlette",
+                                                   "Version":  "3.3.2"
+                                               },
+                                               {
+                                                   "Name":  "starlette",
+                                                   "Version":  "1.0.1"
+                                               },
+                                               {
+                                                   "Name":  "streamlit",
+                                                   "Version":  "1.63.0"
+                                               },
+                                               {
+                                                   "Name":  "svglib",
+                                                   "Version":  "2.1.0"
+                                               },
+                                               {
+                                                   "Name":  "tabulate",
+                                                   "Version":  "0.10.0"
+                                               },
+                                               {
+                                                   "Name":  "tenacity",
+                                                   "Version":  "9.1.4"
+                                               },
+                                               {
+                                                   "Name":  "termcolor",
+                                                   "Version":  "3.3.0"
+                                               },
+                                               {
+                                                   "Name":  "tiktoken",
+                                                   "Version":  "0.13.0"
+                                               },
+                                               {
+                                                   "Name":  "tinycss2",
+                                                   "Version":  "1.5.1"
+                                               },
+                                               {
+                                                   "Name":  "toml",
+                                                   "Version":  "0.10.2"
+                                               },
+                                               {
+                                                   "Name":  "tomlkit",
+                                                   "Version":  "0.14.0"
+                                               },
+                                               {
+                                                   "Name":  "tqdm",
+                                                   "Version":  "4.67.3"
+                                               },
+                                               {
+                                                   "Name":  "typer",
+                                                   "Version":  "0.27.1"
+                                               },
+                                               {
+                                                   "Name":  "typing_extensions",
+                                                   "Version":  "4.15.0"
+                                               },
+                                               {
+                                                   "Name":  "typing-inspection",
+                                                   "Version":  "0.4.2"
+                                               },
+                                               {
+                                                   "Name":  "tzdata",
+                                                   "Version":  "2025.3"
+                                               },
+                                               {
+                                                   "Name":  "tzlocal",
+                                                   "Version":  "5.4.4"
+                                               },
+                                               {
+                                                   "Name":  "uncompyle6",
+                                                   "Version":  "3.9.3"
+                                               },
+                                               {
+                                                   "Name":  "uritemplate",
+                                                   "Version":  "4.2.0"
+                                               },
+                                               {
+                                                   "Name":  "uritools",
+                                                   "Version":  "6.1.3"
+                                               },
+                                               {
+                                                   "Name":  "urllib3",
+                                                   "Version":  "2.7.0"
+                                               },
+                                               {
+                                                   "Name":  "uvicorn",
+                                                   "Version":  "0.41.0"
+                                               },
+                                               {
+                                                   "Name":  "watchdog",
+                                                   "Version":  "6.0.0"
+                                               },
+                                               {
+                                                   "Name":  "watchfiles",
+                                                   "Version":  "1.1.1"
+                                               },
+                                               {
+                                                   "Name":  "wcwidth",
+                                                   "Version":  "0.6.0"
+                                               },
+                                               {
+                                                   "Name":  "webencodings",
+                                                   "Version":  "0.5.1"
+                                               },
+                                               {
+                                                   "Name":  "websockets",
+                                                   "Version":  "15.0.1"
+                                               },
+                                               {
+                                                   "Name":  "winsdk",
+                                                   "Version":  "1.0.0b10"
+                                               },
+                                               {
+                                                   "Name":  "xdis",
+                                                   "Version":  "6.1.8"
+                                               },
+                                               {
+                                                   "Name":  "xhtml2pdf",
+                                                   "Version":  "0.2.17"
+                                               },
+                                               {
+                                                   "Name":  "xlrd",
+                                                   "Version":  "2.0.2"
+                                               },
+                                               {
+                                                   "Name":  "xlsxwriter",
+                                                   "Version":  "3.2.9"
+                                               },
+                                               {
+                                                   "Name":  "yarl",
+                                                   "Version":  "1.22.0"
+                                               },
+                                               {
+                                                   "Name":  "youtube-transcript-api",
+                                                   "Version":  "1.2.4"
+                                               },
+                                               {
+                                                   "Name":  "zstandard",
+                                                   "Version":  "0.25.0"
+                                               }
+                                           ],
+                           "GitVersion":  "git version 2.54.0.windows.1",
+                           "GitConfigGlobal":  [
+                                                   {
+                                                       "Key":  "windows.appendatomically",
+                                                       "Value":  "false"
+                                                   },
+                                                   {
+                                                       "Key":  "credential.helperselector.selected",
+                                                       "Value":  "\u003cno helper\u003e"
+                                                   }
+                                               ],
+                           "NodeVersion":  "v22.23.1",
+                           "NpmVersion":  "10.9.8"
+                       },
+    "TaskScheduler":  [
+                          {
+                              "TaskName":  "AMDInstallLauncher",
+                              "TaskPath":  "\\",
+                              "State":  "Ready",
+                              "Action":  "C:\\Program Files\\AMD\\CIM\\Bin64\\InstallManagerApp.exe /InstallAUEP"
+                          },
+                          {
+                              "TaskName":  "BackupSystem_AutoBackup",
+                              "TaskPath":  "\\",
+                              "State":  "Ready",
+                              "Action":  "c:\\Users\\kksjmj\\Desktop\\ai\\백업시스템\\.venv\\Scripts\\pythonw.exe \"c:\\Users\\kksjmj\\Desktop\\ai\\백업시스템\\cli_backup.py\" --profile \"prof_custom_selected\""
+                          },
+                          {
+                              "TaskName":  "FoodSafetyDailyCollector",
+                              "TaskPath":  "\\",
+                              "State":  "Ready",
+                              "Action":  "C:\\food_safety_collector\\run_scheduled.bat "
+                          },
+                          {
+                              "TaskName":  "FoodSafetyDailyCollector_Silent",
+                              "TaskPath":  "\\",
+                              "State":  "Ready",
+                              "Action":  "wscript.exe \"C:\\food_safety_collector\\run_scheduled_silent.vbs\""
+                          },
+                          {
+                              "TaskName":  "StartCN",
+                              "TaskPath":  "\\",
+                              "State":  "Ready",
+                              "Action":  "\"C:\\Program Files\\AMD\\CNext\\CNext\\\\cncmd.exe\" startwithdelay"
+                          },
+                          {
+                              "TaskName":  "StartDVR",
+                              "TaskPath":  "\\",
+                              "State":  "Ready",
+                              "Action":  "\"C:\\Program Files\\AMD\\CNext\\CNext\\\\RSServCmd.exe\" "
+                          },
+                          {
+                              "TaskName":  "SystemTelemetryBridgeElevated",
+                              "TaskPath":  "\\",
+                              "State":  "Running",
+                              "Action":  "C:\\Users\\kksjmj\\Desktop\\새 폴더 (2)\\SystemTelemetryDesktop_NewPC\\Bridge\\SystemTelemetryBridge.exe "
+                          },
+                          {
+                              "TaskName":  "UXTU",
+                              "TaskPath":  "\\",
+                              "State":  "Running",
+                              "Action":  "C:\\Users\\kksjmj\\Desktop\\net10.0-windows10.0.22621.0\\Universal x86 Tuning Utility.exe "
+                          },
+                          {
+                              "TaskName":  "Office Actions Server",
+                              "TaskPath":  "\\Microsoft\\Office\\",
+                              "State":  "Ready",
+                              "Action":  "C:\\Program Files\\Microsoft Office\\root\\VFS\\ProgramFilesCommonX64\\Microsoft Shared\\Office16\\ActionsServer\\ActionsServer.exe availabilitycheck"
+                          },
+                          {
+                              "TaskName":  "Office Automatic Updates 2.0",
+                              "TaskPath":  "\\Microsoft\\Office\\",
+                              "State":  "Ready",
+                              "Action":  "C:\\Program Files\\Common Files\\Microsoft Shared\\ClickToRun\\OfficeC2RClient.exe /frequentupdate SCHEDULEDTASK displaylevel=False"
+                          },
+                          {
+                              "TaskName":  "Office Background Push Maintenance",
+                              "TaskPath":  "\\Microsoft\\Office\\",
+                              "State":  "Ready",
+                              "Action":  "C:\\Program Files\\Microsoft Office\\root\\vfs\\ProgramFilesCommonx64\\Microsoft Shared\\Office16\\opushutil.exe /pushregistration"
+                          },
+                          {
+                              "TaskName":  "Office ClickToRun Service Monitor",
+                              "TaskPath":  "\\Microsoft\\Office\\",
+                              "State":  "Ready",
+                              "Action":  "C:\\Program Files\\Common Files\\Microsoft Shared\\ClickToRun\\OfficeC2RClient.exe /WatchService"
+                          },
+                          {
+                              "TaskName":  "Office Feature Updates",
+                              "TaskPath":  "\\Microsoft\\Office\\",
+                              "State":  "Ready",
+                              "Action":  "C:\\Program Files\\Microsoft Office\\root\\Office16\\sdxhelper.exe "
+                          },
+                          {
+                              "TaskName":  "Office Feature Updates Logon",
+                              "TaskPath":  "\\Microsoft\\Office\\",
+                              "State":  "Ready",
+                              "Action":  "C:\\Program Files\\Microsoft Office\\root\\Office16\\sdxhelper.exe /onlogon"
+                          },
+                          {
+                              "TaskName":  "Office Performance Monitor",
+                              "TaskPath":  "\\Microsoft\\Office\\",
+                              "State":  "Ready",
+                              "Action":  "C:\\Program Files\\Microsoft Office\\root\\VFS\\ProgramFilesCommonX64\\Microsoft Shared\\Office16\\operfmon.exe "
+                          },
+                          {
+                              "TaskName":  "Office Startup Maintenance",
+                              "TaskPath":  "\\Microsoft\\Office\\",
+                              "State":  "Ready",
+                              "Action":  "C:\\Program Files\\Microsoft Office\\root\\VFS\\ProgramFilesCommonX64\\Microsoft Shared\\Office16\\ActionsServer\\ActionsServer.exe wacheck"
+                          },
+                          {
+                              "TaskName":  ".NET Framework NGEN v4.0.30319",
+                              "TaskPath":  "\\Microsoft\\Windows\\.NET Framework\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  ".NET Framework NGEN v4.0.30319 64",
+                              "TaskPath":  "\\Microsoft\\Windows\\.NET Framework\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "RecoverabilityToastTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\AccountHealth\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "AD RMS Rights Policy Template Management (Manual)",
+                              "TaskPath":  "\\Microsoft\\Windows\\Active Directory Rights Management Services Client\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "PolicyConverter",
+                              "TaskPath":  "\\Microsoft\\Windows\\AppID\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\appidpolicyconverter.exe "
+                          },
+                          {
+                              "TaskName":  "VerifiedPublisherCertStoreCheck",
+                              "TaskPath":  "\\Microsoft\\Windows\\AppID\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\appidcertstorecheck.exe "
+                          },
+                          {
+                              "TaskName":  "MareBackup",
+                              "TaskPath":  "\\Microsoft\\Windows\\Application Experience\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\compattelrunner.exe -m:aeinv.dll -f:UpdateSoftwareInventoryW invsvc; %windir%\\system32\\compattelrunner.exe -m:appraiser.dll -f:DoScheduledTelemetryRun; %windir%\\system32\\compattelrunner.exe -m:aemarebackup.dll -f:BackupMareData"
+                          },
+                          {
+                              "TaskName":  "Microsoft Compatibility Appraiser Exp",
+                              "TaskPath":  "\\Microsoft\\Windows\\Application Experience\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\compattelrunner.exe -m:appraiser.dll -f:DoScheduledTelemetryRun express"
+                          },
+                          {
+                              "TaskName":  "PcaPatchDbTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\Application Experience\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\rundll32.exe %windir%\\system32\\PcaSvc.dll,PcaPatchSdbTask"
+                          },
+                          {
+                              "TaskName":  "SdbinstMergeDbTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\Application Experience\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\sdbinst.exe -mm"
+                          },
+                          {
+                              "TaskName":  "StartupAppTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\Application Experience\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\rundll32.exe Startupscan.dll,SusRunTask"
+                          },
+                          {
+                              "TaskName":  "appuriverifierdaily",
+                              "TaskPath":  "\\Microsoft\\Windows\\ApplicationData\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\AppHostRegistrationVerifier.exe "
+                          },
+                          {
+                              "TaskName":  "appuriverifierinstall",
+                              "TaskPath":  "\\Microsoft\\Windows\\ApplicationData\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\AppHostRegistrationVerifier.exe "
+                          },
+                          {
+                              "TaskName":  "CleanupTemporaryState",
+                              "TaskPath":  "\\Microsoft\\Windows\\ApplicationData\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\rundll32.exe Windows.Storage.ApplicationData.dll,CleanupTemporaryState"
+                          },
+                          {
+                              "TaskName":  "DsSvcCleanup",
+                              "TaskPath":  "\\Microsoft\\Windows\\ApplicationData\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\dstokenclean.exe "
+                          },
+                          {
+                              "TaskName":  "Backup",
+                              "TaskPath":  "\\Microsoft\\Windows\\AppListBackup\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "BackupNonMaintenance",
+                              "TaskPath":  "\\Microsoft\\Windows\\AppListBackup\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Proxy",
+                              "TaskPath":  "\\Microsoft\\Windows\\Autochk\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\rundll32.exe /d acproxy.dll,PerformAutochkOperations"
+                          },
+                          {
+                              "TaskName":  "BitLocker Encrypt All Drives",
+                              "TaskPath":  "\\Microsoft\\Windows\\BitLocker\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "BitLocker MDM policy Refresh",
+                              "TaskPath":  "\\Microsoft\\Windows\\BitLocker\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "UninstallDeviceTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\Bluetooth\\",
+                              "State":  "Ready",
+                              "Action":  "BthUdTask.exe $(Arg0)"
+                          },
+                          {
+                              "TaskName":  "BgTaskRegistrationMaintenanceTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\BrokerInfrastructure\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "maintenancetasks",
+                              "TaskPath":  "\\Microsoft\\Windows\\capabilityaccessmanager\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\rundll32.exe %windir%\\system32\\CapabilityAccessManager.dll,CapabilityAccessManagerDoStoreMaintenance"
+                          },
+                          {
+                              "TaskName":  "UserTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\CertificateServicesClient\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "UserTask-Roam",
+                              "TaskPath":  "\\Microsoft\\Windows\\CertificateServicesClient\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "ProactiveScan",
+                              "TaskPath":  "\\Microsoft\\Windows\\Chkdsk\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "SyspartRepair",
+                              "TaskPath":  "\\Microsoft\\Windows\\Chkdsk\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\bcdboot.exe %windir% /sysrepair"
+                          },
+                          {
+                              "TaskName":  "CreateObjectTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\CloudExperienceHost\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Backup",
+                              "TaskPath":  "\\Microsoft\\Windows\\CloudRestore\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Restore",
+                              "TaskPath":  "\\Microsoft\\Windows\\CloudRestore\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "UnifiedConsentSyncTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\ConsentUX\\UnifiedConsent\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "CmCleanup",
+                              "TaskPath":  "\\Microsoft\\Windows\\Containers\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Consolidator",
+                              "TaskPath":  "\\Microsoft\\Windows\\Customer Experience Improvement Program\\",
+                              "State":  "Ready",
+                              "Action":  "%SystemRoot%\\System32\\wsqmcons.exe "
+                          },
+                          {
+                              "TaskName":  "UsbCeip",
+                              "TaskPath":  "\\Microsoft\\Windows\\Customer Experience Improvement Program\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Data Integrity Check And Scan",
+                              "TaskPath":  "\\Microsoft\\Windows\\Data Integrity Scan\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Data Integrity Scan",
+                              "TaskPath":  "\\Microsoft\\Windows\\Data Integrity Scan\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Data Integrity Scan for Crash Recovery",
+                              "TaskPath":  "\\Microsoft\\Windows\\Data Integrity Scan\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "ScheduledDefrag",
+                              "TaskPath":  "\\Microsoft\\Windows\\Defrag\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\defrag.exe -c -h -o -$"
+                          },
+                          {
+                              "TaskName":  "Device",
+                              "TaskPath":  "\\Microsoft\\Windows\\Device Information\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\devicecensus.exe SystemCxt"
+                          },
+                          {
+                              "TaskName":  "Device User",
+                              "TaskPath":  "\\Microsoft\\Windows\\Device Information\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\devicecensus.exe UserCxt"
+                          },
+                          {
+                              "TaskName":  "RecommendedTroubleshootingScanner",
+                              "TaskPath":  "\\Microsoft\\Windows\\Diagnosis\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Scheduled",
+                              "TaskPath":  "\\Microsoft\\Windows\\Diagnosis\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "UnexpectedCodepath",
+                              "TaskPath":  "\\Microsoft\\Windows\\Diagnosis\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\UCConfigTask.exe "
+                          },
+                          {
+                              "TaskName":  "DirectXDatabaseUpdater",
+                              "TaskPath":  "\\Microsoft\\Windows\\DirectX\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\directxdatabaseupdater.exe "
+                          },
+                          {
+                              "TaskName":  "DXGIAdapterCache",
+                              "TaskPath":  "\\Microsoft\\Windows\\DirectX\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\dxgiadaptercache.exe "
+                          },
+                          {
+                              "TaskName":  "SilentCleanup",
+                              "TaskPath":  "\\Microsoft\\Windows\\DiskCleanup\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\cleanmgr.exe /autocleanstoragesense /d %systemdrive%"
+                          },
+                          {
+                              "TaskName":  "Diagnostics",
+                              "TaskPath":  "\\Microsoft\\Windows\\DiskFootprint\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\disksnapshot.exe -z"
+                          },
+                          {
+                              "TaskName":  "StorageSense",
+                              "TaskPath":  "\\Microsoft\\Windows\\DiskFootprint\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "dusmtask",
+                              "TaskPath":  "\\Microsoft\\Windows\\DUSM\\",
+                              "State":  "Ready",
+                              "Action":  "%SystemRoot%\\System32\\dusmtask.exe "
+                          },
+                          {
+                              "TaskName":  "EDP App Launch Task",
+                              "TaskPath":  "\\Microsoft\\Windows\\EDP\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "EDP Auth Task",
+                              "TaskPath":  "\\Microsoft\\Windows\\EDP\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "EDP Inaccessible Credentials Task",
+                              "TaskPath":  "\\Microsoft\\Windows\\EDP\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "StorageCardEncryption Task",
+                              "TaskPath":  "\\Microsoft\\Windows\\EDP\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "ExploitGuard MDM policy Refresh",
+                              "TaskPath":  "\\Microsoft\\Windows\\ExploitGuard\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "DmClient",
+                              "TaskPath":  "\\Microsoft\\Windows\\Feedback\\Siuf\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\dmclient.exe "
+                          },
+                          {
+                              "TaskName":  "DmClientOnScenarioDownload",
+                              "TaskPath":  "\\Microsoft\\Windows\\Feedback\\Siuf\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\dmclient.exe utcwnf"
+                          },
+                          {
+                              "TaskName":  "File History (maintenance mode)",
+                              "TaskPath":  "\\Microsoft\\Windows\\FileHistory\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "GovernedFeatureUsageProcessing",
+                              "TaskPath":  "\\Microsoft\\Windows\\Flighting\\FeatureConfig\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "ReconcileConfigs",
+                              "TaskPath":  "\\Microsoft\\Windows\\Flighting\\FeatureConfig\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "ReconcileFeatures",
+                              "TaskPath":  "\\Microsoft\\Windows\\Flighting\\FeatureConfig\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "SafeguardsReconciliation",
+                              "TaskPath":  "\\Microsoft\\Windows\\Flighting\\FeatureConfig\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "UsageDataFlushing",
+                              "TaskPath":  "\\Microsoft\\Windows\\Flighting\\FeatureConfig\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "UsageDataReceiver",
+                              "TaskPath":  "\\Microsoft\\Windows\\Flighting\\FeatureConfig\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "UsageDataReporting",
+                              "TaskPath":  "\\Microsoft\\Windows\\Flighting\\FeatureConfig\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "RefreshCache",
+                              "TaskPath":  "\\Microsoft\\Windows\\Flighting\\OneSettings\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Monitoring",
+                              "TaskPath":  "\\Microsoft\\Windows\\Hotpatch\\",
+                              "State":  "Ready",
+                              "Action":  "%systemroot%\\system32\\cmd.exe /d /c %systemroot%\\system32\\hpatchmonTask.cmd"
+                          },
+                          {
+                              "TaskName":  "InputSettingsRestoreDataAvailable",
+                              "TaskPath":  "\\Microsoft\\Windows\\input\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "LocalUserSyncDataAvailable",
+                              "TaskPath":  "\\Microsoft\\Windows\\input\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "MouseSyncDataAvailable",
+                              "TaskPath":  "\\Microsoft\\Windows\\input\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "PenSyncDataAvailable",
+                              "TaskPath":  "\\Microsoft\\Windows\\input\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "RemoteMouseSyncDataAvailable",
+                              "TaskPath":  "\\Microsoft\\Windows\\input\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "RemotePenSyncDataAvailable",
+                              "TaskPath":  "\\Microsoft\\Windows\\input\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "RemoteTouchpadSyncDataAvailable",
+                              "TaskPath":  "\\Microsoft\\Windows\\input\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "syncpensettings",
+                              "TaskPath":  "\\Microsoft\\Windows\\input\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "TouchpadSyncDataAvailable",
+                              "TaskPath":  "\\Microsoft\\Windows\\input\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "RestoreDevice",
+                              "TaskPath":  "\\Microsoft\\Windows\\InstallService\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "ScanForUpdates",
+                              "TaskPath":  "\\Microsoft\\Windows\\InstallService\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "ScanForUpdatesAsUser",
+                              "TaskPath":  "\\Microsoft\\Windows\\InstallService\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Synchronize Language Settings",
+                              "TaskPath":  "\\Microsoft\\Windows\\International\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "La57Cleanup",
+                              "TaskPath":  "\\Microsoft\\Windows\\Kernel\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\la57setup.exe "
+                          },
+                          {
+                              "TaskName":  "Installation",
+                              "TaskPath":  "\\Microsoft\\Windows\\LanguageComponentsInstaller\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "ReconcileLanguageResources",
+                              "TaskPath":  "\\Microsoft\\Windows\\LanguageComponentsInstaller\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "WindowsActionDialog",
+                              "TaskPath":  "\\Microsoft\\Windows\\Location\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\System32\\WindowsActionDialog.exe "
+                          },
+                          {
+                              "TaskName":  "WinSAT",
+                              "TaskPath":  "\\Microsoft\\Windows\\Maintenance\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Cellular",
+                              "TaskPath":  "\\Microsoft\\Windows\\Management\\Provisioning\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\ProvTool.exe /turn 7 /source CellStateChangeTask"
+                          },
+                          {
+                              "TaskName":  "Logon",
+                              "TaskPath":  "\\Microsoft\\Windows\\Management\\Provisioning\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\ProvTool.exe /turn 5 /source LogonIdleTask"
+                          },
+                          {
+                              "TaskName":  "MapsToastTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\Maps\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "AutomaticOfflineMemoryDiagnostic",
+                              "TaskPath":  "\\Microsoft\\Windows\\MemoryDiagnostic\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "ProcessMemoryDiagnosticEvents",
+                              "TaskPath":  "\\Microsoft\\Windows\\MemoryDiagnostic\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "LPRemove",
+                              "TaskPath":  "\\Microsoft\\Windows\\MUI\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\lpremove.exe "
+                          },
+                          {
+                              "TaskName":  "SystemSoundsService",
+                              "TaskPath":  "\\Microsoft\\Windows\\Multimedia\\",
+                              "State":  "Running",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "NcsiIdentifyUserProxies",
+                              "TaskPath":  "\\Microsoft\\Windows\\Network Connectivity Status Indicator\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "WiFiTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\NlaSvc\\",
+                              "State":  "Ready",
+                              "Action":  "%SystemRoot%\\System32\\WiFiTask.exe nla"
+                          },
+                          {
+                              "TaskName":  "PCR Prediction Framework Firmware Update Task",
+                              "TaskPath":  "\\Microsoft\\Windows\\PCRPF\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\rundll32.exe %windir%\\system32\\pcrpf.dll,NotifyFirmwareUpdateStaged"
+                          },
+                          {
+                              "TaskName":  "ShowFeedbackToast",
+                              "TaskPath":  "\\Microsoft\\Windows\\PerformanceTrace\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "WhesvcToast",
+                              "TaskPath":  "\\Microsoft\\Windows\\PerformanceTrace\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Device Install Group Policy",
+                              "TaskPath":  "\\Microsoft\\Windows\\Plug and Play\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Device Install Reboot Required",
+                              "TaskPath":  "\\Microsoft\\Windows\\Plug and Play\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Sysprep Generalize Drivers",
+                              "TaskPath":  "\\Microsoft\\Windows\\Plug and Play\\",
+                              "State":  "Ready",
+                              "Action":  "%SystemRoot%\\System32\\drvinst.exe 6"
+                          },
+                          {
+                              "TaskName":  "AnalyzeSystem",
+                              "TaskPath":  "\\Microsoft\\Windows\\Power Efficiency Diagnostics\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "EduPrintProv",
+                              "TaskPath":  "\\Microsoft\\Windows\\Printing\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\eduprintprov.exe "
+                          },
+                          {
+                              "TaskName":  "PrinterCleanupTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\Printing\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Initialization",
+                              "TaskPath":  "\\Microsoft\\Windows\\ReFsDedupSvc\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "RegIdleBackup",
+                              "TaskPath":  "\\Microsoft\\Windows\\Registry\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "StartComponentCleanup",
+                              "TaskPath":  "\\Microsoft\\Windows\\Servicing\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "PITRTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\Setup\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "SetupRecoveryDataTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\Setup\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "CreateObjectTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\Shell\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "FamilySafetyMonitor",
+                              "TaskPath":  "\\Microsoft\\Windows\\Shell\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\System32\\wpcmon.exe "
+                          },
+                          {
+                              "TaskName":  "FamilySafetyRefreshTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\Shell\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "IndexerAutomaticMaintenance",
+                              "TaskPath":  "\\Microsoft\\Windows\\Shell\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "ThemesSyncedImageDownload",
+                              "TaskPath":  "\\Microsoft\\Windows\\Shell\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "SpaceAgentTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\SpacePort\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\SpaceAgent.exe "
+                          },
+                          {
+                              "TaskName":  "SpaceManagerTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\SpacePort\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\spaceman.exe /Work"
+                          },
+                          {
+                              "TaskName":  "MaintenanceTasks",
+                              "TaskPath":  "\\Microsoft\\Windows\\StateRepository\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\rundll32.exe %windir%\\system32\\Windows.StateRepositoryClient.dll,StateRepositoryDoMaintenanceTasks"
+                          },
+                          {
+                              "TaskName":  "Storage Tiers Management Initialization",
+                              "TaskPath":  "\\Microsoft\\Windows\\Storage Tiers Management\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "EnableLicenseAcquisition",
+                              "TaskPath":  "\\Microsoft\\Windows\\Subscription\\",
+                              "State":  "Ready",
+                              "Action":  "%SystemRoot%\\system32\\ClipRenew.exe -e"
+                          },
+                          {
+                              "TaskName":  "PowerGridForecastTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\Sustainability\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "SustainabilityTelemetry",
+                              "TaskPath":  "\\Microsoft\\Windows\\Sustainability\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "ResPriStaticDbSync",
+                              "TaskPath":  "\\Microsoft\\Windows\\Sysmain\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "WsSwapAssessmentTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\Sysmain\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\rundll32.exe sysmain.dll,PfSvWsSwapAssessmentTask"
+                          },
+                          {
+                              "TaskName":  "SR",
+                              "TaskPath":  "\\Microsoft\\Windows\\SystemRestore\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\srtasks.exe ExecuteScheduledSPPCreation"
+                          },
+                          {
+                              "TaskName":  "Interactive",
+                              "TaskPath":  "\\Microsoft\\Windows\\Task Manager\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "MsCtfMonitor",
+                              "TaskPath":  "\\Microsoft\\Windows\\TextServicesFramework\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "ForceSynchronizeTime",
+                              "TaskPath":  "\\Microsoft\\Windows\\Time Synchronization\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "SynchronizeTime",
+                              "TaskPath":  "\\Microsoft\\Windows\\Time Synchronization\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\sc.exe start w32time task_started"
+                          },
+                          {
+                              "TaskName":  "SynchronizeTimeZone",
+                              "TaskPath":  "\\Microsoft\\Windows\\Time Zone\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\tzsync.exe "
+                          },
+                          {
+                              "TaskName":  "UPnPHostConfig",
+                              "TaskPath":  "\\Microsoft\\Windows\\UPnP\\",
+                              "State":  "Ready",
+                              "Action":  "sc.exe config upnphost start= auto"
+                          },
+                          {
+                              "TaskName":  "Usb-Notifications",
+                              "TaskPath":  "\\Microsoft\\Windows\\USB\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "WiFiTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\WCM\\",
+                              "State":  "Ready",
+                              "Action":  "%SystemRoot%\\System32\\WiFiTask.exe "
+                          },
+                          {
+                              "TaskName":  "ResolutionHost",
+                              "TaskPath":  "\\Microsoft\\Windows\\WDI\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Windows Defender Cache Maintenance",
+                              "TaskPath":  "\\Microsoft\\Windows\\Windows Defender\\",
+                              "State":  "Ready",
+                              "Action":  "C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26080.4-0\\MpCmdRun.exe -IdleTask -TaskName WdCacheMaintenance"
+                          },
+                          {
+                              "TaskName":  "Windows Defender Cleanup",
+                              "TaskPath":  "\\Microsoft\\Windows\\Windows Defender\\",
+                              "State":  "Ready",
+                              "Action":  "C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26080.4-0\\MpCmdRun.exe -IdleTask -TaskName WdCleanup"
+                          },
+                          {
+                              "TaskName":  "Windows Defender Scheduled Scan",
+                              "TaskPath":  "\\Microsoft\\Windows\\Windows Defender\\",
+                              "State":  "Ready",
+                              "Action":  "C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26080.4-0\\MpCmdRun.exe Scan -ScheduleJob -ScanTrigger 55 -IdleScheduledJob"
+                          },
+                          {
+                              "TaskName":  "Windows Defender Verification",
+                              "TaskPath":  "\\Microsoft\\Windows\\Windows Defender\\",
+                              "State":  "Ready",
+                              "Action":  "C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26080.4-0\\MpCmdRun.exe -IdleTask -TaskName WdVerification"
+                          },
+                          {
+                              "TaskName":  "QueueReporting",
+                              "TaskPath":  "\\Microsoft\\Windows\\Windows Error Reporting\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\wermgr.exe -upload"
+                          },
+                          {
+                              "TaskName":  "BfeOnServiceStartTypeChange",
+                              "TaskPath":  "\\Microsoft\\Windows\\Windows Filtering Platform\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\system32\\rundll32.exe bfe.dll,BfeOnServiceStartTypeChange"
+                          },
+                          {
+                              "TaskName":  "UpdateLibrary",
+                              "TaskPath":  "\\Microsoft\\Windows\\Windows Media Sharing\\",
+                              "State":  "Ready",
+                              "Action":  "\"%ProgramFiles%\\Windows Media Player\\wmpnscfg.exe\" "
+                          },
+                          {
+                              "TaskName":  "Scheduled Start",
+                              "TaskPath":  "\\Microsoft\\Windows\\WindowsUpdate\\",
+                              "State":  "Ready",
+                              "Action":  "%systemroot%\\System32\\sc.exe start wuauserv"
+                          },
+                          {
+                              "TaskName":  "CacheTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\Wininet\\",
+                              "State":  "Running",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "CDSSync",
+                              "TaskPath":  "\\Microsoft\\Windows\\WlanSvc\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "MoProfileManagement",
+                              "TaskPath":  "\\Microsoft\\Windows\\WlanSvc\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Work Folders Logon Synchronization",
+                              "TaskPath":  "\\Microsoft\\Windows\\Work Folders\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "Work Folders Maintenance Work",
+                              "TaskPath":  "\\Microsoft\\Windows\\Work Folders\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "NotificationTask",
+                              "TaskPath":  "\\Microsoft\\Windows\\WwanSvc\\",
+                              "State":  "Ready",
+                              "Action":  "%SystemRoot%\\System32\\WiFiTask.exe wwan"
+                          },
+                          {
+                              "TaskName":  "OobeDiscovery",
+                              "TaskPath":  "\\Microsoft\\Windows\\WwanSvc\\",
+                              "State":  "Ready",
+                              "Action":  " "
+                          },
+                          {
+                              "TaskName":  "XblGameSaveTask",
+                              "TaskPath":  "\\Microsoft\\XblGameSave\\",
+                              "State":  "Ready",
+                              "Action":  "%windir%\\System32\\XblGameSaveTask.exe standby"
+                          }
+                      ],
+    "NonStandardServices":  [
+                                {
+                                    "Name":  "AMD Crash Defender Service",
+                                    "DisplayName":  "AMD Crash Defender Service",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\amdfendr.inf_amd64_b08edd5e3fe7eded\\amdfendrsr.exe"
+                                },
+                                {
+                                    "Name":  "AMD External Events Utility",
+                                    "DisplayName":  "AMD External Events Utility",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\u0203304.inf_amd64_a6e5a337568ce3f0\\B026373\\atiesrxx.exe"
+                                },
+                                {
+                                    "Name":  "AmdPpkgSvc",
+                                    "DisplayName":  "AMD Provisioning Packages Service",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\amdppkg.inf_amd64_560eeb9a923ac8eb\\AmdPpkgSvc.exe"
+                                },
+                                {
+                                    "Name":  "AppXSvc",
+                                    "DisplayName":  "AppX Deployment Service (AppXSVC)",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k wsappx -p"
+                                },
+                                {
+                                    "Name":  "AudioEndpointBuilder",
+                                    "DisplayName":  "Windows Audio Endpoint Builder",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k LocalSystemNetworkRestricted -p"
+                                },
+                                {
+                                    "Name":  "Audiosrv",
+                                    "DisplayName":  "Windows Audio",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k LocalServiceNetworkRestricted -p"
+                                },
+                                {
+                                    "Name":  "BFE",
+                                    "DisplayName":  "Base Filtering Engine",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceNoNetworkFirewall -p"
+                                },
+                                {
+                                    "Name":  "BrokerInfrastructure",
+                                    "DisplayName":  "Background Tasks Infrastructure Service",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k DcomLaunch -p"
+                                },
+                                {
+                                    "Name":  "camsvc",
+                                    "DisplayName":  "기능 액세스 관리자 서비스",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k osprivacy -p"
+                                },
+                                {
+                                    "Name":  "CDPSvc",
+                                    "DisplayName":  "연결된 디바이스 플랫폼 서비스",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalService -p"
+                                },
+                                {
+                                    "Name":  "ClickToRunSvc",
+                                    "DisplayName":  "Microsoft Office Click-to-Run Service",
+                                    "State":  "Running",
+                                    "PathName":  "\"C:\\Program Files\\Common Files\\Microsoft Shared\\ClickToRun\\OfficeClickToRun.exe\" /service"
+                                },
+                                {
+                                    "Name":  "CodexSandboxService.OpenAI.Codex",
+                                    "DisplayName":  "ChatGPT",
+                                    "State":  "Running",
+                                    "PathName":  "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.917.9434.0_x64__2p2nqsd0c76g0\\app\\resources\\codex-windows-sandbox-service.exe\""
+                                },
+                                {
+                                    "Name":  "CoreMessagingRegistrar",
+                                    "DisplayName":  "CoreMessaging",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceNoNetwork -p"
+                                },
+                                {
+                                    "Name":  "CoworkVMService",
+                                    "DisplayName":  "Claude",
+                                    "State":  "Running",
+                                    "PathName":  "\"C:\\Program Files\\WindowsApps\\Claude_1.30096.1.0_x64__pzs8sxrjxfjjc\\app\\resources\\cowork-svc.exe\""
+                                },
+                                {
+                                    "Name":  "CryptSvc",
+                                    "DisplayName":  "Cryptographic Services",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k NetworkService -p"
+                                },
+                                {
+                                    "Name":  "DcomLaunch",
+                                    "DisplayName":  "DCOM Server Process Launcher",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k DcomLaunch -p"
+                                },
+                                {
+                                    "Name":  "DeviceAssociationService",
+                                    "DisplayName":  "Device Association Service",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalSystemNetworkRestricted -p"
+                                },
+                                {
+                                    "Name":  "Dhcp",
+                                    "DisplayName":  "DHCP Client",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceNetworkRestricted -p"
+                                },
+                                {
+                                    "Name":  "DiagTrack",
+                                    "DisplayName":  "Connected User Experiences and Telemetry",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k utcsvc -p"
+                                },
+                                {
+                                    "Name":  "DispBrokerDesktopSvc",
+                                    "DisplayName":  "정책 서비스 표시",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalService -p"
+                                },
+                                {
+                                    "Name":  "Dnscache",
+                                    "DisplayName":  "DNS Client",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k NetworkService -p"
+                                },
+                                {
+                                    "Name":  "DoSvc",
+                                    "DisplayName":  "Delivery Optimization",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k NetworkService -p"
+                                },
+                                {
+                                    "Name":  "DPS",
+                                    "DisplayName":  "Diagnostic Policy Service",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k LocalServiceNoNetwork -p"
+                                },
+                                {
+                                    "Name":  "DusmSvc",
+                                    "DisplayName":  "데이터 사용량",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k LocalServiceNetworkRestricted -p -s DusmSvc"
+                                },
+                                {
+                                    "Name":  "edgeupdate",
+                                    "DisplayName":  "Microsoft Edge Update Service (edgeupdate)",
+                                    "State":  "Stopped",
+                                    "PathName":  "\"C:\\Program Files (x86)\\Microsoft\\EdgeUpdate\\MicrosoftEdgeUpdate.exe\" /svc"
+                                },
+                                {
+                                    "Name":  "EventLog",
+                                    "DisplayName":  "Windows Event Log",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k LocalServiceNetworkRestricted -p"
+                                },
+                                {
+                                    "Name":  "EventSystem",
+                                    "DisplayName":  "COM+ Event System",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceRedirectionGuard -p"
+                                },
+                                {
+                                    "Name":  "fdPHost",
+                                    "DisplayName":  "Function Discovery Provider Host",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalService -p"
+                                },
+                                {
+                                    "Name":  "FDResPub",
+                                    "DisplayName":  "Function Discovery Resource Publication",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceAndNoImpersonation -p"
+                                },
+                                {
+                                    "Name":  "FontCache",
+                                    "DisplayName":  "Windows Font Cache Service",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalService -p"
+                                },
+                                {
+                                    "Name":  "gpsvc",
+                                    "DisplayName":  "Group Policy Client",
+                                    "State":  "Stopped",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k GPSvcGroup"
+                                },
+                                {
+                                    "Name":  "IKEEXT",
+                                    "DisplayName":  "IKE and AuthIP IPsec Keying Modules",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p"
+                                },
+                                {
+                                    "Name":  "InventorySvc",
+                                    "DisplayName":  "인벤토리 및 호환성 평가 서비스",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k InvSvcGroup -p"
+                                },
+                                {
+                                    "Name":  "iphlpsvc",
+                                    "DisplayName":  "IP Helper",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k NetSvcs -p"
+                                },
+                                {
+                                    "Name":  "LanmanServer",
+                                    "DisplayName":  "Server",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p"
+                                },
+                                {
+                                    "Name":  "LanmanWorkstation",
+                                    "DisplayName":  "Workstation",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k NetworkService -p"
+                                },
+                                {
+                                    "Name":  "MapsBroker",
+                                    "DisplayName":  "Downloaded Maps Manager",
+                                    "State":  "Stopped",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k NetworkService -p"
+                                },
+                                {
+                                    "Name":  "MDCoreSvc",
+                                    "DisplayName":  "Microsoft Defender Core Service",
+                                    "State":  "Running",
+                                    "PathName":  "\"C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26080.4-0\\MpDefenderCoreService.exe\""
+                                },
+                                {
+                                    "Name":  "mpssvc",
+                                    "DisplayName":  "Windows Defender Firewall",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceNoNetworkFirewall -p"
+                                },
+                                {
+                                    "Name":  "MTKBTSVC",
+                                    "DisplayName":  "MTKBTSVC",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\mtkbtsvc.exe"
+                                },
+                                {
+                                    "Name":  "nossvc",
+                                    "DisplayName":  "nProtect Online Security(PFS)",
+                                    "State":  "Running",
+                                    "PathName":  "\"C:\\Program Files (x86)\\INCAInternet\\nProtect Online Security\\nossvc.exe\" /SVC"
+                                },
+                                {
+                                    "Name":  "nsi",
+                                    "DisplayName":  "Network Store Interface Service",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalService -p"
+                                },
+                                {
+                                    "Name":  "PcaSvc",
+                                    "DisplayName":  "Program Compatibility Assistant Service",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalSystemNetworkRestricted -p"
+                                },
+                                {
+                                    "Name":  "Power",
+                                    "DisplayName":  "Power",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k DcomLaunch -p"
+                                },
+                                {
+                                    "Name":  "ProfSvc",
+                                    "DisplayName":  "User Profile Service",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k UserProfileService -p"
+                                },
+                                {
+                                    "Name":  "RpcEptMapper",
+                                    "DisplayName":  "RPC Endpoint Mapper",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k RPCSS -p"
+                                },
+                                {
+                                    "Name":  "RpcSs",
+                                    "DisplayName":  "Remote Procedure Call (RPC)",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k rpcss -p"
+                                },
+                                {
+                                    "Name":  "SamSs",
+                                    "DisplayName":  "Security Accounts Manager",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\lsass.exe"
+                                },
+                                {
+                                    "Name":  "Samsung Intelligence Service",
+                                    "DisplayName":  "Samsung Intelligence Service",
+                                    "State":  "Running",
+                                    "PathName":  "\"C:\\Program Files\\WindowsApps\\SAMSUNGELECTRONICSCO.LTD.SamsungIntelligenceVoiceS_1.19.33.0_x64__3c1yjt4zspk6g\\Intelligence.Service\\Intelligence.Service.exe\""
+                                },
+                                {
+                                    "Name":  "Samsung Multi Control Service",
+                                    "DisplayName":  "Multi control",
+                                    "State":  "Running",
+                                    "PathName":  "\"C:\\Program Files\\WindowsApps\\SAMSUNGELECTRONICSCoLtd.MultiControl_2.7.1300.0_x64__wyx1vj98g3asy\\MultiControlService\\SamsungMultiControlService.exe\""
+                                },
+                                {
+                                    "Name":  "SamsungBrowserUpdaterInternalService148.0.0.11",
+                                    "DisplayName":  "Samsung Browser Updater Internal Service (SamsungBrowserUpdaterInternalService148.0.0.11)",
+                                    "State":  "Stopped",
+                                    "PathName":  "\"C:\\Program Files\\Samsung\\Internet\\SamsungBrowserUpdater\\148.0.0.11\\updater.exe\" --system --windows-service --service=update-internal"
+                                },
+                                {
+                                    "Name":  "SamsungBrowserUpdaterService148.0.0.11",
+                                    "DisplayName":  "Samsung Browser Updater Service (SamsungBrowserUpdaterService148.0.0.11)",
+                                    "State":  "Stopped",
+                                    "PathName":  "\"C:\\Program Files\\Samsung\\Internet\\SamsungBrowserUpdater\\148.0.0.11\\updater.exe\" --system --windows-service --service=update"
+                                },
+                                {
+                                    "Name":  "SamsungContinuityWindowsService",
+                                    "DisplayName":  "Galaxy Connect",
+                                    "State":  "Running",
+                                    "PathName":  "\"C:\\Program Files\\WindowsApps\\SAMSUNGELECTRONICSCoLtd.SamsungContinuityService_4.6.1217.0_x64__wyx1vj98g3asy\\SamsungContinuityWindowsService\\SamsungContinuityWindowsService.exe\""
+                                },
+                                {
+                                    "Name":  "Schedule",
+                                    "DisplayName":  "Task Scheduler",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p"
+                                },
+                                {
+                                    "Name":  "SecondScreenService",
+                                    "DisplayName":  "Second screen",
+                                    "State":  "Stopped",
+                                    "PathName":  "\"C:\\Program Files\\WindowsApps\\SAMSUNGELECTRONICSCoLtd.SecondScreen_1.15.3.0_x64__wyx1vj98g3asy\\SecondScreenService\\SecondScreenService.exe\""
+                                },
+                                {
+                                    "Name":  "SENS",
+                                    "DisplayName":  "System Event Notification Service",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k netsvcsRedirectionGuard -p"
+                                },
+                                {
+                                    "Name":  "ShellHWDetection",
+                                    "DisplayName":  "Shell Hardware Detection",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k netsvcs -p"
+                                },
+                                {
+                                    "Name":  "Spooler",
+                                    "DisplayName":  "Print Spooler",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\spoolsv.exe"
+                                },
+                                {
+                                    "Name":  "sppsvc",
+                                    "DisplayName":  "Software Protection",
+                                    "State":  "Stopped",
+                                    "PathName":  "C:\\WINDOWS\\system32\\sppsvc.exe"
+                                },
+                                {
+                                    "Name":  "SSDPSRV",
+                                    "DisplayName":  "SSDP Discovery",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceAndNoImpersonationRedirectionGuard -p"
+                                },
+                                {
+                                    "Name":  "StateRepository",
+                                    "DisplayName":  "State Repository Service",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k appmodel -p"
+                                },
+                                {
+                                    "Name":  "StiSvc",
+                                    "DisplayName":  "Windows Image Acquisition (WIA)",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k imgsvc"
+                                },
+                                {
+                                    "Name":  "StorSvc",
+                                    "DisplayName":  "Storage Service",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k LocalSystemNetworkRestricted -p"
+                                },
+                                {
+                                    "Name":  "SysMain",
+                                    "DisplayName":  "SysMain",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalSystemNetworkRestricted -p"
+                                },
+                                {
+                                    "Name":  "SystemEventsBroker",
+                                    "DisplayName":  "System Events Broker",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k DcomLaunch -p"
+                                },
+                                {
+                                    "Name":  "Tailscale",
+                                    "DisplayName":  "Tailscale",
+                                    "State":  "Running",
+                                    "PathName":  "\"C:\\Program Files\\Tailscale\\tailscaled.exe\""
+                                },
+                                {
+                                    "Name":  "TextInputManagementService",
+                                    "DisplayName":  "Text Input Management Service",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k LocalSystemNetworkRestricted -p"
+                                },
+                                {
+                                    "Name":  "Themes",
+                                    "DisplayName":  "Themes",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k netsvcs -p"
+                                },
+                                {
+                                    "Name":  "TrkWks",
+                                    "DisplayName":  "Distributed Link Tracking Client",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k LocalSystemNetworkRestricted -p"
+                                },
+                                {
+                                    "Name":  "upnphost",
+                                    "DisplayName":  "UPnP Device Host",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceAndNoImpersonationRedirectionGuard -p"
+                                },
+                                {
+                                    "Name":  "UserManager",
+                                    "DisplayName":  "User Manager",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p"
+                                },
+                                {
+                                    "Name":  "UsoSvc",
+                                    "DisplayName":  "Orchestrator Service 업데이트",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p"
+                                },
+                                {
+                                    "Name":  "Wcmsvc",
+                                    "DisplayName":  "Windows Connection Manager",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceNetworkRestricted -p -s Wcmsvc"
+                                },
+                                {
+                                    "Name":  "whesvc",
+                                    "DisplayName":  "Windows 상태 및 최적화된 환경",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k whesvc -p"
+                                },
+                                {
+                                    "Name":  "WinDefend",
+                                    "DisplayName":  "Microsoft Defender 바이러스 백신 서비스",
+                                    "State":  "Running",
+                                    "PathName":  "\"C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26080.4-0\\MsMpEng.exe\""
+                                },
+                                {
+                                    "Name":  "Winmgmt",
+                                    "DisplayName":  "Windows Management Instrumentation",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p"
+                                },
+                                {
+                                    "Name":  "WlanSvc",
+                                    "DisplayName":  "WLAN AutoConfig",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalSystemNetworkRestricted -p -s Wlansvc"
+                                },
+                                {
+                                    "Name":  "WpnService",
+                                    "DisplayName":  "Windows 푸시 알림 시스템 서비스",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p"
+                                },
+                                {
+                                    "Name":  "WSAIFabricSvc",
+                                    "DisplayName":  "Windows AI 구성 요소 호스트",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k WSAIFabricSvcGroup -p"
+                                },
+                                {
+                                    "Name":  "wscsvc",
+                                    "DisplayName":  "보안 센터",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\System32\\svchost.exe -k LocalServiceNetworkRestricted -p"
+                                },
+                                {
+                                    "Name":  "WSearch",
+                                    "DisplayName":  "Windows Search",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\SearchIndexer.exe /Embedding"
+                                },
+                                {
+                                    "Name":  "cbdhsvc_66514",
+                                    "DisplayName":  "cbdhsvc_66514",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k ClipboardSvcGroup -p"
+                                },
+                                {
+                                    "Name":  "CDPUserSvc_66514",
+                                    "DisplayName":  "CDPUserSvc_66514",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k UnistackSvcGroup"
+                                },
+                                {
+                                    "Name":  "webthreatdefusersvc_66514",
+                                    "DisplayName":  "webthreatdefusersvc_66514",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalSystemNetworkRestricted -p"
+                                },
+                                {
+                                    "Name":  "WpnUserService_66514",
+                                    "DisplayName":  "WpnUserService_66514",
+                                    "State":  "Running",
+                                    "PathName":  "C:\\WINDOWS\\system32\\svchost.exe -k UnistackSvcGroup"
+                                }
+                            ],
+    "StorageAndVolumes":  [
+                              {
+                                  "DriveLetter":  "D",
+                                  "FileSystemLabel":  "새 볼륨",
+                                  "FileSystem":  "NTFS",
+                                  "SizeGB":  931.5,
+                                  "SizeRemainingGB":  602.21
+                              },
+                              {
+                                  "DriveLetter":  "C",
+                                  "FileSystemLabel":  "Windows",
+                                  "FileSystem":  "NTFS",
+                                  "SizeGB":  930.39,
+                                  "SizeRemainingGB":  607.21
+                              }
+                          ],
+    "BitLocker":  [
+
+                  ]
+}
