@@ -63,7 +63,7 @@ class SnapshotEngine:
                     except (PermissionError, OSError):
                         pass
             else:
-                if not path_filter.is_dir_excluded(src_base):
+                if not path_filter.is_dir_excluded(src_base, full_path=src):
                     with lock:
                         dir_queue.put((src, src))
 
@@ -102,7 +102,7 @@ class SnapshotEngine:
                             try:
                                 if entry.is_dir(follow_symlinks=False):
                                     # Fast O(1) directory exclusion
-                                    if path_filter.is_dir_excluded(entry.name):
+                                    if path_filter.is_dir_excluded(entry.name, full_path=entry.path):
                                         continue
                                     if entry.is_symlink():
                                         # Junction or Symlink directory: do not recurse to avoid loops

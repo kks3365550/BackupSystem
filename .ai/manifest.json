@@ -34,7 +34,7 @@
   },
   "qwen_latest_review.md": {
     "source_hash": "",
-    "generated_at": "2026-09-26 07:48:42",
+    "generated_at": "2026-09-26 10:31:06",
     "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
     "version": "2.2"
   },
@@ -84,6 +84,66 @@
     "version": "2.2",
     "target_file": "c:\\Users\\kksjmj\\Desktop\\ai\\백업시스템\\disaster_recovery.py",
     "target_sha256": "ece66bcee67841f3fd79e921745c0863058045cb0ab5e9ad5d4597eed4ed6204",
+    "occurrence": 1
+  },
+  "patch_profiles_1790380405_7eca07.txt": {
+    "source_hash": "c7dcc7b1cfd0f041581e7f7a35fe1746caa4e46e25dfe3abc4581bb0ca1d3a4d",
+    "generated_at": "2026-09-26 08:53:25",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2",
+    "target_file": "c:\\Users\\kksjmj\\Desktop\\ai\\백업시스템\\data\\profiles.json",
+    "target_sha256": "8e611681f3b8bd7df8a48419e5d79db0799dc03efa83e547be32eb08bf241354",
+    "occurrence": 1
+  },
+  "patch_filter_1790380824_af0c64.txt": {
+    "source_hash": "230696f9f2f6d7907554b03d52d634e164ee115e069552b9dacec98b1e26e4a8",
+    "generated_at": "2026-09-26 09:00:24",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2",
+    "target_file": "c:\\Users\\kksjmj\\Desktop\\ai\\백업시스템\\core\\filter.py",
+    "target_sha256": "61a7d139c5d55496bd9da0fe9824f4646a09acffc6362aed067a98e1a05683f0",
+    "occurrence": 1
+  },
+  "patch_snapshot_1790380850_23f354.txt": {
+    "source_hash": "9fa610b0e7721c2a581f273cd9abc8c83c9c57336771c1e932461ea9eb4104cc",
+    "generated_at": "2026-09-26 09:00:50",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2",
+    "target_file": "c:\\Users\\kksjmj\\Desktop\\ai\\백업시스템\\core\\snapshot.py",
+    "target_sha256": "a3bd1d6b5118b741d0daccb9d7ff7533b5e6412bd99ce576f0df735c1987721a",
+    "occurrence": 1
+  },
+  "qwen_analysis_1790385075_000db6.md": {
+    "source_hash": "",
+    "generated_at": "2026-09-26 10:11:15",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2"
+  },
+  "qwen_analysis_mapreduce_1790385352_fb4684.md": {
+    "source_hash": "",
+    "generated_at": "2026-09-26 10:15:52",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2"
+  },
+  "qwen_analysis_1790386064_b0c7b3.md": {
+    "source_hash": "",
+    "generated_at": "2026-09-26 10:27:44",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2"
+  },
+  "qwen_analysis_1790386266_15ad5b.md": {
+    "source_hash": "",
+    "generated_at": "2026-09-26 10:31:06",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2"
+  },
+  "patch_filter_1790386436_43da9f.txt": {
+    "source_hash": "7fc2d7263bdef7d177203180d87ac4999e8095ca48951642d34378c3938253bb",
+    "generated_at": "2026-09-26 10:33:56",
+    "qwen_model": "Luis23333/Qwen3.8-27B-SSMFIX-UD-Q3_K_XL-GGUF",
+    "version": "2.2",
+    "target_file": "c:\\Users\\kksjmj\\Desktop\\ai\\백업시스템\\core\\filter.py",
+    "target_sha256": "b1fcd93623df8375460b98f3855d0f6b2675de723acb23477b7f4eae43597fd0",
     "occurrence": 1
   }
 }

@@ -132,7 +132,9 @@
       "C:\\Program Files\\Samsung\\Internet\\Application",
       "C:\\Program Files\\Kakao\\KakaoTalk",
       "C:\\Program Files (x86)\\Hnc",
-      "C:\\Users\\kksjmj\\Desktop"
+      "C:\\Users\\kksjmj\\Desktop",
+      "C:\\Users\\kksjmj\\AppData\\Roaming\\uv\\python\\cpython-3.11-windows-x86_64-none",
+      "C:\\Users\\kksjmj\\AppData\\Local\\hermes"
     ],
     "repo_dir": "D:\\MyBackup_Repository",
     "exclude_patterns": [
@@ -140,20 +142,21 @@
       "__pycache__",
       "*.pyc",
       ".venv",
-      "venv",
       "*.tmp",
       "*.temp",
       "*.log",
       "backup_repository",
-      "MyBackup_Repository"
+      "MyBackup_Repository",
+      "*AndroidStudio*index*",
+      "*.storage.keystream*"
     ],
     "schedule_type": "daily",
     "schedule_value": "09:00",
     "auto_backup_enabled": true,
     "retention_count": 3,
     "compression_level": 9,
-    "last_run": 1790351460.4429474,
+    "last_run": 1790382063.0578594,
     "last_status": "success",
-    "last_snapshot_id": "snap_20260926_005054_80c1c9"
+    "last_snapshot_id": "snap_20260926_092057_7461cd"
   }
 ]

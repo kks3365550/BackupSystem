@@ -50,8 +50,8 @@ DEFAULT_EXCLUDE_PATTERNS = [
     "*thumbcache*.db",
 
     # 6. Browser & Application Caches
-    "*Cache*",
-    "*caches*",
+    "Cache",
+    "Caches",
     "*GPUCache*",
     "*Code Cache*",
     "*ShaderCache*",
@@ -105,7 +105,7 @@ DEFAULT_EXCLUDE_PATTERNS = [
 ]
 
 class PathFilter:
-    def __init__(self, exclude_patterns: Optional[List[str]] = None, include_patterns: Optional[List[str]] = None, use_defaults: bool = True):
+    def __init__(self, exclude_patterns: Optional[List[str]] = None, include_patterns: Optional[List[str]] = None, use_defaults: bool = True, protected_prefixes: Optional[List[str]] = None):
         raw_excludes = list(DEFAULT_EXCLUDE_PATTERNS) if use_defaults else []
         if exclude_patterns:
             for p in exclude_patterns:
@@ -113,6 +113,20 @@ class PathFilter:
                 if p and p not in raw_excludes:
                     raw_excludes.append(p)
         self.include_patterns = include_patterns or []
+
+        # Initialize protected prefixes with default AI runtime paths
+        default_protected = [
+            os.path.normpath(os.path.join(os.environ.get('LOCALAPPDATA', ''), 'hermes')).lower(),
+            os.path.normpath(os.path.join(os.environ.get('APPDATA', ''), 'uv')).lower()
+        ]
+
+        if protected_prefixes:
+            for p in protected_prefixes:
+                norm_p = os.path.normpath(p).lower()
+                if norm_p not in default_protected:
+                    default_protected.append(norm_p)
+
+        self._protected_tuple = tuple(default_protected)
 
         # High-performance categorized structures
         self.exact_names: Set[str] = set()
@@ -127,7 +141,7 @@ class PathFilter:
             if p.startswith('*.'):
                 # e.g. *.tmp -> .tmp
                 self.exts.add(p[1:])
-            elif p.startswith('*') and p.endswith('*') and len(p) > 2 and '?' not in p and '[' not in p:
+            elif p.startswith('*') and p.endswith('*') and len(p) > 2 and '?' not in p and '[' not in p and '*' not in p[1:-1]:
                 # e.g. *cache* -> cache
                 self.substrs.append(p[1:-1])
             elif '*' in p or '?' in p or '[' in p:
@@ -147,9 +161,27 @@ class PathFilter:
                 return True
         return False
 
-    def is_dir_excluded(self, dirname: str) -> bool:
+    def is_dir_excluded(self, dirname: str, full_path: Optional[str] = None) -> bool:
         """Fast O(1) check for directory exclusion (Prunes entire directory trees)."""
         dn = dirname.lower()
+
+        # Check if inside a protected prefix
+        if full_path:
+            norm_full = os.path.normpath(full_path).lower().replace('\\', '/')
+            for prefix in self._protected_tuple:
+                if norm_full.startswith(prefix.replace('\\', '/')):
+                    # Inside protected area: only exclude pure volatile caches
+                    if dn in ("__pycache__", "cache", "caches", "gpucache", "shadercache", "code cache", "temp", "tmp", "crashpad", "crashreporting", "logs", "log"):
+                        return True
+                    # venv, node_modules, etc. should pass (return False)
+                    return False
+
+            # Check if full directory path matches any complex pattern (e.g. *androidstudio*index*)
+            for cp in self.complex_patterns:
+                if fnmatch.fnmatch(norm_full, cp) or fnmatch.fnmatch(norm_full, f"*{cp}*"):
+                    return True
+
+        # Not in protected area or no full_path: use default logic
         if dn in ("cache", "caches", "gpucache", "shadercache", "code cache", "temp", "tmp", "crashpad", "crashreporting", "logs", "log", "deliveryoptimization"):
             return True
         return self._matches_common(dn)
@@ -157,6 +189,17 @@ class PathFilter:
     def is_file_excluded(self, filename: str) -> bool:
         """Fast O(1) check for file exclusion."""
         fn = filename.lower()
+        
+        # Safety guard: Protect Python source files from cache-related substring matches
+        # (e.g., prevent 'linecache.py' from being excluded by 'cache' substring)
+        if fn.endswith('.py'):
+            dot_idx = fn.rfind('.')
+            if dot_idx != -1 and fn[dot_idx:] in self.exts:
+                return True
+            if fn in self.exact_names:
+                return True
+            return False
+
         dot_idx = fn.rfind('.')
         if dot_idx != -1 and fn[dot_idx:] in self.exts:
             return True
@@ -168,7 +211,7 @@ class PathFilter:
         basename = path[slash_idx + 1:] if slash_idx != -1 else path
 
         if is_dir:
-            if self.is_dir_excluded(basename):
+            if self.is_dir_excluded(basename, full_path=path):
                 return True
         else:
             if self.is_file_excluded(basename):

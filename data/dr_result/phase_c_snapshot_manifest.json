@@ -1,0 +1,25 @@
+{
+  "snapshot_id": "snap_20260926_092057_7461cd",
+  "created_at": "2026-09-26 09:22:47",
+  "manifest_path": "D:\\MyBackup_Repository\\snapshots\\snap_20260926_092057_7461cd.json",
+  "manifest_sha256": "172b638109f551d3c2d20cb15725037f9c013a10c945afd3f2b9a2ed6860fc0b",
+  "elapsed_seconds": 0.0,
+  "total_files": 220945,
+  "total_bytes": 23716106819,
+  "total_gb": 22.087,
+  "breakdown": {
+    "hermes_total": 145984,
+    "hermes_venv": 24712,
+    "hermes_node": 104877,
+    "uv_cpython": 4637,
+    "as_index_cache": 0
+  },
+  "gate_checks": {
+    "hermes_venv_present": true,
+    "hermes_node_present": true,
+    "uv_cpython_present": true,
+    "as_index_cache_eliminated": true,
+    "total_files_sufficient": true
+  },
+  "all_passed": true
+}

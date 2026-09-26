@@ -16,9 +16,15 @@ if (-not (Test-Path "F:\MyBackup_Repository\blobs")) {
 }
 
 # 2. Stop VM
-Write-Host "`n[Step 2/6] Saving VM State (Stop-VM -Save)..."
-Stop-VM (Get-VM) -Save
-Start-Sleep -Seconds 2
+Write-Host "`n[Step 2/6] Ensuring VM is stopped..."
+$targetVM = Get-VM | Select-Object -First 1
+if ($targetVM.State -ne 'Off') {
+    Write-Host "  Saving VM State (Stop-VM -Save)..."
+    Stop-VM $targetVM -Save
+    Start-Sleep -Seconds 2
+} else {
+    Write-Host "  VM is already stopped." -ForegroundColor Green
+}
 
 # 3. Mount VHD (Read-Write)
 $vhdPath = (Get-VM).HardDrives.Path
@@ -50,7 +56,7 @@ try {
     $destDir = "${d}:\"
     $logFile = "F:\dr_restore_log.txt"
 
-    python "$pyScript" --repo "$repoDir" --restore snap_20260926_005054_80c1c9 --dest "$destDir" 2>&1 | Tee-Object -FilePath $logFile
+    python "$pyScript" --repo "$repoDir" --restore snap_20260926_092057_7461cd --dest "$destDir" 2>&1 | Tee-Object -FilePath $logFile
 
     # 5. Run Verification Scorecard against VHD Restored Profile
     Write-Host "`n[Step 5/6] Running 3-Tier Verification Scorecard..."
