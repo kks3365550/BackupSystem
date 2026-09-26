@@ -27,7 +27,7 @@ if _server_log:
     sys.stderr = _server_log
 
 def ensure_dependencies():
-    required = ["uvicorn", "fastapi", "cryptography", "psutil", "jinja2", "requests", "pydantic", "zstandard"]
+    required = ["uvicorn", "fastapi", "cryptography", "psutil", "jinja2", "requests", "pydantic", "zstandard", "multipart"]
     missing = []
     for mod in required:
         try:

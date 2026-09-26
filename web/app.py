@@ -11,7 +11,7 @@ import tempfile
 from collections import deque
 from contextlib import asynccontextmanager
 from typing import Dict, List, Any, Optional
-from fastapi import FastAPI, Request, Response, BackgroundTasks, HTTPException
+from fastapi import FastAPI, Request, Response, BackgroundTasks, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -1682,14 +1682,18 @@ def get_firebase_cloud_history(limit: int = 50):
 # ==================== Software Auto-Update API ====================
 @app.get("/api/update/status")
 def get_software_update_status(force_check: bool = False):
-    """최신 소프트웨어 릴리즈 업데이트 상태 반환"""
+    """최신 소프트웨어 릴리즈 업데이트 상태 반환 (온라인/오프라인 지원)"""
     from core.updater import check_for_update, get_current_installed_version
     now = time.time()
     # Cache for 10 minutes unless force_check is requested
     if force_check or _cached_update_info["data"] is None or (now - _cached_update_info["checked_at"] > 600):
-        info = check_for_update()
-        _cached_update_info["checked_at"] = now
-        _cached_update_info["data"] = info
+        try:
+            info = check_for_update()
+            _cached_update_info["checked_at"] = now
+            _cached_update_info["data"] = info
+        except Exception as e:
+            logger.warning("Update check failed: %s", e)
+            info = None
     else:
         info = _cached_update_info["data"]
 
@@ -1727,5 +1731,38 @@ def trigger_software_update(background_tasks: BackgroundTasks):
         "success": True,
         "message": "자동 업데이트 프로세스가 백그라운드에서 시작되었습니다."
     }
+
+
+@app.post("/api/update/bundle")
+async def apply_offline_bundle(file: UploadFile = File(...)):
+    """
+    오프라인 .bundle 패키지를 업로드받아 UnifiedUpdatePipeline을 통해
+    암호학적 서명, 정책 의미론, 무해성 검증 후 안전하게 적용합니다.
+    """
+    if not file.filename.endswith(".bundle"):
+        raise HTTPException(status_code=400, detail="오프라인 배포 파일은 .bundle 확장자여야 합니다.")
+
+    try:
+        content = await file.read()
+        from core.updater_v2.bundle import BundleReader
+        from core.updater_v2.default_keyring import load_default_keyring
+        from core.updater_v2.pipeline import UnifiedUpdatePipeline
+
+        keyring = load_default_keyring(BASE_DIR)
+        pipeline = UnifiedUpdatePipeline(keyring=keyring, target_dir=BASE_DIR)
+
+        acquired = BundleReader.read(content)
+        result = pipeline.execute_update(acquired=acquired, skip_process_control=False)
+
+        append_task_log(f"[오프라인 업데이트] 성공: {result.message}")
+        return {
+            "success": True,
+            "installed_version": result.installed_version,
+            "message": result.message
+        }
+    except Exception as e:
+        logger.error("Offline bundle update failed: %s", e)
+        append_task_log(f"[오프라인 업데이트 실패] {str(e)}", level="ERROR")
+        return JSONResponse(status_code=400, content={"success": False, "error": str(e)})
 
 
