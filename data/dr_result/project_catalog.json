@@ -1,0 +1,263 @@
+{
+  ".agents": {
+    "type": "DATA_DOC_STORAGE",
+    "total_files": 1,
+    "entrypoints": [],
+    "sample_files": [
+      "hooks.json"
+    ]
+  },
+  ".ai": {
+    "type": "DATA_DOC_STORAGE",
+    "total_files": 1103,
+    "entrypoints": [],
+    "sample_files": [
+      "antigravity_global_optimization_policy_v3.md",
+      "INDEX_OVERVIEW.md",
+      "manifest.json",
+      "patch_app_1789956699_5a96e6.txt",
+      "patch_app_1789956768_137a35.txt"
+    ]
+  },
+  "__pycache__": {
+    "type": "DATA_DOC_STORAGE",
+    "total_files": 10,
+    "entrypoints": [],
+    "sample_files": [
+      "audit_ui_elements.cpython-311.pyc",
+      "dashboard_bridge.cpython-311.pyc",
+      "hygiene_deck_builder.cpython-311.pyc",
+      "hygiene_deck_builder.cpython-314.pyc",
+      "scan_hygiene_status.cpython-311.pyc"
+    ]
+  },
+  "_자료보관": {
+    "type": "PYTHON_APP",
+    "total_files": 98110,
+    "entrypoints": [
+      "server.py",
+      ".backup_generator\\run.py",
+      "OpenManus\\main.py",
+      "구_통합대시보드_서버배포팩_백업\\server.py"
+    ],
+    "sample_files": [
+      "APPLY_UPDATE.bat",
+      "bridge_debug.log",
+      "build_standard_modules.py",
+      "extra_topics.txt",
+      "generate_five_new_modules.py"
+    ]
+  },
+  "assets": {
+    "type": "WEB_FRONTEND",
+    "total_files": 1,
+    "entrypoints": [],
+    "sample_files": [
+      "pest_api_engine.js"
+    ]
+  },
+  "hwp2excel": {
+    "type": "PYTHON_APP",
+    "total_files": 22,
+    "entrypoints": [
+      "requirements.txt"
+    ],
+    "sample_files": [
+      "build_exe.bat",
+      "converter.py",
+      "gui.py",
+      "HWP2Excel.spec",
+      "README.md"
+    ]
+  },
+  "scratch": {
+    "type": "DATA_DOC_STORAGE",
+    "total_files": 67,
+    "entrypoints": [],
+    "sample_files": [
+      "s6_pic_0.png",
+      "s6_pic_1.png",
+      "s6_pic_2.png",
+      "mod08\\s2_0.png",
+      "mod08\\s2_1.png"
+    ]
+  },
+  "검사성적서": {
+    "type": "PYTHON_APP",
+    "total_files": 106,
+    "entrypoints": [],
+    "sample_files": [
+      "웹방식_메인PC서버260918.zip",
+      "웹방식_메인PC서버_최신수정본_260921.zip",
+      "웹방식_메인PC서버_최신수정본_260921_1340.zip",
+      "웹방식_메인PC서버_최신수정본_260921_1405.zip",
+      ".ai\\qwen_latest_review.md"
+    ]
+  },
+  "규격서": {
+    "type": "DATA_DOC_STORAGE",
+    "total_files": 18,
+    "entrypoints": [],
+    "sample_files": [
+      "CCP 번호.xlsx",
+      "결과물\\(5.2파이)왕)추석불고기비빔김밥 (삼영).xlsx",
+      "결과물\\NEW돌아온혜자)명가바싹불고기(삼영).xlsx",
+      "결과물\\[5.2파이]왕)NEW우도땅콩참치김밥(삼영).xlsx",
+      "결과물\\더큰)돼지갈비전주비빔 (삼영).xlsx"
+    ]
+  },
+  "라벨부착검사": {
+    "type": "PYTHON_APP",
+    "total_files": 6,
+    "entrypoints": [
+      "main.py",
+      "requirements.txt"
+    ],
+    "sample_files": [
+      "config.json",
+      "main.py",
+      "requirements.txt",
+      "run_inspection.bat",
+      "results\\inspection_log.csv"
+    ]
+  },
+  "배송차량": {
+    "type": "DATA_DOC_STORAGE",
+    "total_files": 36,
+    "entrypoints": [],
+    "sample_files": [
+      "0602삼영데리카후레쉬_차량별_출발도착_온도연동_최종보고서.xlsx",
+      "after_login.png",
+      "benchmark_0603.json",
+      "login_after_submit.png",
+      "login_page.png"
+    ]
+  },
+  "백업시스템": {
+    "type": "PYTHON_APP",
+    "total_files": 8170,
+    "entrypoints": [
+      "run.py",
+      "cli.py",
+      "requirements.txt",
+      "web\\app.py"
+    ],
+    "sample_files": [
+      ".gitignore",
+      "1_원클릭_환경설치(최초1회).bat",
+      "2_백업시스템_실행.bat",
+      "3_백업시스템_종료.bat",
+      "4_콘솔_실시간로그_실행.bat"
+    ]
+  },
+  "선행모바일": {
+    "type": "PYTHON_APP",
+    "total_files": 1171,
+    "entrypoints": [],
+    "sample_files": [
+      ".firebaserc",
+      "1_파이어베이스_로그인.bat",
+      "2025년선행양식지-25.10.hwp",
+      "2_애플앱_클라우드_배포.bat",
+      "3_파이어스토어_보안규칙_배포.bat"
+    ]
+  },
+  "운행기록병합기": {
+    "type": "PYTHON_APP",
+    "total_files": 17,
+    "entrypoints": [],
+    "sample_files": [
+      "운행기록_병합기.py",
+      "운행기록병합기.spec",
+      "build\\운행기록병합기\\Analysis-00.toc",
+      "build\\운행기록병합기\\base_library.zip",
+      "build\\운행기록병합기\\EXE-00.toc"
+    ]
+  },
+  "위생교육": {
+    "type": "PYTHON_APP",
+    "total_files": 20,
+    "entrypoints": [
+      "app.py",
+      "requirements.txt"
+    ],
+    "sample_files": [
+      ".env.example",
+      "app.py",
+      "config.py",
+      "README.md",
+      "requirements.txt"
+    ]
+  },
+  "위생교육_비상패키지": {
+    "type": "PYTHON_APP",
+    "total_files": 58,
+    "entrypoints": [],
+    "sample_files": [
+      "dashboard_bridge.py",
+      "emergency_gui.py",
+      "generate_monthly_hygiene.py",
+      "hygiene_deck_builder.py",
+      "launcher_failover.py"
+    ]
+  },
+  "유인포충기": {
+    "type": "PYTHON_APP",
+    "total_files": 10667,
+    "entrypoints": [
+      "package.json"
+    ],
+    "sample_files": [
+      ".gitignore",
+      "CHANGELOG.md",
+      "electron-builder-ia32.json",
+      "main.js",
+      "main_backup_before_modularization.js"
+    ]
+  },
+  "챗박스": {
+    "type": "PYTHON_APP",
+    "total_files": 14,
+    "entrypoints": [
+      "run.py",
+      "server.py",
+      "index.html"
+    ],
+    "sample_files": [
+      "deploy_to_5080.py",
+      "index.html",
+      "run.py",
+      "run_server_5080.bat",
+      "server.py"
+    ]
+  },
+  "컴플레인분석기": {
+    "type": "PYTHON_APP",
+    "total_files": 30,
+    "entrypoints": [
+      "app.py",
+      "requirements.txt"
+    ],
+    "sample_files": [
+      "app.py",
+      "app_backup.py",
+      "build_exe.bat",
+      "ComplaintAnalyzer.spec",
+      "README.md"
+    ]
+  },
+  "통합대시보드": {
+    "type": "PYTHON_APP",
+    "total_files": 51,
+    "entrypoints": [
+      "index.html"
+    ],
+    "sample_files": [
+      "bridge.log",
+      "build_personal_items_ppt.py",
+      "config.json",
+      "dashboard.html",
+      "dashboard_backup_before_modularization.html"
+    ]
+  }
+}

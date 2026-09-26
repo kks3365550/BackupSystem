@@ -1,0 +1,145 @@
+﻿{
+    "timestamp":  "2026-09-26 10:49:37",
+    "dest_drive":  "G:\\",
+    "results":  [
+                    {
+                        "name":  ".agents",
+                        "type":  "DATA",
+                        "status":  "EXECUTION_PASS",
+                        "files":  1,
+                        "detail":  "Files: 1 | Verified: hooks.json (319 bytes)"
+                    },
+                    {
+                        "name":  ".ai",
+                        "type":  "DATA",
+                        "status":  "EXECUTION_PASS",
+                        "files":  59,
+                        "detail":  "Files: 59 | Verified: manifest.json (14870 bytes)"
+                    },
+                    {
+                        "name":  "_자료보관",
+                        "type":  "DATA",
+                        "status":  "EXECUTION_PASS",
+                        "files":  363,
+                        "detail":  "Files: 363 | Verified: server.py (10258 bytes)"
+                    },
+                    {
+                        "name":  "assets",
+                        "type":  "WEB",
+                        "status":  "EXECUTION_PASS",
+                        "files":  1,
+                        "detail":  "Files: 1 | Verified: pest_api_engine.js (6980 bytes)"
+                    },
+                    {
+                        "name":  "hwp2excel",
+                        "type":  "PYTHON",
+                        "status":  "EXECUTION_PASS",
+                        "files":  6,
+                        "detail":  "Module import \u0027converter\u0027 PASSED (6 files)"
+                    },
+                    {
+                        "name":  "scratch",
+                        "type":  "DATA",
+                        "status":  "EXECUTION_PASS",
+                        "files":  67,
+                        "detail":  "Files: 67 | Verified: s6_pic_0.png (7019 bytes)"
+                    },
+                    {
+                        "name":  "검사성적서",
+                        "type":  "DATA",
+                        "status":  "EXECUTION_PASS",
+                        "files":  106,
+                        "detail":  "Files: 106 | Verified: 웹방식_메인PC서버260918.zip (44759542 bytes)"
+                    },
+                    {
+                        "name":  "규격서",
+                        "type":  "DATA",
+                        "status":  "EXECUTION_PASS",
+                        "files":  18,
+                        "detail":  "Files: 18 | Verified: CCP 번호.xlsx (10883 bytes)"
+                    },
+                    {
+                        "name":  "라벨부착검사",
+                        "type":  "PYTHON",
+                        "status":  "EXECUTION_PASS",
+                        "files":  5,
+                        "detail":  "Python syntax compilation PASSED on main.py (5 files)"
+                    },
+                    {
+                        "name":  "배송차량",
+                        "type":  "DATA",
+                        "status":  "EXECUTION_PASS",
+                        "files":  36,
+                        "detail":  "Files: 36 | Verified: benchmark_0603.json (49063 bytes)"
+                    },
+                    {
+                        "name":  "백업시스템",
+                        "type":  "PYTHON",
+                        "status":  "EXECUTION_PASS",
+                        "files":  162,
+                        "detail":  "CLI --help executed successfully (ExitCode 0, 162 files)"
+                    },
+                    {
+                        "name":  "선행모바일",
+                        "type":  "WEB",
+                        "status":  "EXECUTION_PASS",
+                        "files":  154,
+                        "detail":  "Files: 154 | Verified: 2025년선행양식지-25.10.hwp (815104 bytes)"
+                    },
+                    {
+                        "name":  "운행기록병합기",
+                        "type":  "PYTHON",
+                        "status":  "EXECUTION_PASS",
+                        "files":  2,
+                        "detail":  "Python syntax compilation PASSED on 운행기록_병합기.py (2 files)"
+                    },
+                    {
+                        "name":  "위생교육",
+                        "type":  "PYTHON",
+                        "status":  "RUNTIME_ERROR",
+                        "files":  12,
+                        "detail":  "Compile error: Traceback (most recent call last):   File \"\u003cstring\u003e\", line 2, in \u003cmodule\u003e   File \"G:\\\\Users\\kksjmj\\Desktop\\ai\\위생교육\\app.py\", line 423     st.info(f\"**해설:** {q.get(\u0027explanation\u0027, \u0027\u0027)}\\n\\n{f\u0027[번역] {q.get(\\\"explanation_trans\\\")}\u0027 if q.get(\u0027explanation_trans\u0027) else \u0027\u0027}\")                                                                                                                                    ^ SyntaxError: f-string expression part cannot include a backslash"
+                    },
+                    {
+                        "name":  "위생교육_비상패키지",
+                        "type":  "PYTHON",
+                        "status":  "EXECUTION_PASS",
+                        "files":  13,
+                        "detail":  "Python syntax compilation PASSED on emergency_gui.py (13 files)"
+                    },
+                    {
+                        "name":  "유인포충기",
+                        "type":  "NODE",
+                        "status":  "EXECUTION_PASS",
+                        "files":  394,
+                        "detail":  "Node.js syntax check PASSED on main.js (394 files)"
+                    },
+                    {
+                        "name":  "챗박스",
+                        "type":  "PYTHON",
+                        "status":  "EXECUTION_PASS",
+                        "files":  12,
+                        "detail":  "Python syntax compilation PASSED on server.py (12 files)"
+                    },
+                    {
+                        "name":  "컴플레인분석기",
+                        "type":  "PYTHON",
+                        "status":  "EXECUTION_PASS",
+                        "files":  10,
+                        "detail":  "Python syntax compilation PASSED on app.py (10 files)"
+                    },
+                    {
+                        "name":  "통합대시보드",
+                        "type":  "WEB",
+                        "status":  "EXECUTION_PASS",
+                        "files":  42,
+                        "detail":  "Files: 42 | Verified: dashboard.html (82348 bytes)"
+                    }
+                ],
+    "summary":  {
+                    "total":  19,
+                    "passed":  18,
+                    "error":  1,
+                    "empty":  0
+                }
+}
