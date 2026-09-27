@@ -38,3 +38,6 @@ keys/*.key
 keys/*.json
 keys/*cred*
 keys/*private*
+
+# Local AI working artifacts
+.ai/

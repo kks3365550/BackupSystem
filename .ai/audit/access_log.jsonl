@@ -1,5 +1,0 @@
-{"timestamp": "2026-09-24 02:16:41", "agent": "qwen_scout", "file": "GEMINI.md", "access_type": "scout", "start_line": 6, "end_line": 6, "lines": 1, "allowed": true, "reason": "MCP_SCOUT_FOUND"}
-{"timestamp": "2026-09-24 02:16:41", "agent": "qwen_scout", "file": "core/auth.py", "access_type": "scout", "start_line": 174, "end_line": 179, "lines": 6, "allowed": true, "reason": "MCP_SCOUT_FOUND"}
-{"timestamp": "2026-09-24 02:16:41", "agent": "qwen_scout", "file": "core/auth.py", "access_type": "scout", "start_line": 80, "end_line": 84, "lines": 5, "allowed": true, "reason": "MCP_SCOUT_FOUND"}
-{"timestamp": "2026-09-24 02:16:41", "agent": "qwen_scout", "file": "core/auth.py", "access_type": "scout", "start_line": 87, "end_line": 99, "lines": 13, "allowed": true, "reason": "MCP_SCOUT_FOUND"}
-{"timestamp": "2026-09-24 02:16:41", "agent": "qwen_scout", "file": "core/auth.py", "access_type": "scout", "start_line": 102, "end_line": 126, "lines": 25, "allowed": true, "reason": "MCP_SCOUT_FOUND"}
