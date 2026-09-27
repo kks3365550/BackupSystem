@@ -30,13 +30,14 @@ import tempfile
 import zipfile
 import subprocess
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Callable, Dict, Any
 
 from .artifact_safety import (
     ArtifactSafetyChecker,
     assert_safe_destination_path,
     SafetyViolationError
 )
+from .transaction import UpdateTransactionManager, UpdatePhase
 
 logger = logging.getLogger(__name__)
 
@@ -167,36 +168,38 @@ class AtomicInstaller:
             if os.path.exists(src_s):
                 shutil.copy2(src_s, dst_s)
 
-    def rollback(self, backup_dir: str) -> bool:
+    def rollback(self, backup_dir: str, skip_process_control: bool = False) -> bool:
         """
         백업 보존 디렉토리에서 이전 버전 파일 원복 및 서비스 재기동.
+        skip_process_control=True일 경우 프로세스 제어(종료/재시작/헬스체크)를 건너뛰고 파일 원복만 수행합니다.
         """
-        logger.warning("INSTALLER_ROLLBACK initiated from %s to %s", backup_dir, self.target_dir)
+        logger.warning("INSTALLER_ROLLBACK initiated from %s to %s (skip_process_control=%s)", backup_dir, self.target_dir, skip_process_control)
         if not os.path.exists(backup_dir):
             logger.error("INSTALLER_ROLLBACK_FAILED reason=backup_dir_missing")
             return False
 
         try:
-            self.stop_server(timeout_sec=5)
+            if not skip_process_control:
+                self.stop_server(timeout_sec=5)
 
-            # 이전 버전 파일 덮어쓰기
+            # 이전 버전 파일 덮어쓰기 (재시도 로직 포함)
             for folder in UPDATABLE_DIRS:
                 src_f = os.path.join(backup_dir, folder)
                 dst_f = os.path.join(self.target_dir, folder)
                 if os.path.exists(src_f):
-                    if os.path.exists(dst_f):
-                        shutil.rmtree(dst_f, ignore_errors=True)
-                    shutil.copytree(src_f, dst_f)
+                    self._copy_with_retry(src_f, dst_f)
 
             for script in UPDATABLE_FILES:
                 src_s = os.path.join(backup_dir, script)
                 dst_s = os.path.join(self.target_dir, script)
                 if os.path.exists(src_s):
-                    shutil.copy2(src_s, dst_s)
+                    self._copy_with_retry(src_s, dst_s)
 
-            # 서비스 재시작
-            self.restart_server()
-            self.health_check(timeout_sec=10)
+            if not skip_process_control:
+                # 서비스 재시작
+                self.restart_server()
+                self.health_check(timeout_sec=10)
+
             logger.info("INSTALLER_ROLLBACK_SUCCESS restored to previous version")
             return True
         except Exception as e:
@@ -211,13 +214,11 @@ class AtomicInstaller:
         for attempt in range(retries):
             try:
                 if os.path.isdir(src):
-                    if os.path.exists(dst):
-                        shutil.rmtree(dst, ignore_errors=True)
-                    shutil.copytree(src, dst)
+                    shutil.copytree(src, dst, dirs_exist_ok=True)
                 else:
                     shutil.copy2(src, dst)
                 return
-            except PermissionError as e:
+            except (PermissionError, FileExistsError, shutil.Error, OSError) as e:
                 last_err = e
                 time.sleep(0.5 * (attempt + 1))
             except Exception as e:
@@ -229,19 +230,29 @@ class AtomicInstaller:
         self,
         raw_package_bytes: bytes,
         new_version: str,
-        skip_process_control: bool = False
+        skip_process_control: bool = False,
+        debug_crash_hook: Optional[Callable[[str, Dict[str, Any]], None]] = None
     ) -> bool:
         """
-        패키지 바이트를 안전하게 설치합니다.
+        패키지 바이트를 안전하게 설치합니다 (UpdateTransactionManager Self-Healing 연동).
 
         단계:
+        0. 이전 미완료 트랜잭션 자가치유 점검 (Pre-install Recovery)
         1. 사전 안전성 검사 (ArtifactSafetyChecker: 5대 안전 수칙 & 4축 Zip Bomb 검사)
         2. Staging 임시 디렉토리에 안전 압축 해제 (각 경로 assert_safe_destination_path 검증)
-        3. 현재 버전 백업 (backup/v{현재버전})
-        4. 백업 서버 프로세스 안전 종료 (skip_process_control=False 시)
-        5. Staging -> target_dir 원자적 파일 교체 (재시도 로직 포함)
-        6. 백업 서버 백그라운드 재기동 및 헬스체크 (실패 시 자동 롤백)
+        3. 현재 버전 백업 (backup/v{현재버전}) 및 트랜잭션 마커 생성 (BACKUP_READY)
+        4. 백업 서버 프로세스 안전 종료 및 UPDATE_IN_PROGRESS 전이
+        5. Staging -> target_dir 원자적 파일 교체 (재시도 로직 포함) 및 SWAP_COMPLETE 전이
+        6. 백업 서버 백그라운드 재기동 및 헬스체크 (HEALTHCHECK_OK)
+        7. 트랜잭션 커밋(COMMITTED) 및 마커 파일 정리
         """
+        txn_mgr = UpdateTransactionManager(target_dir=self.target_dir, debug_crash_hook=debug_crash_hook)
+
+        # 0. 기동 전 미완료 트랜잭션 자가치유 점검
+        recovery_ok, recovery_msg = txn_mgr.recover_interrupted_update()
+        if not recovery_ok:
+            raise InstallerError(f"Pre-install recovery failed: {recovery_msg}")
+
         current_ver = self.get_current_installed_version()
         logger.info("INSTALL_START current=%s target_version=%s", current_ver, new_version)
 
@@ -253,6 +264,7 @@ class AtomicInstaller:
         staging_dir = tempfile.mkdtemp(prefix="backup_stage_")
         backup_ver_dir = os.path.join(self.target_dir, "backup", f"v{current_ver}")
         package_zip_path = os.path.join(staging_dir, "package.zip")
+        marker = None
 
         try:
             # 2. 안전한 Staging 추출 (각 파일 경로 assert_safe_destination_path 검증)
@@ -272,36 +284,63 @@ class AtomicInstaller:
 
             extracted_root = os.path.join(staging_dir, "extracted")
 
-            # 3. 현재 설치본 백업
+            # 3. 현재 설치본 백업 및 트랜잭션 마커 생성 (BACKUP_READY)
             self.backup_current_installation(backup_ver_dir)
             logger.info("CURRENT_INSTALLATION_BACKED_UP to %s", backup_ver_dir)
 
-            # 4. 서버 프로세스 종료
+            marker = txn_mgr.start_transaction(
+                previous_version=current_ver,
+                target_version=new_version,
+                backup_dir=backup_ver_dir
+            )
+            txn_mgr._invoke_hook("KILL-02", marker)
+
+            # 4. 서버 프로세스 종료 및 UPDATE_IN_PROGRESS 전이
             if not skip_process_control:
                 self.stop_server()
                 time.sleep(1)
 
+            marker = txn_mgr.transition_to(marker, UpdatePhase.UPDATE_IN_PROGRESS)
+            txn_mgr._invoke_hook("KILL-03", marker)
+
             # 5. 파일 교체 적용 (extracted_root -> target_dir)
-            for item in os.listdir(extracted_root):
+            items = os.listdir(extracted_root)
+            for idx, item in enumerate(items):
                 s_item = os.path.join(extracted_root, item)
                 d_item = os.path.join(self.target_dir, item)
                 self._copy_with_retry(s_item, d_item)
+                if idx == 0:
+                    txn_mgr._invoke_hook("KILL-04", {"item": item, "index": idx})
 
             logger.info("FILES_SWAPPED_SUCCESSFULLY")
+            marker = txn_mgr.transition_to(marker, UpdatePhase.SWAP_COMPLETE)
+            txn_mgr._invoke_hook("KILL-05", marker)
 
             # 6. 재기동 및 헬스체크
+            txn_mgr._invoke_hook("KILL-06", marker)
             if not skip_process_control:
                 self.restart_server()
                 if not self.health_check(timeout_sec=12):
                     raise HealthCheckTimeoutError("Server failed health check after update")
+
+            marker = txn_mgr.transition_to(marker, UpdatePhase.HEALTHCHECK_OK)
+            txn_mgr._invoke_hook("KILL-07", marker)
+
+            # 7. 트랜잭션 커밋 및 마커 정리
+            txn_mgr._invoke_hook("KILL-08", marker)
+            marker = txn_mgr.transition_to(marker, UpdatePhase.COMMITTED)
+            txn_mgr._invoke_hook("KILL-09", marker)
+            txn_mgr.cleanup_marker(marker)
 
             logger.info("INSTALL_SUCCESS target_version=%s", new_version)
             return True
 
         except Exception as e:
             logger.critical("INSTALL_FAILED error=%s -> starting rollback", str(e))
-            if not skip_process_control and os.path.exists(backup_ver_dir):
-                self.rollback(backup_ver_dir)
+            if os.path.exists(backup_ver_dir):
+                self.rollback(backup_ver_dir, skip_process_control=skip_process_control)
+                if marker:
+                    txn_mgr.cleanup_marker(marker)
             raise InstallerError(f"Installation failed: {e}") from e
 
         finally:

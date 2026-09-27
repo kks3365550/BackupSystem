@@ -244,13 +244,28 @@ class TestPhase5WindowsFilesystemAdversarial(unittest.TestCase):
         release_lock = threading.Event()
 
         def _lock_file():
-            # 독점 쓰기 모드로 파일 오픈 유지
-            try:
-                with open(target_file, "r+") as f:
-                    lock_held.set()
-                    release_lock.wait(timeout=5)
-            except Exception:
+            # Windows API CreateFileW를 사용하여 dwShareMode=0 (배타적 독점) 락 걸기
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.CreateFileW(
+                target_file,
+                0x40000000,  # GENERIC_WRITE
+                0,           # dwShareMode = 0 (배타적 독점)
+                None,
+                3,           # OPEN_EXISTING
+                0x80,        # FILE_ATTRIBUTE_NORMAL
+                None
+            )
+            if handle == -1 or handle == 0xFFFFFFFF:
                 lock_held.set()
+                return
+
+            try:
+                lock_held.set()
+                # 3.5초 대기: 설치 재시도(3초) 소진 후 롤백 도중 락이 해제되어 롤백 성공을 보장
+                release_lock.wait(timeout=3.5)
+            finally:
+                kernel32.CloseHandle(handle)
 
         t = threading.Thread(target=_lock_file, daemon=True)
         t.start()

@@ -34,7 +34,7 @@ AcquiredUpdate (policy, policy.sig, manifest, manifest.sig, package)
 import os
 import logging
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable
 from datetime import datetime
 
 from .models import AcquiredUpdate
@@ -86,7 +86,8 @@ class UnifiedUpdatePipeline:
         cached_sequence: int = -1,
         cached_canonical_bytes: Optional[bytes] = None,
         skip_process_control: bool = False,
-        now: Optional[datetime] = None
+        now: Optional[datetime] = None,
+        debug_crash_hook: Optional[Callable[[str, Dict[str, Any]], None]] = None
     ) -> PipelineExecutionResult:
         """
         AcquiredUpdate를 입력받아 전 과정을 엄격히 검증하고 설치합니다.
@@ -191,7 +192,8 @@ class UnifiedUpdatePipeline:
             self.installer.install(
                 raw_package_bytes=acquired.package_bytes,
                 new_version=manifest.version,
-                skip_process_control=skip_process_control
+                skip_process_control=skip_process_control,
+                debug_crash_hook=debug_crash_hook
             )
         except InstallerError as e:
             logger.critical("PIPELINE_INSTALL_FAILED: %s", e)

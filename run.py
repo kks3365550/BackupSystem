@@ -26,6 +26,22 @@ if _server_log:
     sys.stdout = _server_log
     sys.stderr = _server_log
 
+# ---------------------------------------------------------------------------
+# Preflight: Check for interrupted OTA update transaction (Self-Healing)
+# ---------------------------------------------------------------------------
+_app_base_dir = os.path.dirname(os.path.abspath(__file__))
+try:
+    from core.updater_v2.transaction import check_and_recover_preflight
+    _rec_ok, _rec_msg = check_and_recover_preflight(_app_base_dir)
+    if not _rec_ok:
+        print(f"[CRITICAL FAIL-CLOSED] 비정상 중단된 업데이트 복구 실패: {_rec_msg}", file=sys.stderr)
+        sys.exit(1)
+    elif "restored" in _rec_msg.lower():
+        print(f"[*] [Self-Healing] {_rec_msg}")
+except Exception as _rec_e:
+    print(f"[CRITICAL FAIL-CLOSED] Preflight 복구 검사 중 예외 발생: {_rec_e}", file=sys.stderr)
+    sys.exit(1)
+
 def ensure_dependencies():
     required = ["uvicorn", "fastapi", "cryptography", "psutil", "jinja2", "requests", "pydantic", "zstandard", "multipart"]
     missing = []
