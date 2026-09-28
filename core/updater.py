@@ -357,39 +357,52 @@ def install_update(zip_path: str, target_dir: Optional[str] = None) -> bool:
     ]
     launch_py = next((p for p in pyw_candidates if os.path.exists(p)), "pythonw.exe")
 
-    updater_bat = os.path.join(tempfile.gettempdir(), f"run_updater_{int(time.time())}.bat")
-    bat_content = (
-        "@echo off\r\n"
-        "chcp 65001 >nul\r\n"
-        "setlocal\r\n"
-        "ping 127.0.0.1 -n 2 >nul\r\n"
-        "REM [1/4] Safely terminate port 8765 backup server\r\n"
-        "powershell -NoProfile -Command \"Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue | ForEach-Object { $p = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue; if ($p) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } }\" >nul 2>&1\r\n"
-        "ping 127.0.0.1 -n 2 >nul\r\n"
-        f"REM [2/4] Extract update package to target directory\r\n"
-        f"powershell -ExecutionPolicy Bypass -NoProfile -Command \"Expand-Archive -LiteralPath '{zip_path}' -DestinationPath '{target_dir}' -Force\"\r\n"
-        f"if exist \"{zip_path}\" del \"{zip_path}\" >nul 2>&1\r\n"
-        "ping 127.0.0.1 -n 2 >nul\r\n"
-        f"REM [3/4] Silent background relaunch\r\n"
-        f"cd /d \"{target_dir}\"\r\n"
-        f"if exist \"{os.path.join(target_dir, 'start_silent.vbs')}\" (\r\n"
-        f"    start \"\" wscript.exe \"{os.path.join(target_dir, 'start_silent.vbs')}\"\r\n"
-        ") else (\r\n"
-        f"    start \"\" \"{launch_py}\" \"{os.path.join(target_dir, 'run.py')}\"\r\n"
-        ")\r\n"
-        "REM [4/4] Self-cleanup updater script\r\n"
-        "ping 127.0.0.1 -n 3 >nul\r\n"
-        "del \"%~f0\" >nul 2>&1\r\n"
-        "exit /b 0\r\n"
+    updater_ps1 = os.path.join(tempfile.gettempdir(), f"run_updater_{int(time.time())}.ps1")
+    # Clean paths for PowerShell single quotes
+    clean_zip = zip_path.replace("'", "''")
+    clean_target = target_dir.replace("'", "''")
+
+    ps_content = (
+        "$ErrorActionPreference = 'SilentlyContinue'\r\n"
+        "Start-Sleep -Seconds 1\r\n"
+        "# 1. Safely terminate existing port 8765 server\r\n"
+        "$conn = Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue\r\n"
+        "if ($conn) {\r\n"
+        "    foreach ($c in $conn) {\r\n"
+        "        $p = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue\r\n"
+        "        if ($p) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }\r\n"
+        "    }\r\n"
+        "}\r\n"
+        "Start-Sleep -Seconds 2\r\n"
+        "# 2. Extract update package into target directory\r\n"
+        f"Expand-Archive -LiteralPath '{clean_zip}' -DestinationPath '{clean_target}' -Force\r\n"
+        f"if (Test-Path -LiteralPath '{clean_zip}') {{ Remove-Item -LiteralPath '{clean_zip}' -Force -ErrorAction SilentlyContinue }}\r\n"
+        "Start-Sleep -Seconds 1\r\n"
+        "# 3. Silent background relaunch via WMI Win32_Process\r\n"
+        f"$target = '{clean_target}'\r\n"
+        "$vbs = Join-Path $target 'start_silent.vbs'\r\n"
+        "if (Test-Path $vbs) {\r\n"
+        "    ([wmiclass]'Win32_Process').Create(\"wscript.exe `\"$vbs`\"\", $target, $null) | Out-Null\r\n"
+        "} else {\r\n"
+        "    $pyw = Join-Path $target 'python\\pythonw.exe'\r\n"
+        "    if (-not (Test-Path $pyw)) { $pyw = Join-Path $target '.venv\\Scripts\\pythonw.exe' }\r\n"
+        "    if (-not (Test-Path $pyw)) { $pyw = 'pythonw.exe' }\r\n"
+        "    $runPy = Join-Path $target 'run.py'\r\n"
+        "    ([wmiclass]'Win32_Process').Create(\"`\"$pyw`\" `\"$runPy`\"\", $target, $null) | Out-Null\r\n"
+        "}\r\n"
+        "# 4. Self cleanup\r\n"
+        "Start-Sleep -Seconds 3\r\n"
+        "if (Test-Path -LiteralPath $MyInvocation.MyCommand.Path) { Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue }\r\n"
     )
 
-    with open(updater_bat, "w", encoding="utf-8", newline="\r\n") as f:
-        f.write(bat_content)
+    with open(updater_ps1, "w", encoding="utf-8-sig", newline="\r\n") as f:
+        f.write(ps_content)
 
-    logger.info("UPDATE_BATCH_CREATED path=%s launching detached updater", updater_bat)
+    logger.info("UPDATE_PS1_CREATED path=%s launching detached updater", updater_ps1)
 
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
-    subprocess.Popen(["cmd.exe", "/c", updater_bat], creationflags=flags, close_fds=True)
+    cmd = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", updater_ps1]
+    subprocess.Popen(cmd, creationflags=flags, close_fds=True)
     return True
 
 

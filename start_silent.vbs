@@ -6,7 +6,11 @@ WshShell.CurrentDirectory = currentDir
 
 userProfile = WshShell.ExpandEnvironmentStrings("%USERPROFILE%")
 
-If fso.FileExists(currentDir & "\.venv\Scripts\pythonw.exe") Then
+If fso.FileExists(currentDir & "\python\pythonw.exe") Then
+    pyExe = """" & currentDir & "\python\pythonw.exe"""
+ElseIf fso.FileExists(currentDir & "\python\python.exe") Then
+    pyExe = """" & currentDir & "\python\python.exe"""
+ElseIf fso.FileExists(currentDir & "\.venv\Scripts\pythonw.exe") Then
     pyExe = """" & currentDir & "\.venv\Scripts\pythonw.exe"""
 ElseIf fso.FileExists(currentDir & "\.venv\Scripts\python.exe") Then
     pyExe = """" & currentDir & "\.venv\Scripts\python.exe"""

@@ -476,7 +476,15 @@ def publish_to_firebase_releases(version: str, raw_bytes: bytes, sig_hex: str, c
             os.makedirs(sunhang_hosting_rel, exist_ok=True)
             shutil.copy2(pkg_path, os.path.join(sunhang_hosting_rel, pkg_name))
             shutil.copy2(meta_json_path, os.path.join(sunhang_hosting_rel, "release.json"))
-            print(f"      Synced to Firebase Hosting staging: {sunhang_hosting_rel}")
+            # Automatically deploy to Firebase Hosting so download_url is immediately accessible
+            sunhang_root = os.path.dirname(os.path.dirname(sunhang_hosting_rel))
+            print("      Deploying release package to Firebase Hosting...")
+            deploy_flags = {}
+            if sys.platform.startswith('win') and hasattr(subprocess, 'CREATE_NO_WINDOW'):
+                deploy_flags['creationflags'] = subprocess.CREATE_NO_WINDOW
+            npx_cmd = 'npx.cmd' if sys.platform.startswith('win') else 'npx'
+            subprocess.run([npx_cmd, '--yes', 'firebase-tools', 'deploy', '--only', 'hosting'], cwd=sunhang_root, **deploy_flags)
+            print("      Firebase Hosting deploy complete!")
         except Exception as e_sync:
             print(f"      Hosting staging notice: {e_sync}")
 
