@@ -1,0 +1,124 @@
+=== FILE: C:\Users\kksjmj\AppData\Local\Temp\run_updater_1790602866.ps1 (Time: 09/28/2026 22:41:06) ===
+$ErrorActionPreference = 'SilentlyContinue'
+
+Start-Sleep -Seconds 1
+
+# 1. Safely terminate existing port 8765 server
+
+$conn = Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue
+
+if ($conn) {
+
+    foreach ($c in $conn) {
+
+        $p = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue
+
+        if ($p) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+
+    }
+
+}
+
+Start-Sleep -Seconds 2
+
+# 2. Extract update package into target directory
+
+Expand-Archive -LiteralPath 'C:\Users\kksjmj\AppData\Local\Temp\backup_update_v2.9.14_1790602866.zip' -DestinationPath 'C:\Program Files\����ý���' -Force
+
+if (Test-Path -LiteralPath 'C:\Users\kksjmj\AppData\Local\Temp\backup_update_v2.9.14_1790602866.zip') { Remove-Item -LiteralPath 'C:\Users\kksjmj\AppData\Local\Temp\backup_update_v2.9.14_1790602866.zip' -Force -ErrorAction SilentlyContinue }
+
+Start-Sleep -Seconds 1
+
+# 3. Silent background relaunch via WMI Win32_Process
+
+$target = 'C:\Program Files\����ý���'
+
+$vbs = Join-Path $target 'start_silent.vbs'
+
+if (Test-Path $vbs) {
+
+    ([wmiclass]'Win32_Process').Create("wscript.exe `"$vbs`"", $target, $null) | Out-Null
+
+} else {
+
+    $pyw = Join-Path $target 'python\pythonw.exe'
+
+    if (-not (Test-Path $pyw)) { $pyw = Join-Path $target '.venv\Scripts\pythonw.exe' }
+
+    if (-not (Test-Path $pyw)) { $pyw = 'pythonw.exe' }
+
+    $runPy = Join-Path $target 'run.py'
+
+    ([wmiclass]'Win32_Process').Create("`"$pyw`" `"$runPy`"", $target, $null) | Out-Null
+
+}
+
+# 4. Self cleanup
+
+Start-Sleep -Seconds 3
+
+if (Test-Path -LiteralPath $MyInvocation.MyCommand.Path) { Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue }
+
+
+=== FILE: C:\Users\kksjmj\AppData\Local\Temp\run_updater_1790602856.ps1 (Time: 09/28/2026 22:40:56) ===
+$ErrorActionPreference = 'SilentlyContinue'
+
+Start-Sleep -Seconds 1
+
+# 1. Safely terminate existing port 8765 server
+
+$conn = Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue
+
+if ($conn) {
+
+    foreach ($c in $conn) {
+
+        $p = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue
+
+        if ($p) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+
+    }
+
+}
+
+Start-Sleep -Seconds 2
+
+# 2. Extract update package into target directory
+
+Expand-Archive -LiteralPath 'C:\Users\kksjmj\AppData\Local\Temp\backup_update_v2.9.14_1790602855.zip' -DestinationPath 'C:\Program Files\����ý���' -Force
+
+if (Test-Path -LiteralPath 'C:\Users\kksjmj\AppData\Local\Temp\backup_update_v2.9.14_1790602855.zip') { Remove-Item -LiteralPath 'C:\Users\kksjmj\AppData\Local\Temp\backup_update_v2.9.14_1790602855.zip' -Force -ErrorAction SilentlyContinue }
+
+Start-Sleep -Seconds 1
+
+# 3. Silent background relaunch via WMI Win32_Process
+
+$target = 'C:\Program Files\����ý���'
+
+$vbs = Join-Path $target 'start_silent.vbs'
+
+if (Test-Path $vbs) {
+
+    ([wmiclass]'Win32_Process').Create("wscript.exe `"$vbs`"", $target, $null) | Out-Null
+
+} else {
+
+    $pyw = Join-Path $target 'python\pythonw.exe'
+
+    if (-not (Test-Path $pyw)) { $pyw = Join-Path $target '.venv\Scripts\pythonw.exe' }
+
+    if (-not (Test-Path $pyw)) { $pyw = 'pythonw.exe' }
+
+    $runPy = Join-Path $target 'run.py'
+
+    ([wmiclass]'Win32_Process').Create("`"$pyw`" `"$runPy`"", $target, $null) | Out-Null
+
+}
+
+# 4. Self cleanup
+
+Start-Sleep -Seconds 3
+
+if (Test-Path -LiteralPath $MyInvocation.MyCommand.Path) { Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue }
+
+
