@@ -414,14 +414,31 @@ def install_update(zip_path: str, target_dir: Optional[str] = None) -> bool:
         "if (Test-Path -LiteralPath $PSCommandPath) { Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue }\r\n"
     )
 
-    with open(updater_ps1, "w", encoding="utf-8-sig", newline="\r\n") as f:
+    with open(updater_ps1, "w", encoding="utf-8-sig", newline="") as f:
         f.write(ps_content)
 
     logger.info("UPDATE_PS1_CREATED path=%s launching detached updater", updater_ps1)
 
-    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
-    cmd = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", updater_ps1]
-    subprocess.Popen(cmd, creationflags=flags, close_fds=True)
+    ps_bin = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+    if not os.path.exists(ps_bin):
+        ps_bin = "powershell.exe"
+
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = 0  # SW_HIDE
+
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+    cmd = [ps_bin, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", updater_ps1]
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        startupinfo=startupinfo,
+        creationflags=flags,
+        close_fds=True
+    )
+    logger.info("UPDATE_SPAWN_OK child_pid=%d path=%s", proc.pid, updater_ps1)
     return True
 
 
