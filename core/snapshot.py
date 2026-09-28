@@ -106,7 +106,14 @@ class SnapshotEngine:
                                         continue
                                     if entry.is_symlink():
                                         # Junction or Symlink directory: do not recurse to avoid loops
-                                        if entry.path.startswith(src_root):
+                                        # Safe path check: ensure src_root is a true parent directory
+                                        try:
+                                            common = os.path.commonpath([src_root, entry.path])
+                                            is_under_src = (common == src_root)
+                                        except ValueError:
+                                            is_under_src = False
+                                        
+                                        if is_under_src:
                                             rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')
                                         else:
                                             rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')
@@ -118,7 +125,14 @@ class SnapshotEngine:
                                     # Fast O(1) file exclusion
                                     if not path_filter.is_file_excluded(entry.name):
                                         st = entry.stat()
-                                        if entry.path.startswith(src_root):
+                                        # Safe path check: ensure src_root is a true parent directory
+                                        try:
+                                            common = os.path.commonpath([src_root, entry.path])
+                                            is_under_src = (common == src_root)
+                                        except ValueError:
+                                            is_under_src = False
+                                        
+                                        if is_under_src:
                                             rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')
                                         else:
                                             rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')

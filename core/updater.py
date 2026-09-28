@@ -337,12 +337,10 @@ def rollback(backup_dir: str, target_dir: Optional[str] = None) -> bool:
 
 def install_update(zip_path: str, target_dir: Optional[str] = None) -> bool:
     """
-    1. 임시 Staging 디렉토리에 압축 해제 검증
-    2. 기존 소프트웨어 디렉토리 백업 보존 (backup/v{현재버전})
-    3. 실행 중인 백업 데몬 안전 종료
-    4. 파일 교체 적용
-    5. 무창 백그라운드 재기동
-    6. 헬스체크 및 실패 시 자동 롤백
+    Windows 환경에서 실행 중인 파이썬 프로세스의 파일 잠금(WinError 32)을 원천 방지하기 위해:
+    1. 외부 분리형 무창 업데이터 배치 스크립트(run_updater.bat) 생성
+    2. DETACHED_PROCESS 무창으로 배치 실행
+    3. 배치가 기존 백업 서버 정상 종료 -> 패키지 압축 해제 덮어쓰기 -> 무창 재시작 -> 임시 파일 정리 순으로 수행
     """
     if target_dir is None:
         target_dir = BASE_DIR
@@ -350,84 +348,55 @@ def install_update(zip_path: str, target_dir: Optional[str] = None) -> bool:
     current_ver = get_current_installed_version()
     logger.info("UPDATE_INSTALL_START current=%s target_dir=%s", current_ver, target_dir)
 
-    staging_dir = tempfile.mkdtemp(prefix="backup_stage_")
-    backup_ver_dir = os.path.join(target_dir, "backup", f"v{current_ver}")
+    # Pythonw 인터프리터 경로 탐색 (데스크탑 내장 python 폴더, .venv 또는 시스템 pythonw)
+    pyw_candidates = [
+        os.path.join(target_dir, "python", "pythonw.exe"),
+        os.path.join(target_dir, ".venv", "Scripts", "pythonw.exe"),
+        os.path.join(os.path.dirname(sys.executable), "pythonw.exe"),
+        sys.executable
+    ]
+    launch_py = next((p for p in pyw_candidates if os.path.exists(p)), "pythonw.exe")
 
-    try:
-        # 1. Staging 압축 해제
-        with zipfile.ZipFile(zip_path, "r") as zf:
-            zf.extractall(staging_dir)
+    updater_bat = os.path.join(tempfile.gettempdir(), f"run_updater_{int(time.time())}.bat")
+    bat_content = (
+        "@echo off\r\n"
+        "chcp 65001 >nul\r\n"
+        "setlocal\r\n"
+        "ping 127.0.0.1 -n 2 >nul\r\n"
+        "REM [1/4] Safely terminate port 8765 backup server\r\n"
+        "powershell -NoProfile -Command \"Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue | ForEach-Object { $p = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue; if ($p) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } }\" >nul 2>&1\r\n"
+        "ping 127.0.0.1 -n 2 >nul\r\n"
+        f"REM [2/4] Extract update package to target directory\r\n"
+        f"powershell -ExecutionPolicy Bypass -NoProfile -Command \"Expand-Archive -LiteralPath '{zip_path}' -DestinationPath '{target_dir}' -Force\"\r\n"
+        f"if exist \"{zip_path}\" del \"{zip_path}\" >nul 2>&1\r\n"
+        "ping 127.0.0.1 -n 2 >nul\r\n"
+        f"REM [3/4] Silent background relaunch\r\n"
+        f"cd /d \"{target_dir}\"\r\n"
+        f"if exist \"{os.path.join(target_dir, 'start_silent.vbs')}\" (\r\n"
+        f"    start \"\" wscript.exe \"{os.path.join(target_dir, 'start_silent.vbs')}\"\r\n"
+        ") else (\r\n"
+        f"    start \"\" \"{launch_py}\" \"{os.path.join(target_dir, 'run.py')}\"\r\n"
+        ")\r\n"
+        "REM [4/4] Self-cleanup updater script\r\n"
+        "ping 127.0.0.1 -n 3 >nul\r\n"
+        "del \"%~f0\" >nul 2>&1\r\n"
+        "exit /b 0\r\n"
+    )
 
-        # 2. 현재 설치 본 백업 (소프트웨어 코드만 백업, 데이터/blobs 제외)
-        os.makedirs(backup_ver_dir, exist_ok=True)
-        for folder in ["core", "web", "keys"]:
-            src_f = os.path.join(target_dir, folder)
-            dst_f = os.path.join(backup_ver_dir, folder)
-            if os.path.exists(src_f):
-                if os.path.exists(dst_f):
-                    shutil.rmtree(dst_f, ignore_errors=True)
-                shutil.copytree(src_f, dst_f)
+    with open(updater_bat, "w", encoding="utf-8", newline="\r\n") as f:
+        f.write(bat_content)
 
-        for script in ["run.py", "start_silent.vbs", "VERSION"]:
-            src_s = os.path.join(target_dir, script)
-            dst_s = os.path.join(backup_ver_dir, script)
-            if os.path.exists(src_s):
-                shutil.copy2(src_s, dst_s)
+    logger.info("UPDATE_BATCH_CREATED path=%s launching detached updater", updater_bat)
 
-        logger.info("UPDATE_BACKUP_SAVED backup_dir=%s", backup_ver_dir)
-
-        # 3. 기존 서비스 프로세스 안전 종료
-        safely_stop_running_backup_server(8765)
-        time.sleep(1)
-
-        # 4. 새 파일 교체 복사 (Staging -> Target)
-        for item in os.listdir(staging_dir):
-            s_item = os.path.join(staging_dir, item)
-            d_item = os.path.join(target_dir, item)
-            if os.path.isdir(s_item):
-                if os.path.exists(d_item):
-                    shutil.rmtree(d_item, ignore_errors=True)
-                shutil.copytree(s_item, d_item)
-            else:
-                shutil.copy2(s_item, d_item)
-
-        # 5. 무창 백그라운드 재시작
-        vbs_path = os.path.join(target_dir, "start_silent.vbs")
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
-        if os.path.exists(vbs_path):
-            subprocess.Popen(["wscript.exe", vbs_path], cwd=target_dir, creationflags=flags, close_fds=True)
-        else:
-            pyw = os.path.join(target_dir, ".venv", "Scripts", "pythonw.exe")
-            if not os.path.exists(pyw):
-                pyw = "pythonw.exe"
-            subprocess.Popen([pyw, os.path.join(target_dir, "run.py")], cwd=target_dir, creationflags=flags, close_fds=True)
-
-        # 6. Health Check 검증
-        if health_check(port=8765, timeout=12):
-            logger.info("UPDATE_SUCCESS updated to new version")
-            return True
-        else:
-            logger.error("UPDATE_INSTALL_FAILED healthcheck_timed_out -> starting rollback")
-            rollback(backup_ver_dir, target_dir)
-            return False
-
-    except Exception as e:
-        logger.critical("UPDATE_INSTALL_FAILED error=%s -> starting rollback", str(e))
-        rollback(backup_ver_dir, target_dir)
-        return False
-    finally:
-        shutil.rmtree(staging_dir, ignore_errors=True)
-        if os.path.exists(zip_path):
-            try:
-                os.remove(zip_path)
-            except OSError:
-                pass
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+    subprocess.Popen(["cmd.exe", "/c", updater_bat], creationflags=flags, close_fds=True)
+    return True
 
 
 def perform_full_update_pipeline(target_dir: Optional[str] = None) -> Dict[str, Any]:
     """
     단일 호출로 전체 업데이트 라이프사이클을 안전하게 실행:
-    check -> download -> verify -> install -> health check -> (or rollback)
+    check -> download -> verify -> detached install
     """
     rel = check_for_update()
     if not rel or not rel.get("update_available"):
@@ -444,11 +413,14 @@ def perform_full_update_pipeline(target_dir: Optional[str] = None) -> Dict[str, 
     )
     if not is_verified:
         if os.path.exists(zip_file):
-            os.remove(zip_file)
+            try:
+                os.remove(zip_file)
+            except OSError:
+                pass
         return {"status": "VERIFY_FAILED", "message": "업데이트 무결성 또는 전자 서명 검증 실패."}
 
     success = install_update(zip_file, target_dir)
     if success:
-        return {"status": "SUCCESS", "message": f"v{rel.get('latest_version')} 업데이트가 완료되었습니다."}
+        return {"status": "SUCCESS", "message": f"v{rel.get('latest_version')} 업데이트가 백그라운드에서 안전하게 적용 및 재시작됩니다."}
     else:
-        return {"status": "INSTALL_FAILED", "message": "설치 중 오류가 발생하여 이전 버전으로 롤백되었습니다."}
+        return {"status": "INSTALL_FAILED", "message": "업데이터 구동 중 오류가 발생했습니다."}

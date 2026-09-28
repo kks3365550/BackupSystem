@@ -177,6 +177,9 @@ def build_self_extracting_updater(version: str):
                     # For keys/ folder, ONLY allow public keys (.pub)
                     if os.path.basename(root) == 'keys' and not f_lower.endswith('.pub'):
                         continue
+                    # NEVER include installer executables in update package
+                    if f_lower.endswith('.exe'):
+                        continue
                     full_path = os.path.join(root, f)
                     rel_path = os.path.relpath(full_path, BASE_DIR)
                     zf.write(full_path, rel_path)

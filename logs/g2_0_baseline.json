@@ -1,0 +1,74 @@
+{
+  "timestamp_iso": "2026-09-28T13:06:57.411211",
+  "repo_dir": "D:\\MyBackup_Repository",
+  "snapshots": {
+    "total_count": 3,
+    "list": [
+      {
+        "name": "snap_20260928_122622_7d1849.json",
+        "path": "D:\\MyBackup_Repository\\snapshots\\snap_20260928_122622_7d1849.json",
+        "size_bytes": 26616737,
+        "mtime_iso": "2026-09-28T12:26:23.732642",
+        "sha256": "d2260c9cd405f8f5bde00431dd6a8b8c23bad9500b4ac87711c71a039852508c"
+      },
+      {
+        "name": "snap_20260928_122124_ccba50.json",
+        "path": "D:\\MyBackup_Repository\\snapshots\\snap_20260928_122124_ccba50.json",
+        "size_bytes": 26614710,
+        "mtime_iso": "2026-09-28T12:21:26.178027",
+        "sha256": "091bda45486e286a6447d67642b04910e741f4e86aa56628bbbfa3727dd52184"
+      },
+      {
+        "name": "snap_20260928_105831_89f39b.json",
+        "path": "D:\\MyBackup_Repository\\snapshots\\snap_20260928_105831_89f39b.json",
+        "size_bytes": 26612889,
+        "mtime_iso": "2026-09-28T10:58:33.302705",
+        "sha256": "cf1df79d059c98b9437961be9d7f74d89b47010630af2db8929370578cd93cd4"
+      }
+    ],
+    "latest_snapshot": {
+      "name": "snap_20260928_122622_7d1849.json",
+      "sha256": "d2260c9cd405f8f5bde00431dd6a8b8c23bad9500b4ac87711c71a039852508c",
+      "profile_name": "내 맞춤형 핵심 백업 (드라이버 + 프로젝트 + 선택 프로그램)",
+      "timestamp": "",
+      "file_count": 75397,
+      "total_bytes": 21352717652
+    }
+  },
+  "cas_blobs": {
+    "total_count": 50354,
+    "total_bytes": 9250555498,
+    "total_size_human": "8.62 GB"
+  },
+  "metadata_db": {
+    "path": "D:\\MyBackup_Repository\\metadata.db",
+    "size_bytes": 106496,
+    "size_human": "104.00 KB",
+    "integrity_check": "ok",
+    "quick_check": "ok",
+    "tables": {
+      "blobs_summary": 1,
+      "snapshots_meta": 3
+    },
+    "total_records": 4
+  },
+  "restore_verification": {
+    "tested_snapshot_id": "snap_20260928_122622_7d1849",
+    "sample_size": 100,
+    "total_snapshot_entries": 75397,
+    "restore_duration_sec": 2.17,
+    "total_expected_files": 100,
+    "restored_count": 100,
+    "sha256_matched_count": 100,
+    "mismatched_count": 0,
+    "missing_count": 0,
+    "match_rate_percent": 100.0,
+    "is_perfect_match": true,
+    "mismatched_items": []
+  },
+  "summary": {
+    "status": "PASS",
+    "db_healthy": true,
+    "restore_verified": true
+  }
+}
