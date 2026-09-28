@@ -140,14 +140,6 @@ async function checkRemoteRelease() {
         if (!res || !res.success) return;
         const data = res.data || {};
 
-        if (data.current_version) {
-            const versionBadge = document.getElementById('header-version-badge');
-            if (versionBadge) {
-                const versionStr = data.current_version.startsWith('v') ? data.current_version : 'v' + data.current_version;
-                versionBadge.innerText = versionStr;
-            }
-        }
-
         if (data.is_self) {
             // 마스터 서버 자신 (K12)
             if (statusBadge && statusText && statusIcon) {

@@ -100,6 +100,7 @@
       "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Hermes.lnk",
       "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\marktext.lnk",
       "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Ollama.lnk",
+      "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Unsloth.lnk",
       "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Visual Studio Code.lnk",
       "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\VMS.lnk",
       "C:\\Users\\kksjmj\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\영수증 관리.lnk",
@@ -132,9 +133,7 @@
       "C:\\Program Files\\Samsung\\Internet\\Application",
       "C:\\Program Files\\Kakao\\KakaoTalk",
       "C:\\Program Files (x86)\\Hnc",
-      "C:\\Users\\kksjmj\\Desktop",
-      "C:\\Users\\kksjmj\\AppData\\Roaming\\uv\\python\\cpython-3.11-windows-x86_64-none",
-      "C:\\Users\\kksjmj\\AppData\\Local\\hermes"
+      "C:\\Users\\kksjmj\\Desktop"
     ],
     "repo_dir": "D:\\MyBackup_Repository",
     "exclude_patterns": [
@@ -142,21 +141,20 @@
       "__pycache__",
       "*.pyc",
       ".venv",
+      "venv",
       "*.tmp",
       "*.temp",
       "*.log",
       "backup_repository",
-      "MyBackup_Repository",
-      "*AndroidStudio*index*",
-      "*.storage.keystream*"
+      "MyBackup_Repository"
     ],
     "schedule_type": "daily",
     "schedule_value": "09:00",
     "auto_backup_enabled": true,
     "retention_count": 3,
     "compression_level": 9,
-    "last_run": 1790382063.0578594,
+    "last_run": 1790555102.4412525,
     "last_status": "success",
-    "last_snapshot_id": "snap_20260926_092057_7461cd"
+    "last_snapshot_id": "snap_20260928_090005_c4afdb"
   }
 ]

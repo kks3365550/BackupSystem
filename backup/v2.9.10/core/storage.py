@@ -83,12 +83,6 @@ class BlobStorage:
         for i in range(256):
             os.makedirs(os.path.join(self.blobs_dir, f"{i:02x}"), exist_ok=True)
 
-        # Self-Healing: Clean up orphaned temporary files left behind by power loss or crashes
-        try:
-            self.cleanup_orphaned_tmp_files(min_age_seconds=60.0)
-        except Exception:
-            pass
-
         if not os.path.exists(self.meta_file):
             meta = {
                 "version": "2.0.0",
@@ -97,58 +91,6 @@ class BlobStorage:
             }
             with open(self.meta_file, "w", encoding="utf-8") as f:
                 json.dump(meta, f, indent=2)
-
-    def cleanup_orphaned_tmp_files(self, min_age_seconds: float = 60.0) -> int:
-        """
-        Self-Healing: Detects and removes orphaned temporary files (.tmp_*, _temp/*)
-        left behind by power loss, SIGKILL, or system crash.
-        Returns the count of cleaned up files.
-        """
-        import glob
-        import time
-        now = time.time()
-        cleaned_count = 0
-
-        # 1. Clean up _temp directory
-        temp_dir = os.path.join(self.blobs_dir, "_temp")
-        if os.path.exists(temp_dir):
-            for file_path in glob.glob(os.path.join(temp_dir, "*")):
-                if os.path.isfile(file_path):
-                    try:
-                        if (now - os.path.getmtime(file_path)) >= min_age_seconds:
-                            unlock_file_writable(file_path)
-                            os.remove(file_path)
-                            cleaned_count += 1
-                    except OSError:
-                        pass
-
-        # 2. Clean up .tmp_* files in blobs/xx/ directories
-        for prefix_dir in glob.glob(os.path.join(self.blobs_dir, "[0-9a-f][0-9a-f]")):
-            if not os.path.isdir(prefix_dir):
-                continue
-            for file_path in glob.glob(os.path.join(prefix_dir, "*.tmp_*")):
-                if os.path.isfile(file_path):
-                    try:
-                        if (now - os.path.getmtime(file_path)) >= min_age_seconds:
-                            unlock_file_writable(file_path)
-                            os.remove(file_path)
-                            cleaned_count += 1
-                    except OSError:
-                        pass
-
-        # 3. Clean up .tmp_* in snapshots directory
-        if os.path.exists(self.snapshots_dir):
-            for file_path in glob.glob(os.path.join(self.snapshots_dir, "*.tmp_*")):
-                if os.path.isfile(file_path):
-                    try:
-                        if (now - os.path.getmtime(file_path)) >= min_age_seconds:
-                            unlock_file_writable(file_path)
-                            os.remove(file_path)
-                            cleaned_count += 1
-                    except OSError:
-                        pass
-
-        return cleaned_count
 
     def get_blob_rel_path(self, sha256_hash: str) -> str:
         if not sha256_hash:

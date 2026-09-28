@@ -278,7 +278,7 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 # --- Web UI Route ---
 @app.get("/", response_class=HTMLResponse)
 async def index_page(request: Request):
-    return templates.TemplateResponse(request=request, name="index.html", context={"request": request, "v_ts": int(time.time()), "version": get_current_version()})
+    return templates.TemplateResponse(request=request, name="index.html", context={"request": request, "v_ts": int(time.time())})
 
 # --- System & Storage API ---
 @app.get("/api/system-info")

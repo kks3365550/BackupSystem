@@ -33,59 +33,9 @@ class MetadataDB:
             except Exception:
                 pass
 
-    def _verify_and_heal_db(self):
-        """
-        Self-Healing: Performs PRAGMA integrity_check on metadata.db.
-        If corruption is detected from sudden power loss, quarantines the corrupted DB
-        and automatically rebuilds everything from ground truth JSON snapshots and CAS blobs.
-        """
-        if not os.path.exists(self.db_path):
-            return
-
-        is_corrupted = False
-        conn = None
-        try:
-            conn = sqlite3.connect(self.db_path, timeout=5.0)
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA integrity_check;")
-            rows = cursor.fetchall()
-            if not rows or rows[0][0].lower() != "ok":
-                is_corrupted = True
-        except Exception:
-            is_corrupted = True
-        finally:
-            if conn:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-
-        if is_corrupted:
-            import time
-            ts = int(time.time() * 1000)
-            corrupt_backup = f"{self.db_path}.corrupt_{ts}"
-            try:
-                for ext in ["-wal", "-shm"]:
-                    extra_file = self.db_path + ext
-                    if os.path.exists(extra_file):
-                        try:
-                            os.remove(extra_file)
-                        except OSError:
-                            pass
-                if os.path.exists(self.db_path):
-                    os.replace(self.db_path, corrupt_backup)
-            except Exception:
-                try:
-                    import shutil
-                    shutil.copy2(self.db_path, corrupt_backup)
-                    os.remove(self.db_path)
-                except Exception:
-                    pass
-
     def _init_db(self):
         try:
             os.makedirs(self.repo_dir, exist_ok=True)
-            self._verify_and_heal_db()
             with self._get_connection() as conn:
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS blobs_summary (
@@ -128,17 +78,6 @@ class MetadataDB:
                 if "verify_error_count" not in columns:
                     conn.execute("ALTER TABLE snapshots_meta ADD COLUMN verify_error_count INTEGER DEFAULT 0;")
                 conn.commit()
-
-            # Check if snapshots need reconstruction (performed outside the connection context to prevent deadlocks)
-            needs_rebuild = False
-            with self._get_connection() as conn:
-                row = conn.execute("SELECT COUNT(*) FROM snapshots_meta;").fetchone()
-                if row and row[0] == 0:
-                    needs_rebuild = True
-
-            if needs_rebuild and os.path.exists(self.snapshots_dir):
-                self.sync_snapshots()
-                self.rebuild_blobs_summary()
         except Exception:
             pass
 
