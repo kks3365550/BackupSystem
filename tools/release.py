@@ -184,7 +184,7 @@ def build_self_extracting_updater(version: str):
                     rel_path = os.path.relpath(full_path, BASE_DIR)
                     zf.write(full_path, rel_path)
         # Bundle essential runner scripts
-        for extra_script in ['run.py', 'start_silent.vbs', 'start_tray.vbs', 'stop_backup_system.bat', '2_백업시스템_실행.bat']:
+        for extra_script in ['run.py', 'start_silent.vbs', 'start_tray.vbs', 'launch_dashboard.vbs', 'stop_backup_system.bat', '2_백업시스템_실행.bat']:
             extra_path = os.path.join(BASE_DIR, extra_script)
             if os.path.exists(extra_path):
                 zf.write(extra_path, extra_script)

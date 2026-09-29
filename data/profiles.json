@@ -17,14 +17,8 @@
     "schedule_type": "interval_hours",
     "schedule_value": "12",
     "auto_backup_enabled": false,
-    "retention_count": 30,
-    "retention_days": 60,
-    "compression_level": 3,
-    "min_free_disk_gb": 10,
-    "enable_ransomware_protection": true,
-    "last_run": null,
-    "last_status": "never",
-    "last_snapshot_id": null
+    "retention_count": 3,
+    "compression_level": 3
   },
   {
     "id": "prof_custom_selected",
@@ -186,8 +180,8 @@
     "auto_backup_enabled": true,
     "retention_count": 3,
     "compression_level": 9,
-    "last_run": 1790646405.7266805,
+    "last_run": 1790656891.1449275,
     "last_status": "success",
-    "last_snapshot_id": "snap_20260929_104635_6f8411"
+    "last_snapshot_id": "snap_20260929_134119_32da91"
   }
 ]

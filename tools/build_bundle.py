@@ -69,7 +69,7 @@ def build_release_bundle(
                     zf.write(full_p, rel_p)
 
         # 1.2 실행 스크립트 및 VERSION
-        for script in ["run.py", "start_silent.vbs", "start_tray.vbs", "stop_backup_system.bat", "2_백업시스템_실행.bat"]:
+        for script in ["run.py", "start_silent.vbs", "start_tray.vbs", "launch_dashboard.vbs", "stop_backup_system.bat", "2_백업시스템_실행.bat"]:
             s_path = os.path.join(BASE_DIR, script)
             if os.path.exists(s_path):
                 zf.write(s_path, script)

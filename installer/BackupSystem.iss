@@ -3,7 +3,7 @@
 ; =========================================================================
 
 #define MyAppName "백업시스템"
-#define MyAppVersion "2.9.19"
+#define MyAppVersion "2.9.20"
 #define MyAppPublisher "삼영데리카후레쉬"
 #define MyAppURL "http://127.0.0.1:8765"
 #define MyAppExeName "BackupSystem.exe"
@@ -39,25 +39,27 @@ Name: "startupicon"; Description: "Windows 부팅 시 백그라운드 자동 시
 ; 1. Embedded Python 3.11 Runtime (Self-Contained)
 Source: "runtime\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; 2. Application Core Source Tree (v2.9.11 Production Source)
+; 2. Application Core Source Tree (v2.9.19 Production Source)
 Source: "..\core\*"; DestDir: "{app}\core"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "__pycache__,*.pyc,*.pyo"
 Source: "..\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "__pycache__,*.pyc,*.pyo"
 Source: "..\run.py"; DestDir: "{app}"; Flags: ignoreversion
-Source: "VERSION"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\VERSION"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\keys\release_ed25519.pub"; DestDir: "{app}\keys"; Flags: ignoreversion
 Source: "..\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 ; 3. VBScript 래퍼 및 운영 스크립트
 Source: "start_silent.vbs"; DestDir: "{app}"; Flags: ignoreversion
 Source: "start_tray.vbs"; DestDir: "{app}"; Flags: ignoreversion
+Source: "launch_dashboard.vbs"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\tray_app.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\stop_backup_system.bat"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName} 웹 대시보드"; Filename: "{#MyAppURL}"
-Name: "{group}\{#MyAppName} 트레이 에이전트 실행"; Filename: "wscript.exe"; Parameters: """{app}\start_tray.vbs"""
-Name: "{group}\{#MyAppName} 서비스 종료"; Filename: "{app}\stop_backup_system.bat"
+Name: "{group}\{#MyAppName} 웹 대시보드"; Filename: "wscript.exe"; Parameters: """{app}\launch_dashboard.vbs"""; WorkingDir: "{app}"; IconFilename: "{sys}\shell32.dll"; IconIndex: 14
+Name: "{group}\{#MyAppName} 트레이 에이전트 실행"; Filename: "wscript.exe"; Parameters: """{app}\start_tray.vbs"""; WorkingDir: "{app}"
+Name: "{group}\{#MyAppName} 서비스 종료"; Filename: "{app}\stop_backup_system.bat"; WorkingDir: "{app}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName} 대시보드"; Filename: "{#MyAppURL}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName} 대시보드"; Filename: "wscript.exe"; Parameters: """{app}\launch_dashboard.vbs"""; WorkingDir: "{app}"; IconFilename: "{sys}\shell32.dll"; IconIndex: 14; Tasks: desktopicon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "BackupSystemService"; ValueData: "wscript.exe ""{app}\start_silent.vbs"""; Flags: uninsdeletevalue; Tasks: startupicon
