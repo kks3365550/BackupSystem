@@ -46,7 +46,7 @@ class RestoreEngine:
         entries = snapshot.get("entries", [])
         to_restore = []
 
-        if selected_rel_paths:
+        if selected_rel_paths is not None:
             # Normalize selected paths for case-insensitive matching
             normalized_selected = [p.replace('\\', '/').strip('/').lower() for p in selected_rel_paths]
             for entry in entries:
