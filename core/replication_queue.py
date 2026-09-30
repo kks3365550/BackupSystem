@@ -316,6 +316,50 @@ class ReplicationQueueManager:
                 for r in rows
             ]
 
+    def get_status_batch(self, snapshot_ids: List[str], chunk_size: int = 500) -> Dict[str, Dict[str, Any]]:
+        """
+        여러 스냅샷 ID의 상태를 배치로 조회합니다.
+        SQLite의 바인딩 변수 한계(999개)를 방어하기 위해 chunk_size 단위로 분할 쿼리합니다.
+        """
+        if not snapshot_ids:
+            return {}
+
+        result = {}
+        # 중복 제거 및 입력 순서 유지
+        unique_ids = list(dict.fromkeys(snapshot_ids))
+
+        for i in range(0, len(unique_ids), chunk_size):
+            chunk = unique_ids[i:i + chunk_size]
+            placeholders = ','.join(['?' for _ in chunk])
+            query = f"""
+                SELECT id, snapshot_id, repo_dir, remote_repo_dir, state, 
+                       attempts, error_msg, created_at, updated_at
+                FROM replication_queue
+                WHERE snapshot_id IN ({placeholders})
+            """
+            with self._lock:
+                conn = self._get_connection()
+                cursor = conn.cursor()
+                cursor.execute(query, chunk)
+                rows = cursor.fetchall()
+
+            for r in rows:
+                sid = r[1]
+                result[sid] = {
+                    "id": r[0],
+                    "snapshot_id": r[1],
+                    "repo_dir": r[2],
+                    "remote_repo_dir": r[3],
+                    "state": r[4],
+                    "attempts": r[5],
+                    "error_msg": r[6],
+                    "created_at": r[7],
+                    "updated_at": r[8],
+                    "is_offsite_protected": (r[4] == 'COMMITTED')
+                }
+
+        return result
+
     def close(self):
         self.stop_background_worker()
         with self._lock:
