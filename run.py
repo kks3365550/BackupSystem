@@ -77,6 +77,40 @@ def is_port_in_use(port: int) -> bool:
     except Exception:
         return False
 
+_server_mutex_handle = None
+
+def acquire_single_instance_mutex(is_silent: bool, port: int) -> bool:
+    """
+    Windows Named Mutex를 사용하여 단일 인스턴스를 엄격히 보장합니다.
+    이미 인스턴스가 존재할 경우:
+      - is_silent가 False(사용자가 직접 실행)이면 기존 대시보드 브라우저를 띄우고 종료
+      - is_silent가 True(부팅 시 백그라운드 자동 기동)이면 브라우저도 띄우지 않고 조용히 종료
+    """
+    global _server_mutex_handle
+    if not sys.platform.startswith("win"):
+        return True
+
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        MUTEX_NAME = "Global\\BackupSystem_Server_SingleInstance_Mutex"
+        mutex = kernel32.CreateMutexW(None, True, MUTEX_NAME)
+        last_error = kernel32.GetLastError()
+        ERROR_ALREADY_EXISTS = 183
+
+        if last_error == ERROR_ALREADY_EXISTS:
+            if not is_silent:
+                open_browser(port)
+            if mutex:
+                kernel32.CloseHandle(mutex)
+            sys.exit(0)
+
+        _server_mutex_handle = mutex
+        return True
+    except Exception as e:
+        # Mutex 생성 실패 시 Fail-Open (서버 기동 계속 진행)
+        return True
+
 def open_browser(port: int):
     url = f"http://127.0.0.1:{port}"
     for _ in range(50):
@@ -102,18 +136,25 @@ def main():
     settings = ConfigManager.get_settings()
     port = settings.get("server_port", 8765)
     host = settings.get("server_host", "0.0.0.0")
-    auto_open = settings.get("auto_open_browser", True)
+    
+    # CLI 인자 검사: --silent 가 있으면 브라우저 자동 오픈 억제 (부팅 무음 모드)
+    is_silent = "--silent" in sys.argv or "-s" in sys.argv
+    auto_open = False if is_silent else settings.get("auto_open_browser", True)
 
-    # 1. If server is already running on this port, simply open default browser and return!
+    # 1. Windows Named Mutex 기반 단일 인스턴스 보호
+    acquire_single_instance_mutex(is_silent=is_silent, port=port)
+
+    # 2. Fallback: 포트가 이미 점유 중인 경우
     if is_port_in_use(port):
-        open_browser(port)
+        if not is_silent:
+            open_browser(port)
         return
 
-    # 2. Start server and open browser
+    # 3. 서버 시작 및 브라우저 오픈 (auto_open인 경우에만)
     print("=" * 60)
     print("  백업 매니저 시스템 (Backup System Manager)")
     print("=" * 60)
-    print(f"[*] 백업 서버를 시작합니다 (포트: {port})...")
+    print(f"[*] 백업 서버를 시작합니다 (포트: {port}, Silent: {is_silent})...")
     print(f"[*] 접속 주소: http://127.0.0.1:{port}")
     print("=" * 60)
 
