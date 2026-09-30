@@ -473,29 +473,40 @@ def list_snapshots(repo_dir: Optional[str] = None):
 
     for r in repos:
         snaps = SnapshotEngine.list_snapshots(r)
+        
+        # 1. 스냅샷 ID 수집 및 중복 제거
+        repo_snap_ids = []
         for s in snaps:
             sid = s.get("id")
             if sid and sid not in seen_ids:
                 seen_ids.add(sid)
+                repo_snap_ids.append(sid)
                 s["repo_dir"] = r
                 s["is_local_protected"] = s.get("is_verified", True)
+                all_snaps.append(s)
 
-                # Query Durable Replication Queue status
-                try:
-                    from core.replication_queue import ReplicationQueueManager
-                    rq = ReplicationQueueManager(r)
-                    q_info = rq.get_status(sid)
-                    if q_info:
-                        s["offsite_status"] = q_info.get("state", "NONE")
-                        s["is_offsite_protected"] = (q_info.get("state") == "COMMITTED")
-                    else:
+        # 2. 리포지토리별 1회 배치 조회 (N+1 완전 제거)
+        if repo_snap_ids:
+            try:
+                from core.replication_queue import ReplicationQueueManager
+                rq = ReplicationQueueManager(r)
+                batch_status = rq.get_status_batch(repo_snap_ids)
+
+                for s in all_snaps:
+                    if s.get("repo_dir") == r:
+                        sid = s.get("id")
+                        q_info = batch_status.get(sid)
+                        if q_info:
+                            s["offsite_status"] = q_info.get("state", "NONE")
+                            s["is_offsite_protected"] = (q_info.get("state") == "COMMITTED")
+                        else:
+                            s["offsite_status"] = "NONE"
+                            s["is_offsite_protected"] = False
+            except Exception:
+                for s in all_snaps:
+                    if s.get("repo_dir") == r:
                         s["offsite_status"] = "NONE"
                         s["is_offsite_protected"] = False
-                except Exception:
-                    s["offsite_status"] = "NONE"
-                    s["is_offsite_protected"] = False
-
-                all_snaps.append(s)
 
     all_snaps.sort(key=lambda x: x.get("created_at", 0), reverse=True)
     return all_snaps
