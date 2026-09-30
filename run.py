@@ -142,24 +142,22 @@ def main():
     auto_open = False if is_silent else settings.get("auto_open_browser", True)
 
     # 1. Windows Named Mutex 기반 단일 인스턴스 보호
+    # (기존 인스턴스 존재 시: is_silent=False면 브라우저 오픈 후 exit, is_silent=True면 즉시 exit)
     acquire_single_instance_mutex(is_silent=is_silent, port=port)
 
-    # 2. Fallback: 포트가 이미 점유 중인 경우
+    # 2. Fallback: 포트가 이미 점유 중인 경우 (Mutex가 비-Windows 환경에서 실패했을 때 대비)
     if is_port_in_use(port):
         if not is_silent:
             open_browser(port)
         return
 
-    # 3. 서버 시작 및 브라우저 오픈 (auto_open인 경우에만)
+    # 3. 서버 시작 준비
     print("=" * 60)
     print("  백업 매니저 시스템 (Backup System Manager)")
     print("=" * 60)
     print(f"[*] 백업 서버를 시작합니다 (포트: {port}, Silent: {is_silent})...")
     print(f"[*] 접속 주소: http://127.0.0.1:{port}")
     print("=" * 60)
-
-    if auto_open:
-        threading.Thread(target=open_browser, args=(port,), daemon=True).start()
 
     config = uvicorn.Config(
         "web.app:app",
@@ -169,6 +167,19 @@ def main():
         access_log=False
     )
     server = uvicorn.Server(config)
+
+    # 4. Self-Gated Browser Launch: 서버가 실제로 LISTEN하기 시작하면 브라우저 오픈
+    if auto_open:
+        def _wait_and_open():
+            # Uvicorn이 소켓을 bind/listen할 때까지 대기 (최대 10초)
+            for _ in range(100):
+                if is_port_in_use(port):
+                    break
+                time.sleep(0.1)
+            open_browser(port)
+
+        threading.Thread(target=_wait_and_open, daemon=True).start()
+
     server.run()
 
 def show_error_dialog(title: str, message: str):
