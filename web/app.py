@@ -134,7 +134,7 @@ async def lifespan(app: FastAPI):
     yield
     scheduler.stop()
 
-app = FastAPI(title="Server & System Backup Manager", version="2.1.4", lifespan=lifespan)
+app = FastAPI(title="Server & System Backup Manager", version="2.9.22", lifespan=lifespan)
 
 # ==================== Auth Pydantic Models ====================
 class AuthSetupRequest(BaseModel):
