@@ -1,6 +1,22 @@
-# 📦 백업시스템 v2.9.20 릴리즈 노트 (Release Notes)
+# 📦 백업시스템 릴리즈 노트 (Release Notes)
 
-## 📌 개요
+## 📌 v2.9.21 (Patch Release) — 2026-09-30
+v2.9.21은 실사용 환경에서 발견된 중복 기동 결함(`DEF-02`)을 원천 해결하고, GitHub Releases 공식 단일 OTA 파이프라인을 실증하는 안정성 패치 릴리즈입니다.
+
+### 🛡️ 주요 개선 사항
+1. **Windows Named Mutex 기반 단일 인스턴스 보호**:
+   - `Global\BackupSystem_Server_SingleInstance_Mutex`를 적용하여, 부팅 시 또는 중복 실행 시 두 번째 프로세스는 0.01초 만에 조용히 자동 종료(Fail-Fast).
+2. **부팅 시 브라우저 자동 팝업 억제 (`--silent`)**:
+   - `start_silent.vbs` 및 시스템 자동실행에 `--silent` 모드를 도입하여, 부팅 시 브라우저가 번쩍 뜨는 현상을 완벽히 차단하고 백그라운드 트레이로만 대기.
+   - 사용자가 트레이를 클릭하거나 바탕화면 바로가기(`launch_dashboard.vbs`)를 누를 때만 대시보드 브라우저 오픈.
+3. **GitHub Releases 공식 단일 OTA 채널 연동 (`core/updater.py`)**:
+   - 자체 업데이터가 GitHub Releases API(`/releases/latest`)를 1차 채널로 조회하여, 서명 검증 기반의 무중단 자동 업데이트 지원.
+4. **인스톨러 레거시 스케줄러 자동 정리**:
+   - Inno Setup 설치 마법사에서 구버전 작업 스케줄러(`BackupSystem_WebServer` 등)를 자동 탐지 및 삭제.
+
+---
+
+## 📌 v2.9.20 (Commercial Release) — 2026-09-30
 백업시스템 v2.9.20은 실무 엔터프라이즈 환경에서 검증된 고성능 증분 스냅샷 엔진, CAS 중복제거, AES-256-GCM 암호화, Windows 네이티브 트레이 에이전트, 및 Inno Setup 원클릭 인스톨러를 집대성한 **상용 완제품(Commercial Product) 마감 릴리즈**입니다.
 
 ---

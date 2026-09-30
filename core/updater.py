@@ -77,17 +77,115 @@ def get_current_installed_version() -> str:
         return "2.9.1"
 
 
+GITHUB_REPO = "kks3365550/BackupSystem"
+GITHUB_LATEST_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+
+
+def _check_github_release(current_ver: str) -> Optional[Dict[str, Any]]:
+    """GitHub Releases API를 통해 최신 릴리즈 확인 (1차 공식 채널)"""
+    try:
+        req = urllib.request.Request(
+            GITHUB_LATEST_API,
+            headers={
+                "User-Agent": "BackupSystemUpdater/2.9",
+                "Accept": "application/vnd.github.v3+json"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        latest_tag = data.get("tag_name", "").strip()
+        if not latest_tag:
+            return None
+
+        cur_tuple = parse_version(current_ver)
+        latest_tuple = parse_version(latest_tag)
+
+        if latest_tuple <= cur_tuple:
+            logger.info("UPDATE_CHECK_GITHUB already_up_to_date (%s >= %s)", current_ver, latest_tag)
+            return None
+
+        assets = data.get("assets", [])
+        zip_url = None
+        sig_url = None
+        sha_url = None
+
+        for asset in assets:
+            name = asset.get("name", "")
+            dl_url = asset.get("browser_download_url", "")
+            if name.startswith("release_") and name.endswith(".zip"):
+                zip_url = dl_url
+            elif name.startswith("release_") and name.endswith(".zip.sig"):
+                sig_url = dl_url
+            elif name == "SHA256SUMS.txt":
+                sha_url = dl_url
+
+        if not zip_url:
+            logger.warning("UPDATE_CHECK_GITHUB no_zip_asset_found")
+            return None
+
+        # SHA-256 체크섬 가져오기
+        expected_sha = ""
+        if sha_url:
+            try:
+                s_req = urllib.request.Request(sha_url, headers={"User-Agent": "BackupSystemUpdater/2.9"})
+                with urllib.request.urlopen(s_req, timeout=5) as s_resp:
+                    sums_text = s_resp.read().decode("utf-8", errors="ignore")
+                    for line in sums_text.splitlines():
+                        if "release_" in line and ".zip" in line:
+                            parts = line.strip().split()
+                            if parts:
+                                expected_sha = parts[0]
+                                break
+            except Exception as se:
+                logger.warning("UPDATE_CHECK_GITHUB failed_to_fetch_sha: %s", se)
+
+        # Ed25519 서명 가져오기 (.sig 파일 내용)
+        expected_sig = ""
+        if sig_url:
+            try:
+                sig_req = urllib.request.Request(sig_url, headers={"User-Agent": "BackupSystemUpdater/2.9"})
+                with urllib.request.urlopen(sig_req, timeout=5) as sig_resp:
+                    expected_sig = sig_resp.read().decode("utf-8", errors="ignore").strip()
+            except Exception as sige:
+                logger.warning("UPDATE_CHECK_GITHUB failed_to_fetch_sig: %s", sige)
+
+        release_info = {
+            "update_available": True,
+            "current_version": current_ver,
+            "latest_version": latest_tag.lstrip("vV"),
+            "download_url": zip_url,
+            "sha256": expected_sha,
+            "signature": expected_sig,
+            "mandatory": False,
+            "changelog": data.get("body", ""),
+            "min_supported_version": "1.0.0",
+            "source": "github"
+        }
+        logger.info("UPDATE_AVAILABLE_GITHUB version=%s url=%s", latest_tag, zip_url)
+        return release_info
+    except Exception as ge:
+        logger.info("UPDATE_CHECK_GITHUB_SKIPPED reason=%s (falling back to firebase)", ge)
+        return None
+
+
 def check_for_update(current_ver: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
-    Firestore app_releases/latest 문서 조회 및 업데이트 필요 여부 확인.
-    네트워크 장애나 Firebase 연결 실패 시 예외 없이 None 반환 (Fail-Safe).
+    1차로 GitHub Releases API를 조회하고, 실패 시 2차로 Firestore app_releases/latest 조회.
+    네트워크 장애 발생 시 예외 없이 None 반환 (Fail-Safe).
     """
     if current_ver is None:
         current_ver = get_current_installed_version()
 
     logger.info("UPDATE_CHECK_START current_version=%s", current_ver)
-    url = f"{FIRESTORE_REST_BASE}/app_releases/latest?key={FIREBASE_API_KEY}"
 
+    # 1. GitHub Releases API 우선 시도
+    gh_info = _check_github_release(current_ver)
+    if gh_info:
+        return gh_info
+
+    # 2. Firebase Fallback 시도
+    url = f"{FIRESTORE_REST_BASE}/app_releases/latest?key={FIREBASE_API_KEY}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "BackupSystemUpdater/2.9"})
         with urllib.request.urlopen(req, timeout=6) as resp:
@@ -110,7 +208,6 @@ def check_for_update(current_ver: Optional[str] = None) -> Optional[Dict[str, An
             changelog = fields.get("changelog", {}).get("stringValue", "")
             min_supported = fields.get("min_supported_version", {}).get("stringValue", "1.0.0")
 
-            # 최소 지원 버전 미달 시 강제 업데이트 플래그
             if cur_tuple < parse_version(min_supported):
                 mandatory = True
 
@@ -123,9 +220,10 @@ def check_for_update(current_ver: Optional[str] = None) -> Optional[Dict[str, An
                 "signature": signature,
                 "mandatory": mandatory,
                 "changelog": changelog,
-                "min_supported_version": min_supported
+                "min_supported_version": min_supported,
+                "source": "firebase"
             }
-            logger.info("UPDATE_AVAILABLE version=%s mandatory=%s", latest_ver, mandatory)
+            logger.info("UPDATE_AVAILABLE_FIREBASE version=%s mandatory=%s", latest_ver, mandatory)
             return release_info
         else:
             logger.info("UPDATE_CHECK_COMPLETED already_up_to_date (%s >= %s)", current_ver, latest_ver)
