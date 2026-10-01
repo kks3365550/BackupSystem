@@ -70,14 +70,6 @@ def cmd_backup(args):
     print(f" Duration: {summary.get('duration_seconds')}s")
     print(f"==================================================")
 
-    # Firebase Cloud Sync
-    try:
-        from core.firebase_sync import upload_backup_status
-        upload_backup_status(manifest_summary=manifest, status="success", repo_dir=repo_dir)
-        print(" [Firebase] Cloud sync complete (sunhang-772e5)")
-    except Exception as e:
-        print(f" [Firebase] Cloud sync skipped: {e}")
-
 def cmd_list(args):
     repo_dir = args.repo or "./backup_repository"
     snapshots = SnapshotEngine.list_snapshots(repo_dir)

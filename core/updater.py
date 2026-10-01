@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-core/updater.py: Firebase 기반 소프트웨어 자동 업데이트 클라이언트 모듈 (v2.9.2)
+core/updater.py: GitHub Releases 기반 소프트웨어 자동 업데이트 클라이언트 모듈 (v2.10.0)
 
 핵심 기능:
-1. check_for_update(): Firestore app_releases/latest 조회 및 시맨틱 버전 비교
+1. check_for_update(): GitHub Releases API 조회 및 시맨틱 버전 비교
 2. download_update(): HTTPS URL을 통한 임시 디렉토리 안전 다운로드
 3. verify_update(): SHA-256 무결성 및 Ed25519 디지털 서명 검증 (Zero-Leak 검사 포함)
 4. install_update(): Staging 해제, 기존 버전 보존, 백업 프로세스 타겟 안전 종료, 스왑 및 무창 재기동
@@ -11,7 +11,7 @@ core/updater.py: Firebase 기반 소프트웨어 자동 업데이트 클라이�
 6. rollback(): 헬스체크 실패 시 직전 정상 버전으로 자동 원복
 
 보안 및 안전 원칙:
-- Fail-Safe: 네트워크/Firebase 장애 발생 시 기존 백업 엔진의 정상 구동 보장
+- Fail-Safe: 네트워크/GitHub 장애 발생 시 기존 백업 엔진의 정상 구동 보장
 - Process Isolation: Qwen(RTX 5080) 등 타 파이썬 프로세스를 건드리지 않고 백업 데몬만 선별 제어
 - Zero-Trust: 서명 또는 해시 불일치 시 설치 전 즉각 폐기
 """

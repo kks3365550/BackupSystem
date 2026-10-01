@@ -71,14 +71,6 @@ def run_cli_backup(profile_id: str = None):
         except Exception as e_notif:
             print(f"[WARNING] 알림 전송 실패: {e_notif}")
 
-        # 6. Firebase Cloud Sync
-        try:
-            from core.firebase_sync import upload_backup_status
-            upload_backup_status(manifest_summary=manifest, status="success", repo_dir=repo_dir)
-            print("[Firebase] 클라우드(sunhang-772e5) 실시간 동기화 완료")
-        except Exception as e_fb:
-            print(f"[Firebase] 클라우드 동기화 건너뜀: {e_fb}")
-
         print("=== 백업 프로세스 정상 종료 (메모리 완전 회수) ===")
         sys.exit(0)
 

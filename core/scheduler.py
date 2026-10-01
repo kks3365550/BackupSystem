@@ -171,13 +171,6 @@ class BackupScheduler:
             except Exception:
                 pass
 
-            # Firebase Cloud Sync for scheduled auto-backup
-            try:
-                from core.firebase_sync import async_upload_backup_status
-                async_upload_backup_status(manifest_summary=manifest, status="success", repo_dir=repo_dir)
-            except Exception:
-                pass
-
         except Exception as e:
             self._log(profile_name, f"백업 중 오류 발생: {str(e)}", level="ERROR")
             profile["last_status"] = "failed"
@@ -187,13 +180,6 @@ class BackupScheduler:
             try:
                 from core.notifier import notify_backup_result
                 notify_backup_result(error_msg=str(e), profile_name=profile_name)
-            except Exception:
-                pass
-
-            # Firebase Cloud Sync for scheduled failure
-            try:
-                from core.firebase_sync import async_upload_backup_status
-                async_upload_backup_status(status="failed", error_message=str(e), repo_dir=repo_dir)
             except Exception:
                 pass
 
