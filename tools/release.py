@@ -433,135 +433,9 @@ def remote_deploy_if_online(remote_ip: str, bat_path: str, sig_hex: str = "", ra
     except Exception as e:
         print(f"      Remote check skipped: {e}")
 
-FIREBASE_PROJECT_ID = "sunhang-772e5"
-FIREBASE_API_KEY = "AIzaSyCe21skNfRno3PPo-xRYCqfwh3jtboo7Ls"
-FIRESTORE_REST_BASE = f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT_ID}/databases/(default)/documents"
-
-def publish_to_firebase_releases(version: str, raw_bytes: bytes, sig_hex: str, changelog: str = ""):
-    """
-    Firebase Release 배포:
-    1. 패키지 SHA-256 계산
-    2. dist/releases/v{version}/release.json 생성 및 패키지 보관
-    3. release_admin 계정으로 Firebase Auth 로그인 (ID 토큰 획득)
-    4. Firestore app_releases/v{version} (불변 보존 문서) 등록
-    5. Firestore app_releases/latest (원자적 최신 포인터) 갱신
-    """
-    print(f"[4.5/5] Publishing release v{version} to Firebase Cloud...")
-    sha256_hash = hashlib.sha256(raw_bytes).hexdigest()
-    file_size = len(raw_bytes)
-    now_iso = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).isoformat()
-
-    # 1. Local structured release folder (Immutable)
-    rel_folder = os.path.join(BASE_DIR, 'dist', 'releases', f"v{version}")
-    os.makedirs(rel_folder, exist_ok=True)
-    pkg_name = f"backup_engine_{version}.zip"
-    pkg_path = os.path.join(rel_folder, pkg_name)
-    with open(pkg_path, 'wb') as f:
-        f.write(raw_bytes)
-
-    # Public download URL pointing to Firebase
-    download_url = f"https://sunhang-772e5.web.app/releases/v{version}/{pkg_name}"
-    storage_path = f"releases/v{version}/{pkg_name}"
-
-    meta = {
-        "version": version,
-        "release_date": now_iso,
-        "package_name": pkg_name,
-        "storage_path": storage_path,
-        "download_url": download_url,
-        "file_size": file_size,
-        "sha256": sha256_hash,
-        "signature": sig_hex,
-        "mandatory": False,
-        "min_supported_version": "2.8.0",
-        "changelog": changelog or f"Release v{version} automated update"
-    }
-
-    meta_json_path = os.path.join(rel_folder, "release.json")
-    with open(meta_json_path, 'w', encoding='utf-8') as f:
-        json.dump(meta, f, indent=2, ensure_ascii=False)
-    print(f"      Structured package saved: {pkg_path}")
-
-    # Also sync to hosting staging if 선행모바일 exists
-    sunhang_hosting_rel = os.path.join(os.path.dirname(BASE_DIR), "선행모바일", "ios_pwa", "releases", f"v{version}")
-    if os.path.exists(os.path.dirname(sunhang_hosting_rel)):
-        try:
-            os.makedirs(sunhang_hosting_rel, exist_ok=True)
-            shutil.copy2(pkg_path, os.path.join(sunhang_hosting_rel, pkg_name))
-            shutil.copy2(meta_json_path, os.path.join(sunhang_hosting_rel, "release.json"))
-            # Automatically deploy to Firebase Hosting so download_url is immediately accessible
-            sunhang_root = os.path.dirname(os.path.dirname(sunhang_hosting_rel))
-            print("      Deploying release package to Firebase Hosting...")
-            deploy_flags = {}
-            if sys.platform.startswith('win') and hasattr(subprocess, 'CREATE_NO_WINDOW'):
-                deploy_flags['creationflags'] = subprocess.CREATE_NO_WINDOW
-            npx_cmd = 'npx.cmd' if sys.platform.startswith('win') else 'npx'
-            subprocess.run([npx_cmd, '--yes', 'firebase-tools', 'deploy', '--only', 'hosting'], cwd=sunhang_root, **deploy_flags)
-            print("      Firebase Hosting deploy complete!")
-        except Exception as e_sync:
-            print(f"      Hosting staging notice: {e_sync}")
-
-    # 2. Authenticate as release_admin via Firebase Auth
-    admin_cred_path = os.path.join(BASE_DIR, 'keys', 'release_admin_cred.json')
-    if not os.path.exists(admin_cred_path):
-        print(f"      Notice: {admin_cred_path} not found. Skipping Firestore release publishing.")
-        return
-
-    try:
-        with open(admin_cred_path, 'r', encoding='utf-8') as f:
-            cred = json.load(f)
-        auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_API_KEY}"
-        auth_payload = json.dumps({
-            "email": cred["email"],
-            "password": cred["password"],
-            "returnSecureToken": True
-        }).encode('utf-8')
-        req = urllib.request.Request(auth_url, data=auth_payload, headers={'Content-Type': 'application/json'})
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            id_token = json.loads(resp.read().decode('utf-8'))['idToken']
-
-        # 3. Publish to Firestore: app_releases/v{version} and app_releases/latest
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {id_token}'
-        }
-
-        # Convert meta to Firestore fields
-        fields = {
-            "version": {"stringValue": meta["version"]},
-            "release_date": {"stringValue": meta["release_date"]},
-            "package_name": {"stringValue": meta["package_name"]},
-            "storage_path": {"stringValue": meta["storage_path"]},
-            "download_url": {"stringValue": meta["download_url"]},
-            "file_size": {"integerValue": str(meta["file_size"])},
-            "sha256": {"stringValue": meta["sha256"]},
-            "signature": {"stringValue": meta["signature"]},
-            "mandatory": {"booleanValue": meta["mandatory"]},
-            "min_supported_version": {"stringValue": meta["min_supported_version"]},
-            "changelog": {"stringValue": meta["changelog"]}
-        }
-        body = json.dumps({"fields": fields}).encode('utf-8')
-
-        # 3.1 Immutable historical release doc
-        url_ver = f"{FIRESTORE_REST_BASE}/app_releases/v{version}?key={FIREBASE_API_KEY}"
-        req_ver = urllib.request.Request(url_ver, data=body, headers=headers, method='PATCH')
-        with urllib.request.urlopen(req_ver, timeout=8) as resp:
-            if resp.status == 200:
-                print(f"      [OK] Immutable release record saved to Firestore: app_releases/v{version}")
-
-        # 3.2 Atomic latest pointer update
-        url_latest = f"{FIRESTORE_REST_BASE}/app_releases/latest?key={FIREBASE_API_KEY}"
-        req_latest = urllib.request.Request(url_latest, data=body, headers=headers, method='PATCH')
-        with urllib.request.urlopen(req_latest, timeout=8) as resp:
-            if resp.status == 200:
-                print(f"      [OK] Atomic 'latest' release pointer updated in Firestore: v{version}")
-
-    except Exception as e_pub:
-        print(f"      Warning: Firestore release publishing failed: {e_pub}")
-
 def restart_local_server():
     """로컬 백업 서버(pythonw run.py)를 Kill 후 start_silent.vbs로 재시작하고, 포트 8765가 열릴 때까지 확인."""
-    print("[5/5] Restarting local backup server...")
+    print("[4/4] Restarting local backup server...")
     if not sys.platform.startswith('win'):
         print("      Non-Windows: server restart skipped.")
         return
@@ -652,7 +526,6 @@ def main():
     run_git_release(new_ver, args.message)
     sync_install_directories()
     bat_path, sig_hex, raw_bytes = build_self_extracting_updater(new_ver)
-    publish_to_firebase_releases(new_ver, raw_bytes, sig_hex, changelog=args.message)
 
     if not args.skip_remote:
         remote_deploy_if_online(args.remote_ip, bat_path, sig_hex, raw_bytes, version=new_ver)

@@ -35,9 +35,6 @@ from typing import Dict, Any, Optional, Tuple
 logger = logging.getLogger("core.updater")
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-FIREBASE_PROJECT_ID = "sunhang-772e5"
-FIREBASE_API_KEY = "AIzaSyCe21skNfRno3PPo-xRYCqfwh3jtboo7Ls"
-FIRESTORE_REST_BASE = f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT_ID}/databases/(default)/documents"
 PUBLIC_KEY_PATH = os.path.join(BASE_DIR, "keys", "release_ed25519.pub")
 
 
@@ -165,76 +162,20 @@ def _check_github_release(current_ver: str) -> Optional[Dict[str, Any]]:
         logger.info("UPDATE_AVAILABLE_GITHUB version=%s url=%s", latest_tag, zip_url)
         return release_info
     except Exception as ge:
-        logger.info("UPDATE_CHECK_GITHUB_SKIPPED reason=%s (falling back to firebase)", ge)
+        logger.info("UPDATE_CHECK_GITHUB_SKIPPED reason=%s", ge)
         return None
 
 
 def check_for_update(current_ver: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
-    1차로 GitHub Releases API를 조회하고, 실패 시 2차로 Firestore app_releases/latest 조회.
-    네트워크 장애 발생 시 예외 없이 None 반환 (Fail-Safe).
+    공식 GitHub Releases API를 조회하여 신규 소프트웨어 업데이트를 확인합니다.
+    네트워크 장애 또는 최신 버전일 경우 예외 없이 None 반환 (Fail-Safe).
     """
     if current_ver is None:
         current_ver = get_current_installed_version()
 
     logger.info("UPDATE_CHECK_START current_version=%s", current_ver)
-
-    # 1. GitHub Releases API 우선 시도
-    gh_info = _check_github_release(current_ver)
-    if gh_info:
-        return gh_info
-
-    # 2. Firebase Fallback 시도
-    url = f"{FIRESTORE_REST_BASE}/app_releases/latest?key={FIREBASE_API_KEY}"
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "BackupSystemUpdater/2.9"})
-        with urllib.request.urlopen(req, timeout=6) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-
-        fields = data.get("fields", {})
-        latest_ver = fields.get("version", {}).get("stringValue", "")
-        if not latest_ver:
-            logger.info("UPDATE_CHECK_COMPLETED no_version_in_metadata")
-            return None
-
-        cur_tuple = parse_version(current_ver)
-        latest_tuple = parse_version(latest_ver)
-
-        if latest_tuple > cur_tuple:
-            download_url = fields.get("download_url", {}).get("stringValue", "")
-            sha256 = fields.get("sha256", {}).get("stringValue", "")
-            signature = fields.get("signature", {}).get("stringValue", "")
-            mandatory = fields.get("mandatory", {}).get("booleanValue", False)
-            changelog = fields.get("changelog", {}).get("stringValue", "")
-            min_supported = fields.get("min_supported_version", {}).get("stringValue", "1.0.0")
-
-            if cur_tuple < parse_version(min_supported):
-                mandatory = True
-
-            release_info = {
-                "update_available": True,
-                "current_version": current_ver,
-                "latest_version": latest_ver,
-                "download_url": download_url,
-                "sha256": sha256,
-                "signature": signature,
-                "mandatory": mandatory,
-                "changelog": changelog,
-                "min_supported_version": min_supported,
-                "source": "firebase"
-            }
-            logger.info("UPDATE_AVAILABLE_FIREBASE version=%s mandatory=%s", latest_ver, mandatory)
-            return release_info
-        else:
-            logger.info("UPDATE_CHECK_COMPLETED already_up_to_date (%s >= %s)", current_ver, latest_ver)
-            return None
-
-    except urllib.error.HTTPError as e:
-        logger.warning("UPDATE_CHECK_FAILED http_error=%s (URL: %s)", e.code, url)
-        return None
-    except Exception as e:
-        logger.warning("UPDATE_CHECK_FAILED error=%s", str(e))
-        return None
+    return _check_github_release(current_ver)
 
 
 def download_update(release_info: Dict[str, Any], temp_dir: Optional[str] = None) -> Optional[str]:
