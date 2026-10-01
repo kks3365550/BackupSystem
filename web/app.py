@@ -476,7 +476,8 @@ def list_snapshots(repo_dir: Optional[str] = None):
         
         # 1. 스냅샷 ID 수집 및 중복 제거
         repo_snap_ids = []
-        for s in snaps:
+        for raw_s in snaps:
+            s = raw_s.copy()
             sid = s.get("id")
             if sid and sid not in seen_ids:
                 seen_ids.add(sid)

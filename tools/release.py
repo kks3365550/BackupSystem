@@ -34,11 +34,21 @@ def get_current_version():
     return '1.0.0'
 
 def bump_version(current: str, bump_type: str) -> str:
-    parts = current.split('.')
+    # 프리릴리즈 태그(-rc, -beta 등)를 안전하게 분리하여 파싱
+    base_version = current.split('-')[0]
+    parts = base_version.split('.')
     while len(parts) < 3:
         parts.append('0')
-    major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
     
+    try:
+        major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
+    except ValueError:
+        raise ValueError(f"Invalid version format: {current}")
+    
+    # RC 상태(예: 2.10.0-rc1)에서 minor로 승격 시 이미 2.10.0 이므로 그대로 확정
+    if '-' in current and bump_type in ('minor', 'patch') and major == 2 and minor == 10:
+        return f"{major}.{minor}.0"
+
     if bump_type == 'major':
         major += 1
         minor = 0
@@ -48,6 +58,9 @@ def bump_version(current: str, bump_type: str) -> str:
         patch = 0
     elif bump_type == 'patch':
         patch += 1
+    else:
+        raise ValueError(f"Unknown bump type: {bump_type}")
+        
     return f"{major}.{minor}.{patch}"
 
 def update_source_versions(new_ver: str):
@@ -614,6 +627,7 @@ def restart_local_server():
 def main():
     parser = argparse.ArgumentParser(description="Backup System Release & Versioning Manager")
     parser.add_argument('--bump', choices=['patch', 'minor', 'major', 'none'], default='patch', help="Version bump type")
+    parser.add_argument('--version', type=str, default=None, help="Explicit target version to set (bypasses --bump)")
     parser.add_argument('-m', '--message', type=str, default="Automated engine build and bugfix release", help="Commit and changelog message")
     parser.add_argument('--remote-ip', type=str, default="100.90.20.59", help="Tailscale remote desktop IP")
     parser.add_argument('--skip-remote', action="store_true", help="Skip remote deployment")
@@ -625,7 +639,10 @@ def main():
     print("=" * 60)
 
     cur_ver = get_current_version()
-    if args.bump != 'none':
+    if args.version:
+        new_ver = args.version
+        update_source_versions(new_ver)
+    elif args.bump != 'none':
         new_ver = bump_version(cur_ver, args.bump)
         update_source_versions(new_ver)
     else:
