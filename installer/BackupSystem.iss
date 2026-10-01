@@ -3,7 +3,7 @@
 ; =========================================================================
 
 #define MyAppName "백업시스템"
-#define MyAppVersion "2.10.5"
+#define MyAppVersion "2.10.6"
 #define MyAppPublisher "삼영데리카후레쉬"
 #define MyAppURL "http://127.0.0.1:8765"
 #define MyAppExeName "BackupSystem.exe"
@@ -27,6 +27,8 @@ WizardStyle=modern
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog commandline
 ArchitecturesInstallIn64BitMode=x64compatible
+CloseApplications=force
+RestartApplications=no
 
 [Languages]
 Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
@@ -89,6 +91,28 @@ Filename: "schtasks.exe"; Parameters: "/delete /tn ""BackupSystem_Server_Daemon"
 Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""BackupSystem"""; Flags: runhidden; Check: IsAdminInstallMode
 
 [Code]
+// v2.10.6: 설치 시작 시 기존 실행 중인 백업시스템 프로세스(트레이, 서버) 선제 안전 종료 (파일 잠금 경고 원천 차단)
+function InitializeSetup(): Boolean;
+var
+  ResultCode: Integer;
+  AppDir, StopBat: String;
+begin
+  Result := True;
+  AppDir := ExpandConstant('{autopf}\{#MyAppName}');
+  StopBat := AppDir + '\stop_backup_system.bat';
+  if FileExists(StopBat) then
+  begin
+    Exec(StopBat, '', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(1500);
+  end
+  else
+  begin
+    // 기본 경로에 배치 파일이 없더라도 혹시 실행 중인 백업시스템 프로세스 선별 종료
+    Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process | Where-Object { ($_.Name -match ''^(python|wscript)'') -and ($_.CommandLine -like ''*백업시스템*'' -or $_.CommandLine -like ''*run.py*'' -or $_.CommandLine -like ''*tray_app.py*'') } | Stop-Process -Force"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(1000);
+  end;
+end;
+
 // v2.10.4: 언인스톨 시작 즉시 백업시스템 프로세스(트레이, 서버) 안전 종료 및 파일 잠금 선제 해제
 function InitializeUninstall(): Boolean;
 var
