@@ -1439,57 +1439,52 @@ def download_update_package():
 
 
 @app.get("/api/system/check-remote-release")
-def check_remote_release(master_url: str = "http://100.72.224.71:8765"):
+def check_remote_release():
     """
-    Queries the master release origin (K12) to detect if an updated release is available.
+    GitHub 공식 Releases를 직접 조회하여 최신 버전 감지 여부를 반환합니다.
+    (미니피씨 P2P 의존성 제거, 글로벌 GitHub 릴리즈 직결)
     """
-    master_url = master_url.rstrip("/")
-    if master_url.startswith("http://127.0.0.1") or master_url.startswith("http://localhost"):
-        return {"success": True, "data": {"update_available": False, "is_self": True, "current_version": VERSION}}
+    from core.updater import check_for_update, get_current_installed_version
+    cur_ver = get_current_installed_version()
 
     try:
-        req = urllib.request.Request(f"{master_url}/api/system/release-info", headers={"User-Agent": "BackupSystem-Client"})
-        with urllib.request.urlopen(req, timeout=2.5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-
-        if not data.get("success"):
-            return {"success": False, "error": "마스터 서버 응답 오류"}
-
-        r_info = data.get("data", {})
-        r_ver = r_info.get("version", "")
-
-        def _parse_v(v_str):
-            try:
-                return tuple(int(x) for x in v_str.replace("v", "").split(".")[:3])
-            except Exception:
-                return (0, 0, 0)
-
-        cur_v = _parse_v(VERSION)
-        rem_v = _parse_v(r_ver)
-
-        update_available = rem_v > cur_v
-
-        return {
-            "success": True,
-            "data": {
-                "update_available": update_available,
-                "current_version": VERSION,
-                "remote_version": r_ver,
-                "remote_url": master_url,
-                "package_size": r_info.get("package_size", 0),
-                "signature": r_info.get("signature", "")
+        info = check_for_update()
+        if info and info.get("update_available"):
+            latest_v = str(info.get("latest_version", "")).lstrip("vV")
+            return {
+                "success": True,
+                "data": {
+                    "update_available": True,
+                    "current_version": cur_ver,
+                    "remote_version": f"v{latest_v}",
+                    "remote_url": "https://github.com/kks3365550/BackupSystem/releases/latest",
+                    "package_size": 0,
+                    "signature": info.get("signature", ""),
+                    "changelog": info.get("changelog", ""),
+                    "download_url": info.get("download_url", "")
+                }
             }
-        }
+        else:
+            return {
+                "success": True,
+                "data": {
+                    "update_available": False,
+                    "current_version": cur_ver,
+                    "remote_version": f"v{cur_ver}",
+                    "remote_url": "https://github.com/kks3365550/BackupSystem/releases/latest"
+                }
+            }
     except Exception as e:
+        logger.warning("GitHub check_remote_release failed: %s", e)
         return {
             "success": True,
             "data": {
                 "update_available": False,
-                "current_version": VERSION,
-                "master_online": False,
+                "current_version": cur_ver,
                 "error": str(e)
             }
         }
+
 
 
 @app.post("/api/system/sync-remote-release")
