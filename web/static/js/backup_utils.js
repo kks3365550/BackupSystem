@@ -148,39 +148,36 @@ async function checkRemoteRelease() {
             }
         }
 
-        if (data.is_self) {
-            // 마스터 서버 자신 (K12)
-            if (statusBadge && statusText && statusIcon) {
-                statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1 border bg-blue-500/10 text-blue-400 border-blue-500/30';
-                statusIcon.setAttribute('data-lucide', 'server');
-                statusText.innerText = '마스터 오리진';
-                statusBadge.title = '현재 PC가 릴리즈 마스터 서버(K12)입니다.';
-                statusBadge.classList.remove('hidden');
-            }
+        if (data.error) {
+            // 통신 오류 시 배지 조용히 숨김 (최신 버전 오인 방지)
+            if (statusBadge) statusBadge.classList.add('hidden');
             if (banner) banner.classList.add('hidden');
-        } else if (data.update_available) {
-            // 새 릴리즈 있음
+            return;
+        }
+
+        if (data.update_available) {
+            // GitHub 공식 새 릴리즈 감지
             if (statusBadge && statusText && statusIcon) {
                 statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1 border bg-indigo-500/20 text-indigo-300 border-indigo-500/40 animate-pulse';
                 statusIcon.setAttribute('data-lucide', 'sparkles');
                 statusText.innerText = `새 버전 ${data.remote_version}`;
-                statusBadge.title = `마스터 서버(K12)에 새로운 릴리즈 ${data.remote_version}이 있습니다.`;
+                statusBadge.title = `GitHub 공식 릴리즈에 새로운 버전 ${data.remote_version}이 있습니다.`;
                 statusBadge.classList.remove('hidden');
             }
             if (banner && !_remoteReleaseDismissed) {
                 const textElem = document.getElementById('remote-release-text');
                 if (textElem) {
-                    textElem.innerText = `마스터 서버(K12)에 최신 릴리즈 ${data.remote_version}이 감지되었습니다. (현재 버전: v${data.current_version})`;
+                    textElem.innerText = `GitHub 공식 릴리즈에 최신 버전 ${data.remote_version}이 감지되었습니다. (현재: v${data.current_version})`;
                 }
                 banner.classList.remove('hidden');
             }
         } else {
-            // 버전 동일 (최신 버전 상태!)
+            // 버전 동일 (GitHub 공식 릴리즈 기준 최신 상태)
             if (statusBadge && statusText && statusIcon) {
                 statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1 border bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
                 statusIcon.setAttribute('data-lucide', 'check-check');
                 statusText.innerText = '최신 버전';
-                statusBadge.title = '마스터 서버(K12)와 버전이 일치하는 최신 상태입니다.';
+                statusBadge.title = 'GitHub 공식 릴리즈와 일치하는 최신 상태입니다.';
                 statusBadge.classList.remove('hidden');
             }
             if (banner) banner.classList.add('hidden');
@@ -197,35 +194,8 @@ function dismissRemoteReleaseBanner() {
     _remoteReleaseDismissed = true;
 }
 
-async function triggerRemoteReleaseSync() {
-    const btn = document.getElementById('btn-sync-remote-release');
-    const btnText = document.getElementById('sync-btn-text');
-    const btnIcon = document.getElementById('sync-btn-icon');
-
-    if (!confirm('마스터 서버(K12)로부터 최신 릴리즈를 다운로드하여 동기화하시겠습니까?\n\n서명 무결성 검증 후 1~2초 내에 백그라운드 엔진이 안전하게 재시작됩니다.')) {
-        return;
-    }
-
-    if (btn) btn.disabled = true;
-    if (btnText) btnText.innerText = '동기화 중...';
-    if (btnIcon) btnIcon.classList.add('animate-spin');
-
-    try {
-        const res = await fetchAPI('/api/system/sync-remote-release', {
-            method: 'POST',
-            body: JSON.stringify({ master_url: 'http://100.72.224.71:8765' })
-        });
-
-        alert(res.message || '최신 릴리즈 동기화가 성공적으로 완료되었습니다! 3초 후 대시보드가 새로고침됩니다.');
-        setTimeout(() => {
-            window.location.reload();
-        }, 3000);
-    } catch (err) {
-        alert('동기화 실패: ' + (err.message || '알 수 없는 오류가 발생했습니다.'));
-        if (btn) btn.disabled = false;
-        if (btnText) btnText.innerText = '최신 릴리즈 동기화';
-        if (btnIcon) btnIcon.classList.remove('animate-spin');
-    }
+function triggerRemoteReleaseSync() {
+    window.open('https://github.com/kks3365550/BackupSystem/releases/latest', '_blank');
 }
 
 // 10초마다 자동 경보 점검 및 60초마다 원격 릴리즈 점검
