@@ -1,9 +1,9 @@
-; =========================================================================
+﻿; =========================================================================
 ; 백업시스템 (BackupSystem) Inno Setup 6+ 인스톨러 빌드 스크립트 (v2.9.11)
 ; =========================================================================
 
 #define MyAppName "백업시스템"
-#define MyAppVersion "2.10.3"
+#define MyAppVersion "2.10.4"
 #define MyAppPublisher "삼영데리카후레쉬"
 #define MyAppURL "http://127.0.0.1:8765"
 #define MyAppExeName "BackupSystem.exe"
@@ -34,6 +34,11 @@ Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 Name: "startupicon"; Description: "Windows 부팅 시 백그라운드 자동 시작"; GroupDescription: "시작 옵션:"
+
+[Dirs]
+; v2.10.4: 일반 사용자 권한 런타임 쓰기 보장 (바이너리는 관리자 읽기전용 유지)
+Name: "{app}\data"; Permissions: users-modify
+Name: "{app}\logs"; Permissions: users-modify
 
 [Files]
 ; 1. Embedded Python 3.11 Runtime (Self-Contained)
@@ -70,11 +75,32 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 Filename: "schtasks.exe"; Parameters: "/delete /tn ""BackupSystem_WebServer"" /f"; Flags: runhidden
 Filename: "schtasks.exe"; Parameters: "/delete /tn ""BackupSystem_Server_Daemon"" /f"; Flags: runhidden
 Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""BackupSystem"" dir=in action=allow protocol=TCP localport=8765"; Flags: runhidden; Check: IsAdminInstallMode
+; v2.10.4: 기존 data/logs 내부 파일의 ACL 상속 갭 방지 (재귀적 users-modify 부여)
+Filename: "icacls.exe"; Parameters: """{app}\data"" /grant Users:(OI)(CI)M /T /C /Q"; Flags: runhidden; Check: IsAdminInstallMode
+Filename: "icacls.exe"; Parameters: """{app}\logs"" /grant Users:(OI)(CI)M /T /C /Q"; Flags: runhidden; Check: IsAdminInstallMode
 Filename: "wscript.exe"; Parameters: """{app}\start_silent.vbs"""; Flags: nowait postinstall skipifsilent; Description: "백업 서비스 백그라운드 시작"
 Filename: "wscript.exe"; Parameters: """{app}\start_tray.vbs"""; Flags: nowait postinstall skipifsilent; Description: "시스템 트레이 에이전트 시작"
 
 [UninstallRun]
-Filename: "{app}\stop_backup_system.bat"; Flags: runhidden
+Filename: "{app}\stop_backup_system.bat"; Flags: runhidden waituntilterminated
+Filename: "schtasks.exe"; Parameters: "/delete /tn ""BackupSystem_AutoBackup"" /f"; Flags: runhidden
 Filename: "schtasks.exe"; Parameters: "/delete /tn ""BackupSystem_WebServer"" /f"; Flags: runhidden
 Filename: "schtasks.exe"; Parameters: "/delete /tn ""BackupSystem_Server_Daemon"" /f"; Flags: runhidden
 Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""BackupSystem"""; Flags: runhidden; Check: IsAdminInstallMode
+
+[Code]
+// v2.10.4: 언인스톨 시작 즉시 백업시스템 프로세스(트레이, 서버) 안전 종료 및 파일 잠금 선제 해제
+function InitializeUninstall(): Boolean;
+var
+  ResultCode: Integer;
+  StopBat: String;
+begin
+  Result := True;
+  StopBat := ExpandConstant('{app}\stop_backup_system.bat');
+  if FileExists(StopBat) then
+  begin
+    Exec(StopBat, '', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(1000);
+  end;
+end;
+
