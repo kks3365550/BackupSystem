@@ -1,5 +1,36 @@
 # CAS BackupSystem 릴리즈 노트
 
+## [v2.10.3] - 2026-10-01 (아키텍처 정밀 교정 및 Firebase 완전 제거)
+
+### 🧹 클린 아키텍처 (Clean Purge)
+- **Firebase 외부 클라우드 의존성 완전 제거**:
+  - `core/firebase_sync.py` 및 프론트엔드 `web/static/js/backup_firebase.js` 영구 삭제.
+  - 웹 대시보드 내 실시간 파이어베이스 관제 카드, 동기화 모달, 잔여 API 정리.
+  - 사내 폐쇄망 및 로컬/사설망 환경에 최적화된 자립형 아키텍처 정립.
+
+### 🏛️ 문서화 및 기술 명세 정밀 교정
+- **3계층(3-Tier) 복구 아키텍처 명문화**:
+  - **Tier 1 (CAS)**: Zero-Lock VSS 및 CAS 기반의 일상 파일/레지스트리 시점 복원.
+  - **Tier 2 (BMR)**: Windows Native(`wbadmin -allCritical`) 및 WinRE 기반 전체 디스크 시스템 이미지 복구 연동.
+  - **Tier 3 (DR)**: 표준 라이브러리 기반 무설치 `disaster_recovery.py`를 통한 독립 무결성 감사 및 긴급 복원.
+- **엔지니어링 기술 설명 정밀화**:
+  - VSS Crash-Consistent 시점 백업 표기 정밀화 (strict mode 시 일관성 미보장 백업 거부).
+  - 22만 개 파일 실측 벤치마크 환경 명시 (Warm Cache 평균 11.46ms).
+  - NTFS ACL 및 소프트웨어 수준 Immutable/WORM 보호 기술 명확화.
+
+---
+
+## [v2.10.0] - 2026-10-01 (초저지연 메타데이터 캐시 릴리즈)
+
+### ⚡ 성능 개선 (Performance Breakthrough)
+- **`SnapshotMetadataCache` 엔진 신설 (~11ms 초저지연 달성)**:
+  - `core/snapshot_cache.py`: 인메모리 스냅샷 매니페스트 캐시 계층 구현.
+  - 디렉터리 핑거프린트(mtime + 파일 개수) 기반의 무효화(Invalidation) 안전망 탑재 (0.05ms 판별).
+  - 22만 개 파일 실측 환경에서 `/api/snapshots` 조회 지연을 2,947ms에서 **11.46ms(약 257배 가속, 99.6% 지연 절감)**로 대폭 단축.
+  - 캐시 히트 시 0.077ms 수준의 O(1) 초고속 응답 달성.
+
+---
+
 ## [v2.9.23] - 2026-10-01 (Tier 1 저위험 성능 최적화 릴리즈)
 
 ### ⚡ 성능 개선 (Performance Optimizations - Tier 1)
