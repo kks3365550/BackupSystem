@@ -689,10 +689,39 @@ class SnapshotEngine:
                 "transferred_bytes": new_stored_bytes
             })
 
+        # Invalidate snapshot metadata cache (P2: Fail-Safe Eviction)
+        try:
+            from core.snapshot_cache import get_snapshot_cache
+            get_snapshot_cache().evict(repo_dir)
+        except Exception as e_evict:
+            import logging
+            logging.getLogger("BackupSystem").warning(f"Failed to evict snapshot cache for '{repo_dir}': {e_evict}", exc_info=True)
+
         return snapshot_manifest
 
     @classmethod
-    def list_snapshots(cls, repo_dir: str) -> List[Dict[str, Any]]:
+    def list_snapshots(cls, repo_dir: str, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        """
+        High-performance snapshot metadata retrieval via SnapshotMetadataCache.
+        Maintains P0 exact parity with disk-scanned manifests.
+        """
+        try:
+            from core.snapshot_cache import get_snapshot_cache
+            return get_snapshot_cache().list_snapshots(
+                repo_dir=repo_dir,
+                fallback_scanner=cls._list_snapshots_disk,
+                force_refresh=force_refresh
+            )
+        except Exception as e_cache:
+            import logging
+            logging.getLogger("BackupSystem").warning(
+                f"Snapshot cache fallback triggered for '{repo_dir}': {e_cache}",
+                exc_info=True
+            )
+            return cls._list_snapshots_disk(repo_dir)
+
+    @classmethod
+    def _list_snapshots_disk(cls, repo_dir: str) -> List[Dict[str, Any]]:
         try:
             from core.metadata_db import MetadataDB
             return MetadataDB(repo_dir).sync_snapshots()
@@ -779,6 +808,13 @@ class SnapshotEngine:
                     cls.prune_storage(repo_dir)
                 except Exception:
                     pass
+            # Invalidate snapshot metadata cache (P2: Fail-Safe Eviction)
+            try:
+                from core.snapshot_cache import get_snapshot_cache
+                get_snapshot_cache().evict(repo_dir)
+            except Exception as e_evict:
+                import logging
+                logging.getLogger("BackupSystem").warning(f"Failed to evict snapshot cache on delete for '{repo_dir}': {e_evict}", exc_info=True)
         return deleted
 
     @classmethod

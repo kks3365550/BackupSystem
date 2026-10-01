@@ -27,8 +27,10 @@ ElseIf objFSO.FileExists(appDir & "\.venv\Scripts\python.exe") Then
     pyExe = """" & appDir & "\.venv\Scripts\python.exe"""
 ElseIf objFSO.FileExists(userProfile & "\AppData\Local\Python\pythoncore-3.14-64\python.exe") Then
     pyExe = """" & userProfile & "\AppData\Local\Python\pythoncore-3.14-64\python.exe"""
+ElseIf objFSO.FileExists(userProfile & "\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe") Then
+    pyExe = """" & userProfile & "\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe"""
 Else
-    pyExe = "pythonw.exe"
+    pyExe = "python.exe"
 End If
 
 ' 2. run.py 를 일반 모드로 백그라운드 실행 후 VBS 즉시 종료 (0.01초 소요)

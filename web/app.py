@@ -117,14 +117,6 @@ async def lifespan(app: FastAPI):
     except Exception as e_rq:
         append_task_log(f"[Durable Queue] 초기화 알림: {e_rq}", level="WARN")
 
-    # Firebase Cloud Sync: 최신 백업 상태 클라우드 동기화
-    try:
-        from core.firebase_sync import upload_current_system_status
-        threading.Thread(target=upload_current_system_status, daemon=True).start()
-        append_task_log("[Firebase] 클라우드(sunhang-772e5) 실시간 백업 동기화가 활성화되었습니다.")
-    except Exception as e_fb:
-        append_task_log(f"[Firebase] 동기화 초기화 알림: {e_fb}", level="WARN")
-
     # Software Auto-Update Check
     try:
         threading.Thread(target=_background_update_check, daemon=True).start()
@@ -476,7 +468,8 @@ def list_snapshots(repo_dir: Optional[str] = None):
         
         # 1. 스냅샷 ID 수집 및 중복 제거
         repo_snap_ids = []
-        for s in snaps:
+        for raw_s in snaps:
+            s = raw_s.copy()
             sid = s.get("id")
             if sid and sid not in seen_ids:
                 seen_ids.add(sid)
@@ -822,14 +815,6 @@ def _background_custom_backup_task(params: Dict[str, Any]):
                 current_task["progress"]["percent"] = 100.0
                 current_task["progress"]["current_file"] = "선택 백업 작업 완료"
 
-        # Firebase Cloud Sync
-        try:
-            from core.firebase_sync import async_upload_backup_status
-            async_upload_backup_status(manifest_summary=manifest_summary, status="success", repo_dir=repo_dir)
-            append_task_log("[Firebase] 선택 백업 결과 클라우드 실시간 동기화 완료")
-        except Exception as e_fb:
-            append_task_log(f"[Firebase] 동기화 알림: {e_fb}", level="WARNING")
-
     except InterruptedError:
         append_task_log("사용자에 의해 백업 작업이 취소되었습니다.", level="WARNING")
         with task_lock:
@@ -989,14 +974,6 @@ def _background_backup_task(params: Dict[str, Any]):
         with task_lock:
             current_task["result"] = manifest_summary
             current_task["error"] = None
-
-        # Firebase Cloud Sync
-        try:
-            from core.firebase_sync import async_upload_backup_status
-            async_upload_backup_status(manifest_summary=manifest_summary, status="success", repo_dir=repo_dir)
-            append_task_log("[Firebase] 백업 결과 클라우드 실시간 동기화 완료")
-        except Exception as e_fb:
-            append_task_log(f"[Firebase] 동기화 알림: {e_fb}", level="WARNING")
 
     except InterruptedError:
         append_task_log("사용자에 의해 백업 작업이 취소되었습니다.", level="WARNING")
@@ -1651,43 +1628,6 @@ def get_alerts_summary():
             "disk": disk_info
         }
     }
-
-
-# ==================== Firebase Cloud Sync API ====================
-@app.get("/api/firebase/status")
-def get_firebase_sync_status():
-    """현재 기기 식별 정보 및 Firebase 연동 설정 반환"""
-    from core.firebase_sync import get_current_device_info, FIREBASE_PROJECT_ID, FIREBASE_API_KEY
-    dev = get_current_device_info()
-    return {
-        "success": True,
-        "firebase_project_id": FIREBASE_PROJECT_ID,
-        "device": dev,
-        "enabled": True
-    }
-
-
-@app.post("/api/firebase/sync")
-def trigger_firebase_sync(background_tasks: BackgroundTasks):
-    """현재 백업 상태를 Firebase Firestore에 즉시 수동 동기화"""
-    from core.firebase_sync import upload_current_system_status
-    try:
-        res = upload_current_system_status()
-        append_task_log("[Firebase] 수동 클라우드 동기화 완료")
-        return {"success": True, "result": res}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
-
-
-@app.get("/api/firebase/history")
-def get_firebase_cloud_history(limit: int = 50):
-    """Firestore backup_history 컬렉션에서 전체 기기의 백업 이력 반환"""
-    from core.firebase_sync import fetch_cloud_backup_history
-    try:
-        items = fetch_cloud_backup_history(limit=limit)
-        return {"success": True, "count": len(items), "history": items}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 
 # ==================== Software Auto-Update API ====================
