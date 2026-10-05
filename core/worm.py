@@ -1,10 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-core/worm.py: 진정한 WORM (Write Once Read Many / 랜섬웨어 변조 방지) 보호 엔진 (v2.4.1)
-- Windows NTFS ACL: Everyone(*S-1-1-0)에 대해 Delete(DE), WriteData(WD), AppendData(AD) 거부(Deny) ACL 적용
-- 디렉토리 수준 DeleteChild(DC) 거부로 파일 무단 삭제 및 덮어쓰기 원천 차단
-- POSIX/Non-Windows 환경: Read-Only 속성(S_IREAD) 자동 폴백
-- 정당한 보존 정책(Retention Pruning) 시 ACL 복구 및 원자적 해제 지원
+core/worm.py: WORM (Write Once Read Many / 불변성 제어) 엔진 (v2.13.5)
+
+[현재 실측 방어 상태 및 한계 명시]
+- Read-Only 속성 (Windows os.chmod / stat.S_IREAD):
+  * 블롭 및 매니페스트에 실제 적용 중. 파일 '변조/수정'은 방지하나,
+    디렉터리에 쓰기 권한이 있는 사용자 세션에서의 '파일 삭제(os.remove)'는 원천 방어하지 못함.
+- Windows NTFS ACL (icacls Everyone Deny):
+  * 현재 대화형 단일 사용자 계정(Interactive User) 환경에서는 Everyone(*S-1-1-0) Deny ACL 적용 시
+    자체 프로세스 쓰기 및 서비스 계정 미분리로 인한 충돌 가능성이 있어 자동 호출이 비활성화(미배선)되어 있음.
+  * 완전한 랜섬웨어 방어(WORM)를 위해서는 '전용 서비스 계정(NT SERVICE)' 분리 또는
+    '물리적 오프사이트 복제본(외장/Tailscale 원격 PC)'이 필수적임.
+- 무결성 보증:
+  * 랜섬웨어 사후 침해 탐지는 Ed25519 전자서명 검증으로 수행됨.
 """
 
 import os

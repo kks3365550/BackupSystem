@@ -449,15 +449,9 @@ def restore_snapshot(
         print("[*] 백업 당시 원본 경로로 복원합니다.")
 
     # 공통 prefix 산출 (dest_dir 지정 시 상대경로 보존용)
-    all_paths = [(e.get("path") or os.path.join(e.get("source_root", ""), e.get("rel_path", ""))) for e in entries]
-    common_prefix = ""
-    if dest_base and all_paths and all_paths[0]:
-        try:
-            drive_prefix = os.path.splitdrive(all_paths[0])[0]
-            if all(p.startswith(drive_prefix) for p in all_paths):
-                common_prefix = drive_prefix + "\\"
-        except Exception:
-            pass
+    # NOTE: 아래 common_prefix는 계산만 하고 어디에서도 사용되지 않는 죽은 코드였다(dead code).
+    # 경로 매핑은 process_entry()가 '드라이브 문자 제거' 방식으로 직접 처리한다.
+    # 죽은 변수 계산을 제거해 오해를 유발하는 코드를 정리한다.
 
     success_count = 0
     fail_count = 0

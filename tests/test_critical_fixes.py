@@ -266,3 +266,88 @@ def test_backuplock_deep_reentrancy_and_no_leak(temp_repo):
     again.release()
     assert len(_active_locks) == 0
 
+
+def test_manifest_signature_fail_closed_blocks_backup(temp_repo, monkeypatch):
+    """
+    MEDIUM #5 회귀 방지: Ed25519 서명 생성이 실패하면 백업이 '성공'으로 끝나서는 안 된다.
+    Fail-Closed 계약 - 예외가 발생하고 스냅샷 매니페스트가 디스크에 남지 않아야 한다.
+    """
+    from unittest.mock import patch
+
+    source_dir = tempfile.mkdtemp(prefix="test_src_")
+    try:
+        os.makedirs(os.path.join(source_dir, "sub"), exist_ok=True)
+        with open(os.path.join(source_dir, "data.txt"), "w", encoding="utf-8") as f:
+            f.write("backup payload")
+        with open(os.path.join(source_dir, "sub", "nested.txt"), "w", encoding="utf-8") as f:
+            f.write("nested payload")
+
+        # 서명기가 반드시 실패하도록 주입
+        class _BrokenSigner:
+            def __init__(self, repo_dir):
+                self.repo_dir = repo_dir
+
+            def sign_manifest(self, manifest):
+                raise RuntimeError("의도된 서명 실패: 개인키 유실")
+
+        with patch("core.snapshot.Ed25519Signer", _BrokenSigner):
+            with pytest.raises(RuntimeError) as exc_info:
+                SnapshotEngine.create_snapshot(
+                    repo_dir=temp_repo,
+                    sources=[source_dir],
+                    profile_id="test_profile",
+                    profile_name="테스트 프로필",
+                )
+
+        # (1) 예외 메시지에 Fail-Closed 사유가 명시되어야 한다
+        assert "Fail-Closed" in str(exc_info.value) or "서명" in str(exc_info.value)
+
+        # (2) 서명 없는 매니페스트가 저장되어 있으면 안 된다 (fail-open 회귀 방지)
+        storage = BlobStorage(temp_repo)
+        leftovers = []
+        if os.path.isdir(storage.snapshots_dir):
+            leftovers = [f for f in os.listdir(storage.snapshots_dir) if f.endswith(".json")]
+        assert not leftovers, f"서명 실패인데 매니페스트가 저장됨 (fail-open): {leftovers}"
+
+        # (3) 임시 파일이 방치되지 않았는지 확인
+        if os.path.isdir(storage.snapshots_dir):
+            tmps = [f for f in os.listdir(storage.snapshots_dir) if ".tmp" in f]
+            assert not tmps, f"미완성 임시 매니페스트 방치됨: {tmps}"
+    finally:
+        shutil.rmtree(source_dir, ignore_errors=True)
+
+
+def test_manifest_signature_success_path_still_works(temp_repo):
+    """
+    #5 fail-closed 도입으로 정상 경로가 깨지지 않았음을 함께 검증한다.
+    서명이 정상 생성되면 스냅샷이 '성공'하고 ed25519_signature 가 채워져야 한다.
+    """
+    source_dir = tempfile.mkdtemp(prefix="test_src_ok_")
+    try:
+        with open(os.path.join(source_dir, "ok.txt"), "w", encoding="utf-8") as f:
+            f.write("signable payload")
+
+        manifest = SnapshotEngine.create_snapshot(
+            repo_dir=temp_repo,
+            sources=[source_dir],
+            profile_id="test_profile",
+            profile_name="테스트 프로필",
+        )
+
+        assert manifest.get("id"), "스냅샷 ID가 없음"
+        assert manifest.get("ed25519_signature"), "정상 경로인데 서명이 비어 있음"
+        assert manifest.get("is_verified") is True, "정상 백업인데 검증 실패로 기록됨"
+
+        # 서명 검증도 통과해야 한다 (공개키 경로를 명시적으로 전달)
+        from core.crypto_sign import verify_manifest_signature_ed25519
+        pub_key_path = os.path.join(temp_repo, "keys", "backup_ed25519.pub")
+        assert os.path.exists(pub_key_path), f"공개키 없음: {pub_key_path}"
+        assert verify_manifest_signature_ed25519(manifest, pub_key_path), "생성된 서명 검증 실패"
+
+        # 디스크에 매니페스트가 실제로 존재해야 한다
+        storage = BlobStorage(temp_repo)
+        snap_path = os.path.join(storage.snapshots_dir, f"{manifest['id']}.json")
+        assert os.path.exists(snap_path), f"매니페스트 미저장: {snap_path}"
+    finally:
+        shutil.rmtree(source_dir, ignore_errors=True)
+

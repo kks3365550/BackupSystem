@@ -119,9 +119,18 @@ class TestRepositoryChaos(unittest.TestCase):
         self.assertEqual(res["failed"], 0)
 
         # 원본 초기 내용(수정 전)으로 온전히 복원되었는지 검증
-        alpha_restored = os.path.join(dest, "file_alpha.txt")
-        if not os.path.exists(alpha_restored):
-            alpha_restored = os.path.join(dest, "source", "file_alpha.txt")
+        #
+        # disaster_recovery.restore_snapshot()은 dest_dir 지정 시 '원본 드라이브 디렉터리 트리 보존'을
+        # 계약으로 한다(dr.py:478-481). 즉 dest 아래에 드라이브 문자만 제거한 전체 절대 경로가 생성된다.
+        #   dest\Users\<user>\...\chaos_test_xxx\source\file_alpha.txt
+        # 따라서 dest 루트 바로 아래를 가정해서는 안 되고, 실제 생성된 트리에서 상대경로를 찾는다.
+        def _find_restored(dest_root, filename):
+            for root_d, _, files in os.walk(dest_root):
+                if filename in files:
+                    return os.path.join(root_d, filename)
+            raise AssertionError(f"복원된 파일을 찾을 수 없음: {filename} (dest={dest_root})")
+
+        alpha_restored = _find_restored(dest, "file_alpha.txt")
         with open(alpha_restored, "rb") as f:
             self.assertEqual(f.read(), self.files_data["file_alpha.txt"])
 
@@ -296,10 +305,13 @@ class TestRepositoryChaos(unittest.TestCase):
         self.assertIn("복원 작업 완료", proc.stdout)
 
         # 복원된 파일 무결성 확인
-        restored_alpha = os.path.join(dest, "file_alpha.txt")
-        if not os.path.exists(restored_alpha):
-            restored_alpha = os.path.join(dest, "source", "file_alpha.txt")
-        self.assertTrue(os.path.exists(restored_alpha))
+        # (restore_snapshot 계약에 따라 dest 아래 전체 경로 트리에서 탐색해야 한다)
+        restored_alpha = None
+        for root_d, _, files in os.walk(dest):
+            if "file_alpha.txt" in files:
+                restored_alpha = os.path.join(root_d, "file_alpha.txt")
+                break
+        self.assertIsNotNone(restored_alpha, f"복원된 file_alpha.txt 없음 (dest={dest})")
         with open(restored_alpha, "rb") as f:
             self.assertEqual(f.read(), b"Alpha content MODIFIED in snapshot 2")
 
