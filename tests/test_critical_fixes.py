@@ -201,3 +201,68 @@ def test_retention_and_worm_authorized_default_fail_closed(temp_repo):
     with pytest.raises(WORMAuthorizationError):
         worm.unprotect_file(dummy_file)  # 기본값 authorized=False이므로 거부되어야 함
 
+
+def test_backuplock_isolates_between_threads(temp_repo):
+    """
+    CRITICAL #1 회귀 방지 (멀티스레드):
+    한 스레드가 락을 보유한 상태에서 다른 스레드가 진입하면 절대 무혈입 성공해서는 안 된다.
+    재진입은 '동일 스레드'에만 허용되어야 한다.
+    """
+    import threading
+    from core.lock import _active_locks
+
+    outer = BackupLock(temp_repo, timeout_sec=1.0, process_desc="백업 스레드")
+    other = BackupLock(temp_repo, timeout_sec=0.6, process_desc="동시 작업 스레드")
+    result = {}
+
+    outer.acquire()
+    try:
+        def _worker():
+            try:
+                other.acquire()
+                result["status"] = "ACQUIRED"
+                other.release()
+            except BackupAlreadyRunningError:
+                result["status"] = "BLOCKED"
+
+        t = threading.Thread(target=_worker)
+        t.start()
+        t.join(timeout=10)
+
+        assert result.get("status") == "BLOCKED", (
+            "백업 진행 중 다른 스레드가 락을 무혈입 획득했습니다 (상호배제 실패)"
+        )
+    finally:
+        outer.release()
+
+    # 락이 완전히 풀린 뒤에는 카운터가 남지 않아야 한다
+    assert not os.path.exists(outer.lock_path)
+    assert len(_active_locks) == 0, f"락 카운터 누수: {_active_locks}"
+
+
+def test_backuplock_deep_reentrancy_and_no_leak(temp_repo):
+    """동일 스레드 3중 재진입, 부분 해제, 재획득 후 카운터 무누수를 검증한다."""
+    from core.lock import _active_locks
+
+    l1 = BackupLock(temp_repo, timeout_sec=1.0, process_desc="L1")
+    l2 = BackupLock(temp_repo, timeout_sec=1.0, process_desc="L2")
+    l3 = BackupLock(temp_repo, timeout_sec=1.0, process_desc="L3")
+
+    with l1:
+        with l2:
+            with l3:
+                assert l3._is_locked
+            assert l2._is_locked, "중간 락이 premature 해제됨"
+        assert l1._is_locked, "바깥 락이 premature 해제됨"
+        assert os.path.exists(l1.lock_path)
+
+    assert not os.path.exists(l1.lock_path)
+    assert len(_active_locks) == 0, f"재진입 카운터 누수: {_active_locks}"
+
+    # 해제 후 재획득이 정상 동작해야 한다
+    again = BackupLock(temp_repo, timeout_sec=1.0, process_desc="Reacquire")
+    again.acquire()
+    assert again._is_locked
+    again.release()
+    assert len(_active_locks) == 0
+

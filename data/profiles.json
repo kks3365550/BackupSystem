@@ -17,7 +17,7 @@
     "schedule_type": "interval_hours",
     "schedule_value": "12",
     "auto_backup_enabled": false,
-    "retention_count": 3,
+    "retention_count": 30,
     "retention_days": 60,
     "compression_level": 3
   },
@@ -179,11 +179,11 @@
     "schedule_type": "daily",
     "schedule_value": "09:00",
     "auto_backup_enabled": true,
-    "retention_count": 3,
+    "retention_count": 30,
     "retention_days": 60,
     "compression_level": 9,
-    "last_run": 1791158417.0565765,
+    "last_run": 1791217400.1921632,
     "last_status": "success",
-    "last_snapshot_id": "snap_20261005_090009_a14ec5"
+    "last_snapshot_id": "snap_20261006_012318_155541"
   }
 ]

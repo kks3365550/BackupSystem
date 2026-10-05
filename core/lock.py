@@ -28,8 +28,17 @@ except ImportError:
 
 import threading
 
-_active_locks: Dict[str, int] = {}
+# 재진입(Re-entrancy) 깊이 카운터.
+# CRITICAL: 반드시 (repo_dir, thread_ident)로 키를 잡아야 한다.
+# repo_dir만 쓰면 동일 프로세스의 '다른 스레드'(예: FastAPI BackgroundTasks)가
+# 이미 진행 중인 백업을 감지하고 무혈입으로 통과해 버려 상호배제가 무력화된다.
+_active_locks: Dict[tuple, int] = {}
 _reentrant_gate = threading.Lock()
+
+
+def _lock_key(repo_dir: str) -> tuple:
+    """저장소별 '현재 스레드의 락 깊이' 키를 생성한다."""
+    return (os.path.abspath(repo_dir), threading.get_ident())
 
 
 class BackupAlreadyRunningError(Exception):
@@ -97,9 +106,9 @@ class BackupLock:
         """
         self.repo_dir = os.path.abspath(self.repo_dir)
         with _reentrant_gate:
-            depth = _active_locks.get(self.repo_dir, 0)
+            depth = _active_locks.get(_lock_key(self.repo_dir), 0)
             if depth > 0:
-                _active_locks[self.repo_dir] = depth + 1
+                _active_locks[_lock_key(self.repo_dir)] = depth + 1
                 self._is_locked = True
                 self._is_reentrant = True
                 return True
@@ -162,7 +171,7 @@ class BackupLock:
                 self._is_locked = True
                 self._is_reentrant = False
                 with _reentrant_gate:
-                    _active_locks[self.repo_dir] = 1
+                    _active_locks[_lock_key(self.repo_dir)] = 1
                 return True
 
             except (FileExistsError, PermissionError):
@@ -182,16 +191,19 @@ class BackupLock:
 
         with _reentrant_gate:
             if getattr(self, "_is_reentrant", False):
-                depth = _active_locks.get(self.repo_dir, 1) - 1
+                key = _lock_key(self.repo_dir)
+                depth = _active_locks.get(key, 1) - 1
                 if depth > 0:
-                    _active_locks[self.repo_dir] = depth
+                    _active_locks[key] = depth
                 else:
-                    _active_locks.pop(self.repo_dir, None)
+                    _active_locks.pop(key, None)
                 self._is_locked = False
                 self._is_reentrant = False
                 return
             else:
-                _active_locks.pop(self.repo_dir, None)
+                # 자기 스레드의 엔트리만 제거한다.
+                # 다른 스레드의 재진입 깊이를 함께 지우면 상호배제가 깨진다.
+                _active_locks.pop(_lock_key(self.repo_dir), None)
 
         if self.fd is not None:
             try:

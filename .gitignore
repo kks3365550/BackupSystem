@@ -41,3 +41,10 @@ keys/*private*
 
 # Local AI working artifacts
 .ai/
+
+# Test sandboxes & temporary test repositories
+test_sandbox/
+tests/test_repo/
+tests/test_repo2/
+scratch/test_backup_repo/
+scratch/
