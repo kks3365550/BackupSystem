@@ -76,14 +76,18 @@ class BlobStorage:
         self._blob_cache = BlobStorage._class_blob_caches[self.repo_dir]
         self._cache_lock = BlobStorage._class_cache_lock
 
+    # Class-level facade cache so all BlobStorage and PackConsolidator instances share pack index map
+    _class_facades: Dict[str, Any] = {}
+
     @property
     def composite_facade(self):
-        if self._composite_facade is None:
-            from core.composite_storage import CompositeStorageFacade
-            self._composite_facade = CompositeStorageFacade(
-                self.repo_dir, crypto_engine=self.crypto_engine, blob_storage=self
-            )
-        return self._composite_facade
+        with BlobStorage._class_cache_lock:
+            if self.repo_dir not in BlobStorage._class_facades or BlobStorage._class_facades[self.repo_dir] is None:
+                from core.composite_storage import CompositeStorageFacade
+                BlobStorage._class_facades[self.repo_dir] = CompositeStorageFacade(
+                    self.repo_dir, crypto_engine=self.crypto_engine, blob_storage=self
+                )
+            return BlobStorage._class_facades[self.repo_dir]
 
     def init_repo(self):
         os.makedirs(self.blobs_dir, exist_ok=True)
@@ -436,8 +440,7 @@ class BlobStorage:
             self._active_pack_writer.commit_index()
             self._active_pack_writer.close()
             self._active_pack_writer = None
-            if self._composite_facade:
-                self._composite_facade.reload_packs()
+            self.composite_facade.reload_packs()
 
     def put_chunk_to_pack(self, data: bytes, compress_level: int = 3) -> Tuple[str, int, int, bool]:
         """
