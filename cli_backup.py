@@ -56,7 +56,11 @@ def run_cli_backup(profile_id: str = None):
         t1 = time.time()
 
         # 3. Prune old snapshots
-        pruned = SnapshotEngine.prune_snapshots(repo_dir, retention_count, retention_days, authorized=True)
+        try:
+            pruned = SnapshotEngine.prune_snapshots(repo_dir, retention_count, retention_days, authorized=True)
+            print(f"[보존 정책] 만료된 스냅샷 {len(pruned)}개 정리 완료")
+        except Exception as e_prune:
+            print(f"[경고] 보존 정책 정리 실패/중단: {e_prune}")
 
         # 4. Update profile last run time
         profile["last_run"] = time.time()

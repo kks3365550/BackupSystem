@@ -871,7 +871,7 @@ class SnapshotEngine:
         if not authorized:
             from core.worm import WORMAuthorizationError
             raise WORMAuthorizationError("스냅샷 보존 정리(Prune) 거부: WORM 권한 분리 (명시적 관리자 승인 권한 필요)")
-        try:
+        with BackupLock(repo_dir, timeout_sec=15.0, process_desc="스냅샷 보존 정리(Prune)"):
             mgr = RetentionManager(repo_dir)
             res = mgr.apply_policy(
                 retention_count=retention_count or 30,
@@ -880,30 +880,37 @@ class SnapshotEngine:
                 authorized=authorized
             )
             return res.get("deleted_snapshots", [])
-        except Exception:
-            return []
 
     @classmethod
     def prune_storage(cls, repo_dir: str) -> Dict[str, int]:
         """Collects all referenced blob hashes across all existing snapshots and removes orphaned blobs."""
-        storage = BlobStorage(repo_dir)
-        active_hashes = set()
+        with BackupLock(repo_dir, timeout_sec=15.0, process_desc="스토리지 고아 블롭 정리(GC)"):
+            storage = BlobStorage(repo_dir)
+            active_hashes = set()
 
-        for filename in os.listdir(storage.snapshots_dir):
-            if filename.endswith(".json"):
-                snap_path = os.path.join(storage.snapshots_dir, filename)
-                try:
-                    with open(snap_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        for entry in data.get("entries", []):
-                            blob_id = entry.get("blob_id") or entry.get("sha256")
-                            if blob_id:
-                                active_hashes.add(blob_id)
-                except Exception:
-                    pass
+            for filename in os.listdir(storage.snapshots_dir):
+                if filename.endswith(".json"):
+                    snap_path = os.path.join(storage.snapshots_dir, filename)
+                    try:
+                        with open(snap_path, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                            for entry in data.get("entries", []):
+                                blob_id = entry.get("blob_id") or entry.get("sha256")
+                                if blob_id:
+                                    active_hashes.add(blob_id)
+                    except Exception as e_snap:
+                        # CRITICAL #2 FAIL-CLOSED: 매니페스트 파싱/읽기 실패 시 고아 블롭 정리 전면 중단!
+                        # active_hashes에서 누락되어 정상 블롭이 영구 삭제되는 재앙 방지
+                        import logging
+                        logging.getLogger("BackupSystem").error(
+                            f"[CRITICAL FAIL-CLOSED] 매니페스트 읽기 실패로 인한 GC 중단: {snap_path} ({e_snap})"
+                        )
+                        raise RuntimeError(
+                            f"스토리지 GC 중단: 스냅샷 매니페스트를 읽을 수 없어 데이터 보호를 위해 정리를 중단합니다: {filename} ({e_snap})"
+                        )
 
-        deleted_count, freed_bytes = storage.prune_unreferenced_blobs(active_hashes)
-        return {"deleted_blobs": deleted_count, "freed_bytes": freed_bytes}
+            deleted_count, freed_bytes = storage.prune_unreferenced_blobs(active_hashes)
+            return {"deleted_blobs": deleted_count, "freed_bytes": freed_bytes}
 
     @classmethod
     def build_snapshot_tree(cls, snapshot_data: Dict[str, Any]) -> Dict[str, Any]:

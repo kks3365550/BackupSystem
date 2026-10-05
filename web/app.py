@@ -1193,10 +1193,14 @@ def prune_storage(repo_dir: Optional[str] = None):
         profiles = ConfigManager.get_profiles()
         repo_dir = profiles[0].get("repo_dir") if profiles else os.path.join(BASE_DIR, "backup_repository")
 
-    res = SnapshotEngine.prune_storage(repo_dir)
-    freed_mb = round(res['freed_bytes'] / (1024 * 1024), 2)
-    append_task_log(f"가비지 컬렉션 완료: 참조되지 않는 고아 블롭 {res['deleted_blobs']}개 삭제, {freed_mb}MB 용량 회수")
-    return res
+    try:
+        res = SnapshotEngine.prune_storage(repo_dir)
+        freed_mb = round(res['freed_bytes'] / (1024 * 1024), 2)
+        append_task_log(f"가비지 컬렉션 완료: 참조되지 않는 고아 블롭 {res['deleted_blobs']}개 삭제, {freed_mb}MB 용량 회수")
+        return res
+    except Exception as e:
+        append_task_log(f"가비지 컬렉션 실패/중단: {e}", level="ERROR")
+        raise HTTPException(status_code=409 if "실행 중" in str(e) or "잠겨 있습니다" in str(e) else 500, detail=str(e))
 
 # --- Windows Task Scheduler API (On/Off Smart Execution) ---
 from core.windows_task import register_windows_scheduled_task, unregister_windows_scheduled_task, get_windows_scheduled_task_status

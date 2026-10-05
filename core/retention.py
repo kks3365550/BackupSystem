@@ -84,8 +84,9 @@ class RetentionManager:
         if actually_deleted:
             try:
                 gc_result = SnapshotEngine.prune_storage(self.repo_dir)
-            except Exception:
-                pass
+            except Exception as e_gc:
+                import logging
+                logging.getLogger("BackupSystem").error(f"보존 정책 후 고아 블롭 GC 중단/실패: {e_gc}")
 
         return {
             "deleted_snapshots": actually_deleted,

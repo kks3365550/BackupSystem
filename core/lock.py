@@ -26,6 +26,11 @@ try:
 except ImportError:
     HAS_PSUTIL = False
 
+import threading
+
+_active_locks: Dict[str, int] = {}
+_reentrant_gate = threading.Lock()
+
 
 class BackupAlreadyRunningError(Exception):
     """이미 다른 백업 프로세스가 실행 중일 때 발생하는 예외"""
@@ -86,9 +91,19 @@ class BackupLock:
     def acquire(self) -> bool:
         """
         락 획득 시도.
-        이미 실행 중인 정상 프로세스가 있으면 BackupAlreadyRunningError 발생.
+        동일 프로세스 내 재진입(Re-entrancy)을 지원하며,
+        이미 실행 중인 다른 프로세스가 있으면 BackupAlreadyRunningError 발생.
         만약 이전 프로세스가 비정상 종료(죽은 PID)되었다면 Stale Lock을 정리하고 새로 획득.
         """
+        self.repo_dir = os.path.abspath(self.repo_dir)
+        with _reentrant_gate:
+            depth = _active_locks.get(self.repo_dir, 0)
+            if depth > 0:
+                _active_locks[self.repo_dir] = depth + 1
+                self._is_locked = True
+                self._is_reentrant = True
+                return True
+
         os.makedirs(self.repo_dir, exist_ok=True)
         start_time = time.time()
 
@@ -145,6 +160,9 @@ class BackupLock:
                 info_bytes = json.dumps(info, indent=2, ensure_ascii=False).encode("utf-8")
                 os.write(self.fd, info_bytes)
                 self._is_locked = True
+                self._is_reentrant = False
+                with _reentrant_gate:
+                    _active_locks[self.repo_dir] = 1
                 return True
 
             except (FileExistsError, PermissionError):
@@ -161,6 +179,19 @@ class BackupLock:
         """락 해제 및 락 파일 정리"""
         if not self._is_locked and not os.path.exists(self.lock_path):
             return
+
+        with _reentrant_gate:
+            if getattr(self, "_is_reentrant", False):
+                depth = _active_locks.get(self.repo_dir, 1) - 1
+                if depth > 0:
+                    _active_locks[self.repo_dir] = depth
+                else:
+                    _active_locks.pop(self.repo_dir, None)
+                self._is_locked = False
+                self._is_reentrant = False
+                return
+            else:
+                _active_locks.pop(self.repo_dir, None)
 
         if self.fd is not None:
             try:
