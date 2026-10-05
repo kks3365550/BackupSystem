@@ -25,9 +25,10 @@ from core.scheduler import BackupScheduler
 from core.app_scanner import get_installed_applications, get_project_items
 from core.driver_backup import export_windows_drivers
 from core.auth import (
-    is_auth_configured, get_auth_status, setup_master_password,
+    is_auth_configured, is_auth_corrupted, get_auth_status, setup_master_password,
     verify_master_password, change_master_password, create_session,
-    validate_session, revoke_session, set_localhost_bypass
+    validate_session, revoke_session, set_localhost_bypass,
+    check_login_rate_limit, record_login_failure, record_login_success
 )
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -130,7 +131,7 @@ app = FastAPI(title="Server & System Backup Manager", version="2.9.22", lifespan
 
 # ==================== Auth Pydantic Models ====================
 class AuthSetupRequest(BaseModel):
-    password: str = Field(..., min_length=4, description="최소 4자 이상의 마스터 비밀번호")
+    password: str = Field(..., min_length=8, description="최소 8자 이상의 마스터 비밀번호")
     allow_localhost_bypass: bool = Field(default=True, description="로컬 루프백 접속 시 인증 우회 여부")
 
 class AuthLoginRequest(BaseModel):
@@ -138,7 +139,7 @@ class AuthLoginRequest(BaseModel):
 
 class AuthChangePasswordRequest(BaseModel):
     old_password: str = Field(..., description="현재 비밀번호")
-    new_password: str = Field(..., min_length=4, description="최소 4자 이상의 새 비밀번호")
+    new_password: str = Field(..., min_length=8, description="최소 8자 이상의 새 비밀번호")
 
 class AuthBypassRequest(BaseModel):
     enabled: bool = Field(..., description="로컬 루프백 인증 우회 활성화 여부")
@@ -149,6 +150,18 @@ class AuthBypassRequest(BaseModel):
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
     
+    # 0. 인증 설정 파일 손상 상태 검사 (Fail-Closed: 모든 API 요청 차단)
+    if is_auth_corrupted():
+        if not (path.startswith("/static") or path == "/favicon.ico" or path == "/api/auth/status"):
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "error": "보안 경고(Fail-Closed): auth_config.json 설정 파일이 손상되었습니다. 시스템 보호를 위해 모든 API 요청이 차단되었습니다.",
+                    "corrupted": True
+                }
+            )
+
     # 인증 불필요 경로 (정적 리소스, 인증 API, favicon, 원격 릴리즈 배포 API)
     if (
         path.startswith("/static") or
@@ -218,9 +231,29 @@ async def auth_setup(req: AuthSetupRequest):
         return JSONResponse(status_code=500, content={"success": False, "error": f"설정 중 오류: {str(e)}"})
 
 @app.post("/api/auth/login")
-async def auth_login(req: AuthLoginRequest):
+async def auth_login(req: AuthLoginRequest, request: Request):
+    client_ip = request.client.host if request.client else "unknown"
+    locked, remaining_sec = check_login_rate_limit(client_ip)
+    if locked:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "success": False,
+                "error": f"로그인 시도 횟수를 초과했습니다. {remaining_sec}초 후 다시 시도하세요.",
+                "locked": True,
+                "remaining_sec": remaining_sec
+            }
+        )
     if not verify_master_password(req.password):
-        return JSONResponse(status_code=401, content={"success": False, "error": "비밀번호가 일치하지 않습니다."})
+        failures, is_now_locked = record_login_failure(client_ip)
+        err_msg = "비밀번호가 일치하지 않습니다."
+        if is_now_locked:
+            err_msg += " (5회 연속 실패: 5분간 로그인이 제한됩니다.)"
+        else:
+            err_msg += f" (실패 {failures}/5회)"
+        return JSONResponse(status_code=401, content={"success": False, "error": err_msg})
+    
+    record_login_success(client_ip)
     token = create_session()
     resp = JSONResponse(content={"success": True, "token": token, "message": "로그인 성공"})
     resp.set_cookie(

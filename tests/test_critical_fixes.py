@@ -103,3 +103,101 @@ def test_prune_storage_success_when_all_manifests_valid(temp_repo):
     assert res["deleted_blobs"] == 1
     assert storage.has_blob(active_id)
     assert not storage.has_blob(orphan_id)
+
+
+def test_auth_fail_closed_on_corrupt_config(monkeypatch):
+    """auth_config.json이 손상되었을 때 전체 API가 무인증 개방(Fail-Open)되지 않고 500 Fail-Closed로 차단되어야 한다."""
+    from unittest.mock import patch
+    from starlette.testclient import TestClient
+    from web.app import app
+    from core import auth
+
+    tmp_dir = tempfile.mkdtemp(prefix="test_auth_corrupt_")
+    try:
+        bad_auth_file = os.path.join(tmp_dir, "auth_config.json")
+        with open(bad_auth_file, "w", encoding="utf-8") as f:
+            f.write("corrupted json { not a valid json [")
+
+        with patch("core.auth.AUTH_CONFIG_FILE", bad_auth_file):
+            assert auth.is_auth_corrupted()
+            assert auth.is_auth_configured()  # Fail-Closed: 미설정으로 다운그레이드되지 않음
+
+            client = TestClient(app, raise_server_exceptions=False)
+            # 보호된 API 요청 시 손상 감지 -> HTTP 500 차단
+            resp = client.get("/api/system-info")
+            assert resp.status_code == 500
+            assert resp.json().get("corrupted") is True
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def test_auth_minimum_8_char_password(monkeypatch):
+    """비밀번호는 최소 8자리 이상이어야 하며, 4자리 등 짧은 비밀번호는 거부되어야 한다."""
+    from unittest.mock import patch
+    from core import auth
+
+    tmp_dir = tempfile.mkdtemp(prefix="test_auth_len_")
+    try:
+        auth_file = os.path.join(tmp_dir, "auth_config.json")
+        with patch("core.auth.AUTH_CONFIG_FILE", auth_file):
+            # 4자리 -> 거부
+            with pytest.raises(ValueError) as exc:
+                auth.setup_master_password("1234")
+            assert "8자리" in str(exc.value)
+
+            # 7자리 -> 거부
+            with pytest.raises(ValueError) as exc:
+                auth.setup_master_password("1234567")
+            assert "8자리" in str(exc.value)
+
+            # 8자리 이상 -> 성공
+            assert auth.setup_master_password("password123") is True
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def test_login_rate_limit_lockout():
+    """로그인 5회 연속 실패 시 락아웃(429)되어 무차별 대입(Brute-force) 공격이 차단되어야 한다."""
+    from core import auth
+
+    test_ip = "192.168.1.99"
+    auth.reset_login_rate_limits_for_test()
+
+    # 4회 실패 -> 아직 잠기지 않음
+    for i in range(4):
+        failures, is_locked = auth.record_login_failure(test_ip)
+        assert failures == i + 1
+        assert not is_locked
+        locked, _ = auth.check_login_rate_limit(test_ip)
+        assert not locked
+
+    # 5회 실패 -> 락아웃 활성화
+    failures, is_locked = auth.record_login_failure(test_ip)
+    assert failures == 5
+    assert is_locked
+    locked, remaining = auth.check_login_rate_limit(test_ip)
+    assert locked
+    assert remaining > 0
+
+    # 성공 시 리셋
+    auth.record_login_success(test_ip)
+    locked_after, _ = auth.check_login_rate_limit(test_ip)
+    assert not locked_after
+
+
+def test_retention_and_worm_authorized_default_fail_closed(temp_repo):
+    """retention.apply_policy 및 worm.unprotect_*의 authorized 기본값은 반드시 False여야 한다."""
+    from core.retention import RetentionManager
+    from core.worm import WORMManager, WORMAuthorizationError
+
+    mgr = RetentionManager(temp_repo)
+    # authorized 인자 없이 호출 시 내부 delete_snapshot에서 WORMAuthorizationError 발생
+    # (단, 스냅샷이 1개 이하일 때는 안전 최소치 반환)
+    worm = WORMManager()
+    dummy_file = os.path.join(temp_repo, "test.txt")
+    with open(dummy_file, "w") as f:
+        f.write("test")
+
+    with pytest.raises(WORMAuthorizationError):
+        worm.unprotect_file(dummy_file)  # 기본값 authorized=False이므로 거부되어야 함
+

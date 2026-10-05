@@ -86,7 +86,7 @@ class WORMManager:
 
         return success
 
-    def unprotect_file(self, filepath: str, authorized: bool = True) -> bool:
+    def unprotect_file(self, filepath: str, authorized: bool = False) -> bool:
         """
         정당한 삭제나 정리를 위해 WORM 보호를 해제합니다.
         명시적 관리자 권한(authorized=True)이 필요하며, 인가되지 않은 호출은 차단됩니다.
@@ -101,8 +101,8 @@ class WORMManager:
 
         # 1. Remove NTFS Deny ACL
         if self._is_windows:
-            self._run_icacls(filepath, ["/remove:d", SID_EVERYONE])
-            success = True
+            if self._run_icacls(filepath, ["/remove:d", SID_EVERYONE]):
+                success = True
 
         # 2. Restore Write attribute
         try:
@@ -126,7 +126,7 @@ class WORMManager:
             return self._run_icacls(dirpath, ["/deny", f"{SID_EVERYONE}:(DC)"])
         return True
 
-    def unprotect_directory(self, dirpath: str, authorized: bool = True) -> bool:
+    def unprotect_directory(self, dirpath: str, authorized: bool = False) -> bool:
         """
         디렉토리의 Delete Child 거부 ACL을 해제합니다.
         명시적 관리자 권한(authorized=True)이 필요합니다.

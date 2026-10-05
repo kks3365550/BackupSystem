@@ -24,7 +24,7 @@ class RetentionManager:
         retention_count: Optional[int] = 30,
         retention_days: Optional[int] = 60,
         min_free_gb: Optional[float] = 20.0,
-        authorized: bool = True
+        authorized: bool = False
     ) -> Dict[str, Any]:
         """
         저장소에 보존 정책을 적용하여 만료된 스냅샷을 정리하고 고아 청크를 회수.
