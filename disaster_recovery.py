@@ -172,11 +172,11 @@ def list_snapshots(repo_dir: str) -> List[Dict[str, Any]]:
             if "ed25519_signature" in data:
                 if HAS_CRYPTO and os.path.exists(pubkey_path):
                     ok, _ = verify_ed25519_manifest(data, pubkey_path)
-                    sig_status = "🛡️ Ed25519 정상" if ok else "❌ 서명 위조"
+                    sig_status = "[SECURE] Ed25519 정상" if ok else "[FAIL] 서명 위조"
                 else:
-                    sig_status = "🔒 Ed25519 보유"
+                    sig_status = "[SIGNED] Ed25519 보유"
             elif "manifest_signature" in data:
-                sig_status = "📋 지문 보유"
+                sig_status = "[FINGERPRINT] 지문 보유"
 
             snapshots.append({
                 "id": snap_id,
@@ -352,12 +352,12 @@ def audit_repository(repo_dir: str) -> Dict[str, Any]:
                 print(f"  진행률: {done_count}/{total} ({pct:.1f}%) | {speed:.1f} blob/s | 손상: {len(corrupted)}개")
 
     print("\n" + "=" * 60)
-    print("📋 저장소 Bit-Rot 감사 결과 요약")
+    print("[AUDIT] 저장소 Bit-Rot 감사 결과 요약")
     print(f" - 전체 검사 블롭: {total}개")
     print(f" - 정상 무결성 블롭: {healthy}개")
     print(f" - 손상(Bit-Rot) 블롭: {len(corrupted)}개")
     if corrupted:
-        print("\n⚠️ 손상된 블롭 목록:")
+        print("\n[WARNING] 손상된 블롭 목록:")
         for cpath, cerr in corrupted[:10]:
             print(f"  * {os.path.basename(cpath)}: {cerr}")
         if len(corrupted) > 10:
@@ -423,7 +423,7 @@ def restore_snapshot(
         if not ok and "위조" in msg:
             if non_interactive:
                 return {"success": False, "error": "서명 위조 탐지로 인한 자동 복원 중단"}
-            choice = input("⚠️ 서명 위조가 탐지되었습니다! 계속 복원하시겠습니까? (y/N): ").strip().lower()
+            choice = input("[WARNING] 서명 위조가 탐지되었습니다! 계속 복원하시겠습니까? (y/N): ").strip().lower()
             if choice != "y":
                 return {"success": False, "error": "서명 위조로 인한 사용자 복원 중단"}
 
@@ -516,11 +516,11 @@ def restore_snapshot(
 
     elapsed = max(0.001, time.time() - start_time)
     print(f"\n\n{'='*60}")
-    print(f"🎉 복원 작업 완료! (소요시간: {elapsed:.2f}초)")
+    print(f"[OK] 복원 작업 완료! (소요시간: {elapsed:.2f}초)")
     print(f" - 성공 파일: {success_count}개")
     print(f" - 실패 파일: {fail_count}개")
     if failed_entries:
-        print("\n⚠️ 복원 실패 세부 내역:")
+        print("\n[WARNING] 복원 실패 세부 내역:")
         for ferr in failed_entries[:10]:
             print(f"  * {ferr}")
         if len(failed_entries) > 10:
@@ -569,7 +569,7 @@ def main():
 
     if args.list:
         print(f"\n{'='*75}")
-        print(f"📦 사용 가능한 스냅샷 목록: {repo}")
+        print(f"[LIST] 사용 가능한 스냅샷 목록: {repo}")
         print(f"{'='*75}")
         for idx, s in enumerate(snapshots, 1):
             print(f"[{idx:2d}] ID: {s['id']}")
@@ -600,9 +600,9 @@ def main():
                 missing_blobs.append(bh)
 
         if missing_blobs:
-            print(f" ⚠️ 누락된 블롭: {len(missing_blobs)}개")
+            print(f" [WARNING] 누락된 블롭: {len(missing_blobs)}개")
         else:
-            print(f" ✅ 전체 {len(manifest.get('entries', []))}개 참조 블롭 물리적 무결성 확인 완료")
+            print(f" [OK] 전체 {len(manifest.get('entries', []))}개 참조 블롭 물리적 무결성 확인 완료")
         return
 
     if args.restore:
@@ -619,7 +619,7 @@ def main():
 
     # 대화형 모드 (옵션 미지정 시)
     print(f"\n{'='*75}")
-    print(f"📦 사용 가능한 스냅샷 목록: {repo}")
+    print(f"[LIST] 사용 가능한 스냅샷 목록: {repo}")
     print(f"{'='*75}")
     for idx, s in enumerate(snapshots[:10], 1):
         print(f"[{idx:2d}] {s['id']} | {s['iso_time'][:19]} | {s['profile_name']} | {s['file_count']}개 | {s['sig_status']}")

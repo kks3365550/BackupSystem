@@ -22,6 +22,8 @@ from core.retention import RetentionManager
 from core.vss_manager import VSSContext, VSSRequiredError
 from core.crypto_sign import Ed25519Signer
 from core.crypto_at_rest import CryptoAtRestEngine
+from core.chunk_engine import ChunkPolicySelector, CHUNK_THRESHOLD_BYTES
+
 
 class SnapshotEngine:
     @staticmethod
@@ -401,6 +403,8 @@ class SnapshotEngine:
         lock = threading.Lock()
         new_blobs_count = 0  # Fix #11: track unique new blobs (≠ new files due to dedup)
 
+        chunk_selector = ChunkPolicySelector(threshold_bytes=CHUNK_THRESHOLD_BYTES)
+
         def _worker_process_file(item):
             full_p, s_root, r_path, size, mtime, p_entry = item
             if cancel_event and cancel_event.is_set():
@@ -408,23 +412,56 @@ class SnapshotEngine:
             try:
                 # One-Pass streaming hash + compression (read via VSS shadow copy if active)
                 read_p = vss_ctx.get_shadow_path(full_p) if (vss_ctx and vss_ctx.vss_active) else None
-                sha256_hash, orig_sz, stored_sz, is_new = storage.put_file_blob_onepass(
-                    full_p,
-                    compress_level=compress_level,
-                    cancel_event=cancel_event,
-                    read_path=read_p
-                )
+                actual_read_path = read_p if read_p else full_p
                 st = "modified" if p_entry else "new"
-                res_entry = {
-                    "source_root": s_root,
-                    "rel_path": r_path,
-                    "size": orig_sz,
-                    "mtime": mtime,
-                    "sha256": sha256_hash,
-                    "blob_id": sha256_hash,
-                    "status": st
-                }
-                return res_entry, is_new, stored_sz, st, None
+
+                # Check if multi-chunk strategy should be applied (size >= 16MB)
+                adapter = chunk_selector.select_adapter(actual_read_path, size, prev_entry=p_entry)
+                if adapter.strategy_id != "whole_file":
+                    # Multi-chunk Ingest
+                    chunk_ids = []
+                    stored_sz_total = 0
+                    is_new_overall = False
+
+                    def _chunk_sink(c_item, c_data):
+                        nonlocal stored_sz_total, is_new_overall
+                        c_h, c_orig, c_stored, c_is_new = storage.put_bytes_blob(c_data, compress_level=compress_level)
+                        chunk_ids.append(c_h)
+                        stored_sz_total += c_stored
+                        if c_is_new:
+                            is_new_overall = True
+
+                    file_sha, items = adapter.chunk_file(actual_read_path, chunk_sink_cb=_chunk_sink)
+                    res_entry = {
+                        "source_root": s_root,
+                        "rel_path": r_path,
+                        "size": size,
+                        "mtime": mtime,
+                        "sha256": file_sha,
+                        "blob_id": file_sha,
+                        "chunk_ids": chunk_ids,
+                        "chunk_strategy": adapter.strategy_id,
+                        "status": st
+                    }
+                    return res_entry, is_new_overall, stored_sz_total, st, None
+                else:
+                    # Single Blob Ingest (Fast Path)
+                    sha256_hash, orig_sz, stored_sz, is_new = storage.put_file_blob_onepass(
+                        full_p,
+                        compress_level=compress_level,
+                        cancel_event=cancel_event,
+                        read_path=read_p
+                    )
+                    res_entry = {
+                        "source_root": s_root,
+                        "rel_path": r_path,
+                        "size": orig_sz,
+                        "mtime": mtime,
+                        "sha256": sha256_hash,
+                        "blob_id": sha256_hash,
+                        "status": st
+                    }
+                    return res_entry, is_new, stored_sz, st, None
             except Exception as ex:
                 return {
                     "source_root": s_root,
@@ -434,6 +471,7 @@ class SnapshotEngine:
                     "error": str(ex),
                     "status": "error"
                 }, False, 0, "error", str(ex)
+
 
         if files_to_process_parallel:
             # --- SOLUTION 3: Sliding Window Batch Scheduler ---

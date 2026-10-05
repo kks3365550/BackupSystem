@@ -548,7 +548,56 @@ class BlobStorage:
                     raise
         return True
 
+    def assemble_chunks_to_file(
+        self,
+        chunk_ids: List[str],
+        dest_filepath: str,
+        expected_sha256: Optional[str] = None,
+        verify_hash: bool = True
+    ) -> bool:
+        """
+        다중 청크(Multi-chunk) 목록을 순차적으로 스트리밍 결합 복원하여 목적지 파일에 기록.
+        원자성 보장: 임시 파일에 먼저 복원 후 SHA-256 검증 완료 시 원자적 치환.
+        """
+        dest_filepath = os.path.normpath(dest_filepath)
+        os.makedirs(os.path.dirname(dest_filepath), exist_ok=True)
+        temp_dest = dest_filepath + f".assemble.tmp_{os.getpid()}_{os.urandom(3).hex()}"
+        sha = hashlib.sha256() if (verify_hash or expected_sha256) else None
+
+        try:
+            with open(temp_dest, "wb") as fout:
+                for cid in chunk_ids:
+                    chunk_bytes = self.read_blob_bytes(cid)
+                    fout.write(chunk_bytes)
+                    if sha:
+                        sha.update(chunk_bytes)
+
+            if sha and expected_sha256:
+                calc = sha.hexdigest().lower()
+                if calc != expected_sha256.lower():
+                    raise ValueError(
+                        f"다중 청크 복원 해시 불일치 (기대값: {expected_sha256}, 복원값: {calc})"
+                    )
+
+            if os.path.exists(dest_filepath):
+                try:
+                    import stat as stat_mod
+                    os.chmod(dest_filepath, stat_mod.S_IWRITE)
+                    os.remove(dest_filepath)
+                except OSError:
+                    pass
+
+            os.replace(temp_dest, dest_filepath)
+            return True
+        finally:
+            if os.path.exists(temp_dest):
+                try:
+                    os.remove(temp_dest)
+                except OSError:
+                    pass
+
     def read_blob_bytes(self, sha256_hash: str) -> bytes:
+
         blob_path = self.get_blob_abs_path(sha256_hash)
         if not os.path.exists(blob_path):
             raise FileNotFoundError(f"Blob not found: {sha256_hash}")
@@ -567,7 +616,84 @@ class BlobStorage:
                 return dctx.decompress(compressed)
             raise
 
+    def verify_blob(self, sha256_hash: str) -> Tuple[bool, Optional[str], int]:
+        """
+        단일 블롭의 압축 해제, 복호화 및 SHA-256 일치 여부를 검증.
+        물리 경로, ENC\\x01 헤더, AES-256-GCM, ZSTD/zlib 스트리밍을 저장소 내부에서 완전 캡슐화.
+        반환: (성공 여부, 오류 메시지, 검증된 언팩 바이트 크기)
+        """
+        blob_path = self.get_blob_abs_path(sha256_hash)
+        if not os.path.exists(blob_path):
+            return False, f"블롭 파일이 존재하지 않음: {sha256_hash}", 0
+
+        try:
+            with open(blob_path, "rb") as f:
+                magic = f.read(4)
+
+            # v1 암호화 블롭 처리
+            if magic == b"ENC\x01":
+                if not self.crypto_engine:
+                    return False, "암호화된 블롭입니다 (복호화 키 필요)", 0
+                with open(blob_path, "rb") as f_in:
+                    raw_blob = f_in.read()
+                decompressed = self.crypto_engine.decrypt_blob_data(raw_blob, sha256_hash)
+                calc_hash = hashlib.sha256(decompressed).hexdigest()
+                if calc_hash.lower() != sha256_hash.lower():
+                    return False, f"해시 불일치 (기록: {sha256_hash}, 계산: {calc_hash})", 0
+                return True, None, len(decompressed)
+
+            is_zstd = (magic == ZSTD_MAGIC)
+            decompressed_hasher = hashlib.sha256()
+            total_size = 0
+
+            with open(blob_path, "rb") as f_in:
+                if is_zstd and HAS_ZSTD:
+                    dctx = zstd.ZstdDecompressor()
+                    with dctx.stream_reader(f_in) as reader:
+                        while True:
+                            chunk = reader.read(262144)
+                            if not chunk:
+                                break
+                            decompressed_hasher.update(chunk)
+                            total_size += len(chunk)
+                else:
+                    decomp = zlib.decompressobj()
+                    while True:
+                        raw = f_in.read(262144)
+                        if not raw:
+                            break
+                        chunk = decomp.decompress(raw)
+                        if chunk:
+                            decompressed_hasher.update(chunk)
+                            total_size += len(chunk)
+
+            calculated_hash = decompressed_hasher.hexdigest()
+            if calculated_hash.lower() != sha256_hash.lower():
+                return False, f"해시 불일치 (기록: {sha256_hash}, 계산: {calculated_hash})", 0
+
+            return True, None, total_size
+
+        except Exception as e:
+            return False, f"압축 해제 또는 데이터 무결성 오류: {str(e)}", 0
+
+    def delete_blob(self, sha256_hash: str) -> bool:
+        """단일 블롭을 WORM 해제 후 삭제하고 캐시에서 제거."""
+        blob_path = self.get_blob_abs_path(sha256_hash)
+        if not os.path.exists(blob_path):
+            with self._cache_lock:
+                self._blob_cache.discard(sha256_hash)
+            return False
+        try:
+            unlock_file_writable(blob_path)
+            os.remove(blob_path)
+            with self._cache_lock:
+                self._blob_cache.discard(sha256_hash)
+            return True
+        except OSError:
+            return False
+
     def prune_unreferenced_blobs(self, active_hashes: Set[str]) -> Tuple[int, int]:
+
         """Deletes blobs that are not present in active_hashes set. Returns (deleted_count, freed_bytes)."""
         deleted_count = 0
         freed_bytes = 0

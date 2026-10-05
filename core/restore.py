@@ -123,7 +123,18 @@ class RestoreEngine:
                 return "skip", 0
 
             try:
-                storage.extract_blob_to_file(blob_id, dest_path, verify_hash=verify_hash)
+                chunk_ids = entry.get("chunk_ids")
+                if chunk_ids and isinstance(chunk_ids, list):
+                    expected_sha = entry.get("sha256")
+                    storage.assemble_chunks_to_file(
+                        chunk_ids=chunk_ids,
+                        dest_filepath=dest_path,
+                        expected_sha256=expected_sha,
+                        verify_hash=verify_hash
+                    )
+                else:
+                    storage.extract_blob_to_file(blob_id, dest_path, verify_hash=verify_hash)
+
                 # Restore original modified time if present
                 if f_mtime:
                     try:
@@ -135,6 +146,7 @@ class RestoreEngine:
                 return "ok", f_size, dest_path if is_reg else None
             except Exception as e:
                 return ("fail", 0, rel_path, str(e))
+
 
         reg_files_to_import = []
 
