@@ -210,6 +210,7 @@ function renderExplorerItems() {
                 </div>
                 <div class="flex items-center gap-3 shrink-0 text-slate-500 text-[11px]">
                     ${!isDir ? `<span>${formatBytes(item.size)}</span>` : (item.size ? `<span>${formatBytes(item.size)}</span>` : '')}
+                    ${!isDir && item.chunk_strategy && item.chunk_strategy !== 'whole_file' ? `<span class="px-1.5 py-0.5 rounded text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono" title="${item.chunk_strategy} 청킹 (${item.chunk_count}개 분할)">🧩 ${item.chunk_strategy.toUpperCase()} (${item.chunk_count}청킹)</span>` : ''}
                     ${!isDir && item.status ? `<span class="px-1.5 py-0.5 rounded text-[10px] ${item.status === 'new' ? 'bg-emerald-950 text-emerald-400' : item.status === 'modified' ? 'bg-amber-950 text-amber-400' : 'bg-slate-800 text-slate-400'}">${item.status}</span>` : ''}
                     <button type="button" onclick="event.stopPropagation(); openRestoreModal('${state.explorer.snapshotId}', '${itemRelPath}', '${itemName}', '${item.type}')" class="opacity-0 group-hover:opacity-100 px-2.5 py-1 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white rounded-lg text-[11px] font-medium transition flex items-center gap-1 shadow border border-slate-700 hover:border-blue-500" title="${isDir ? '이 폴더만 복원' : '이 파일만 복원'}">
                         <i data-lucide="rotate-ccw" class="w-3 h-3"></i>

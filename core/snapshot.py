@@ -1016,7 +1016,9 @@ class SnapshotEngine:
                     "size": e.get("size", 0),
                     "mtime": e.get("mtime", 0),
                     "rel_path": rp,
-                    "status": e.get("status", "unmodified")
+                    "status": e.get("status", "unmodified"),
+                    "chunk_strategy": e.get("chunk_strategy"),
+                    "chunk_count": len(e.get("chunk_ids", [])) if e.get("chunk_ids") else 1
                 })
             else:
                 dirname = parts[0]

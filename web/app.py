@@ -315,6 +315,9 @@ def get_storage_stats(repo_dir: Optional[str] = None):
     stored_bytes = 0
     logical_bytes = 0
     total_snapshots = 0
+    total_chunks = 0
+    chunked_files_count = 0
+    chunk_strategies = {}
 
     for r in repos:
         if os.path.exists(r):
@@ -323,6 +326,10 @@ def get_storage_stats(repo_dir: Optional[str] = None):
             stored_bytes += st["stored_bytes"]
             logical_bytes += st["logical_bytes"]
             total_snapshots += st["total_snapshots"]
+            total_chunks += st.get("total_chunks", 0)
+            chunked_files_count += st.get("chunked_files_count", 0)
+            for strat, count in st.get("chunk_strategies", {}).items():
+                chunk_strategies[strat] = chunk_strategies.get(strat, 0) + count
 
     saved_bytes = max(0, logical_bytes - stored_bytes)
     ratio = round((saved_bytes / logical_bytes * 100), 1) if logical_bytes > 0 else 0.0
@@ -333,7 +340,10 @@ def get_storage_stats(repo_dir: Optional[str] = None):
         "logical_bytes": logical_bytes,
         "total_snapshots": total_snapshots,
         "dedup_saved_bytes": saved_bytes,
-        "savings_percentage": ratio
+        "savings_percentage": ratio,
+        "total_chunks": total_chunks,
+        "chunked_files_count": chunked_files_count,
+        "chunk_strategies": chunk_strategies
     }
 
 # --- Directory Browser API ---

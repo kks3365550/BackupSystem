@@ -60,7 +60,23 @@ function renderDashboardStats() {
 
     // Active profiles count
     const activeProfCount = (state.profiles || []).filter(p => p.auto_backup_enabled).length;
-    document.getElementById('stat-active-profiles').innerText = `${activeProfCount} / ${state.profiles.length}`;
+    document.getElementById('stat-active-profiles').innerText = `${activeProfCount} / ${state.profiles.length}`;
+
+    // Track 2-15: Chunking Telemetry
+    const badgeEl = document.getElementById('stat-chunk-files-badge');
+    const chunksEl = document.getElementById('stat-total-chunks');
+    const stratEl = document.getElementById('stat-chunk-strategies');
+    if (badgeEl) badgeEl.innerText = `청킹 파일: ${(stats.chunked_files_count || 0).toLocaleString()}개`;
+    if (chunksEl) chunksEl.innerText = `${(stats.total_chunks || 0).toLocaleString()}개`;
+    if (stratEl) {
+        const strats = stats.chunk_strategies || {};
+        const fastcdcCount = strats.fastcdc || strats.fastcdc_v1 || 0;
+        const fixedCount = strats.fixed || strats.fixed_block || 0;
+        stratEl.innerHTML = `
+            <span class="px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800/60 font-mono">FastCDC: ${fastcdcCount.toLocaleString()}</span>
+            <span class="px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800/60 font-mono">Fixed: ${fixedCount.toLocaleString()}</span>
+        `;
+    }
 }
 
 function renderSystemDrives() {
