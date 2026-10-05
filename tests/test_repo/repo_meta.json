@@ -1,0 +1,5 @@
+{
+  "version": "2.0.0",
+  "compression": "zstd",
+  "format": "content-addressable-snapshots"
+}

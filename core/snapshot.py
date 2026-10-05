@@ -425,7 +425,7 @@ class SnapshotEngine:
 
                     def _chunk_sink(c_item, c_data):
                         nonlocal stored_sz_total, is_new_overall
-                        c_h, c_orig, c_stored, c_is_new = storage.put_bytes_blob(c_data, compress_level=compress_level)
+                        c_h, c_orig, c_stored, c_is_new = storage.put_bytes_blob(c_data, compress_level=compress_level, use_pack=True)
                         chunk_ids.append(c_h)
                         stored_sz_total += c_stored
                         if c_is_new:
@@ -609,7 +609,10 @@ class SnapshotEngine:
             "entries": entries
         }
 
-        # 4. Batch update metadata DB once for all new blobs (Single atomic transaction!)
+        # 4. Commit any active Pack Containers written by chunk workers
+        storage.commit_active_pack()
+
+        # Batch update metadata DB once for all new blobs (Single atomic transaction!)
         # Fix #11: pass new_blobs_count (unique new blobs) not new_files_count (which includes dedup)
         if new_stored_bytes > 0 or new_blobs_count > 0:
             try:

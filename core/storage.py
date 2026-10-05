@@ -62,8 +62,10 @@ class BlobStorage:
         self.repo_dir = os.path.abspath(repo_dir)
         self.blobs_dir = os.path.join(self.repo_dir, "blobs")
         self.snapshots_dir = os.path.join(self.repo_dir, "snapshots")
+        self.packs_dir = os.path.join(self.repo_dir, "packs")
         self.meta_file = os.path.join(self.repo_dir, "repo_meta.json")
         self.crypto_engine = crypto_engine
+        self._composite_facade = None
         self.init_repo()
         from core.metadata_db import MetadataDB
         self.db = MetadataDB(self.repo_dir)
@@ -74,9 +76,19 @@ class BlobStorage:
         self._blob_cache = BlobStorage._class_blob_caches[self.repo_dir]
         self._cache_lock = BlobStorage._class_cache_lock
 
+    @property
+    def composite_facade(self):
+        if self._composite_facade is None:
+            from core.composite_storage import CompositeStorageFacade
+            self._composite_facade = CompositeStorageFacade(
+                self.repo_dir, crypto_engine=self.crypto_engine, blob_storage=self
+            )
+        return self._composite_facade
+
     def init_repo(self):
         os.makedirs(self.blobs_dir, exist_ok=True)
         os.makedirs(self.snapshots_dir, exist_ok=True)
+        os.makedirs(self.packs_dir, exist_ok=True)
         os.makedirs(os.path.join(self.blobs_dir, "_temp"), exist_ok=True)
         # Pre-create 256 hex prefix directories (00..ff) once
         # Eliminates 220,000 os.makedirs system calls during full backups on Windows NTFS
@@ -164,6 +176,9 @@ class BlobStorage:
     def has_blob(self, sha256_hash: str) -> bool:
         if not sha256_hash:
             return False
+        # Dual-Read: Fast Pack in-memory index check first
+        if sha256_hash.lower() in self.composite_facade.pack_index_map:
+            return True
         # Fast lock-free lookup for existing in-memory cache
         if sha256_hash in self._blob_cache:
             return True
@@ -394,13 +409,68 @@ class BlobStorage:
                 except OSError:
                     pass
 
-    def put_bytes_blob(self, data: bytes, compress_level: int = 3) -> Tuple[str, int, int, bool]:
+    def get_or_create_active_pack_writer(self, max_pack_size_bytes: int = 512 * 1024 * 1024):
+        """Returns or creates the active append-only PackContainerWriter."""
+        from pathlib import Path
+        from core.pack_format import PackContainerWriter
+        if not hasattr(self, "_active_pack_writer") or self._active_pack_writer is None:
+            import time
+            pack_id = f"pack_{int(time.time())}_{os.urandom(3).hex()}"
+            pack_path = Path(self.packs_dir) / f"{pack_id}.pack"
+            idx_path = Path(self.packs_dir) / f"{pack_id}.idx"
+            self._active_pack_writer = PackContainerWriter(pack_path, idx_path)
+            self._active_pack_id = pack_id
+        elif self._active_pack_writer.current_offset >= max_pack_size_bytes:
+            self.commit_active_pack()
+            import time
+            pack_id = f"pack_{int(time.time())}_{os.urandom(3).hex()}"
+            pack_path = Path(self.packs_dir) / f"{pack_id}.pack"
+            idx_path = Path(self.packs_dir) / f"{pack_id}.idx"
+            self._active_pack_writer = PackContainerWriter(pack_path, idx_path)
+            self._active_pack_id = pack_id
+        return self._active_pack_writer
+
+    def commit_active_pack(self):
+        """Atomically commits index of active pack writer and reloads composite lookup."""
+        if hasattr(self, "_active_pack_writer") and self._active_pack_writer is not None:
+            self._active_pack_writer.commit_index()
+            self._active_pack_writer.close()
+            self._active_pack_writer = None
+            if self._composite_facade:
+                self._composite_facade.reload_packs()
+
+    def put_chunk_to_pack(self, data: bytes, compress_level: int = 3) -> Tuple[str, int, int, bool]:
+        """
+        Stores chunk into an active Pack Container with payload verification.
+        Returns: (sha256_hash, orig_size, stored_size, is_new)
+        """
+        sha256_hash = calculate_bytes_sha256(data)
+        orig_size = len(data)
+
+        # Check existing in pack or individual blob
+        if self.has_blob(sha256_hash):
+            return sha256_hash, orig_size, orig_size, False
+
+        # Store raw chunk bytes directly so Pack frame payload matches chunk SHA-256
+        writer = self.get_or_create_active_pack_writer()
+        writer.write_chunk(sha256_hash, data)
+
+        # Update in-memory composite map immediately
+        if self.composite_facade:
+            self.composite_facade.pack_index_map[sha256_hash.lower()] = self._active_pack_id
+
+        return sha256_hash, orig_size, orig_size, True
+
+    def put_bytes_blob(self, data: bytes, compress_level: int = 3, use_pack: bool = False) -> Tuple[str, int, int, bool]:
+        if use_pack:
+            return self.put_chunk_to_pack(data, compress_level=compress_level)
+
         sha256_hash = calculate_bytes_sha256(data)
         blob_path = self.get_blob_abs_path(sha256_hash)
         orig_size = len(data)
 
-        if os.path.exists(blob_path):
-            stored_size = os.path.getsize(blob_path)
+        if self.has_blob(sha256_hash):
+            stored_size = os.path.getsize(blob_path) if os.path.exists(blob_path) else orig_size
             return sha256_hash, orig_size, stored_size, False
 
         os.makedirs(os.path.dirname(blob_path), exist_ok=True)
@@ -436,7 +506,16 @@ class BlobStorage:
         """
         Decompresses blob directly to dest_filepath with HYBRID automatic format detection.
         Supports v1 AES-256-GCM encrypted blobs (magic b'ENC\\x01') and v0 Zstd/zlib plaintext blobs.
+        Dual-Read: Pack 컨테이너 우선 추출 -> Individual Blob 폴백.
         """
+        # Dual-Read: Fast Pack extraction if present
+        if self._composite_facade and sha256_hash.lower() in self._composite_facade.pack_index_map:
+            try:
+                from pathlib import Path
+                return self.composite_facade.extract_blob_to_file(sha256_hash, Path(dest_filepath), verify_hash=verify_hash)
+            except Exception:
+                pass  # Fallback to individual blob if available
+
         blob_path = self.get_blob_abs_path(sha256_hash)
         if not os.path.exists(blob_path):
             raise FileNotFoundError(f"Blob not found in repository: {sha256_hash}")
@@ -597,6 +676,12 @@ class BlobStorage:
                     pass
 
     def read_blob_bytes(self, sha256_hash: str) -> bytes:
+        # Dual-Read: Fast Pack read if present
+        if sha256_hash.lower() in self.composite_facade.pack_index_map:
+            try:
+                return self.composite_facade.read_blob_bytes(sha256_hash)
+            except Exception:
+                pass  # Fallback to individual blob
 
         blob_path = self.get_blob_abs_path(sha256_hash)
         if not os.path.exists(blob_path):
@@ -619,9 +704,14 @@ class BlobStorage:
     def verify_blob(self, sha256_hash: str) -> Tuple[bool, Optional[str], int]:
         """
         단일 블롭의 압축 해제, 복호화 및 SHA-256 일치 여부를 검증.
-        물리 경로, ENC\\x01 헤더, AES-256-GCM, ZSTD/zlib 스트리밍을 저장소 내부에서 완전 캡슐화.
+        물리 경로, ENC\x01 헤더, AES-256-GCM, ZSTD/zlib 스트리밍을 저장소 내부에서 완전 캡슐화.
+        Dual-Read: Pack 컨테이너 인덱스 우선 검증 -> Individual Blob 폴백.
         반환: (성공 여부, 오류 메시지, 검증된 언팩 바이트 크기)
         """
+        # Dual-Read: Fast Pack verification if present
+        if sha256_hash.lower() in self.composite_facade.pack_index_map:
+            return self.composite_facade.verify_blob(sha256_hash)
+
         blob_path = self.get_blob_abs_path(sha256_hash)
         if not os.path.exists(blob_path):
             return False, f"블롭 파일이 존재하지 않음: {sha256_hash}", 0
