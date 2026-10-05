@@ -669,8 +669,18 @@ class SnapshotEngine:
         try:
             signer = Ed25519Signer(repo_dir)
             snapshot_manifest["ed25519_signature"] = signer.sign_manifest(snapshot_manifest)
-        except Exception:
+        except Exception as e_sign:
+            import logging
+            logging.getLogger("BackupSystem").error(
+                f"[SECURITY ALERT] 스냅샷 Ed25519 전자서명 생성 실패: {e_sign}", exc_info=True
+            )
             snapshot_manifest["ed25519_signature"] = None
+            if progress_callback:
+                progress_callback({
+                    "type": "verify_warning",
+                    "current_file": f"Ed25519 전자서명 생성 실패 경고: {e_sign}",
+                    "percent": 99.5
+                })
 
         # 7. Save final signed snapshot manifest — Atomic write via .tmp + os.replace prevents corrupted partial JSON
         snapshot_file = os.path.join(storage.snapshots_dir, f"{snapshot_id}.json")

@@ -47,8 +47,12 @@ class WORMManager:
                 timeout=15,
                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0) if self._is_windows else 0
             )
+            output = (result.stdout or "") + (result.stderr or "")
             if result.returncode != 0:
-                logger.debug(f"icacls notice for {target_path}: {result.stderr.strip() or result.stdout.strip()}")
+                logger.debug(f"icacls failed for {target_path}: {output.strip()}")
+                return False
+            if "0 files processed" in output or "Access denied" in output:
+                logger.debug(f"icacls reported failure for {target_path}: {output.strip()}")
                 return False
             return True
         except FileNotFoundError:
@@ -128,7 +132,7 @@ class WORMManager:
 
     def unprotect_directory(self, dirpath: str, authorized: bool = False) -> bool:
         """
-        디렉토리의 Delete Child 거부 ACL을 해제합니다.
+        디렉토리 및 하위 디렉토리의 Delete Child 거부 ACL을 해제합니다.
         명시적 관리자 권한(authorized=True)이 필요합니다.
         """
         if not authorized:
@@ -138,12 +142,17 @@ class WORMManager:
             return False
 
         if self._is_windows:
-            return self._run_icacls(dirpath, ["/remove:d", SID_EVERYONE])
+            success = True
+            for root, dirs, files in os.walk(dirpath):
+                if not self._run_icacls(root, ["/remove:d", SID_EVERYONE]):
+                    success = False
+            return success
         return True
 
-    def protect_repository(self, repo_dir: str, protect_dirs: bool = False) -> Dict[str, int]:
+    def protect_repository(self, repo_dir: str, protect_dirs: bool = True) -> Dict[str, int]:
         """
         저장소 내 모든 스냅샷 매니페스트 및 블롭 디렉토리에 대해 일괄 WORM을 적용합니다.
+        기본적으로 protect_dirs=True가 활성화되어 blobs 디렉토리 트리에 DeleteChild 거부 ACL을 적용합니다.
         """
         protected_blobs = 0
         protected_snapshots = 0
@@ -160,7 +169,9 @@ class WORMManager:
         if os.path.exists(blobs_dir):
             if protect_dirs:
                 self.protect_directory(blobs_dir)
-            for root, _, files in os.walk(blobs_dir):
+            for root, dirs, files in os.walk(blobs_dir):
+                if protect_dirs and root != blobs_dir:
+                    self.protect_directory(root)
                 for f in files:
                     if f.endswith(".blob"):
                         fpath = os.path.join(root, f)

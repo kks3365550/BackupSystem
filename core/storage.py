@@ -485,7 +485,7 @@ class BlobStorage:
         else:
             compressed = zlib.compress(data, level=compress_level if compress_level in range(1, 10) else 6)
 
-        temp_blob_path = blob_path + ".tmp"
+        temp_blob_path = blob_path + f".tmp_{os.getpid()}_{os.urandom(3).hex()}"
         with open(temp_blob_path, "wb") as f:
             f.write(compressed)
         try:
