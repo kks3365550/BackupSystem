@@ -192,44 +192,11 @@ class SystemImageManager:
                 if ret_code == 0:
                     elapsed_min = round((time.time() - t_start) / 60, 1)
                     cls.append_log(f"🎉 윈도우 전체 베어메탈 시스템 이미지 백업이 성공적으로 완료되었습니다! (소요 시간: {elapsed_min}분)", level="SUCCESS")
-                    try:
-                        from core.notifier import send_kakao_message
-                        msg = (
-                            f"💻 [백업 시스템] Windows 베어메탈 이미지 백업 완료!\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"• 대상 드라이브: C: 전체 (EFI/복구 파티션 포함)\n"
-                            f"• 백업 저장 위치: {target_drive}\\WindowsImageBackup\n"
-                            f"• 상태: 정상 완료 ✅\n"
-                            f"• 소요 시간: {elapsed_min}분\n"
-                            f"• 완료 시각: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━"
-                        )
-                        send_kakao_message(msg)
-                    except Exception:
-                        pass
                 else:
                     cls.append_log(f"백업이 종료되었습니다 (코드: {ret_code}). 로그를 확인하세요.", level="WARNING")
-                    try:
-                        from core.notifier import send_kakao_message
-                        msg = (
-                            f"⚠️ [백업 시스템] Windows 시스템 이미지 백업 알림\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"• 상태: 비정상 종료 (코드: {ret_code}) ❌\n"
-                            f"• 대상 드라이브: {target_drive}\n"
-                            f"• 발생 시각: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━"
-                        )
-                        send_kakao_message(msg)
-                    except Exception:
-                        pass
 
             except Exception as e:
                 cls.append_log(f"시스템 이미지 백업 중 오류 발생: {str(e)}", level="ERROR")
-                try:
-                    from core.notifier import send_kakao_message
-                    send_kakao_message(f"⚠️ [백업 시스템] 시스템 이미지 백업 오류 발생:\n{str(e)}")
-                except Exception:
-                    pass
             finally:
                 with cls._lock:
                     cls._is_running = False

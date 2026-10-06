@@ -2,7 +2,6 @@ import os
 import sys
 import time
 import socket
-import asyncio
 import webbrowser
 import threading
 import subprocess
@@ -107,7 +106,7 @@ def acquire_single_instance_mutex(is_silent: bool, port: int) -> bool:
 
         _server_mutex_handle = mutex
         return True
-    except Exception as e:
+    except Exception:
         # Mutex 생성 실패 시 Fail-Open (서버 기동 계속 진행)
         return True
 

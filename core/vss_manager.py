@@ -8,7 +8,6 @@ core/vss_manager.py: Windows Volume Shadow Copy (VSS) 스냅샷 관리자
 - optional 모드: 관리자가 명시적으로 허용한 경우에만 일반 직접 읽기로 fallback
 """
 
-import os
 import re
 import sys
 import ctypes

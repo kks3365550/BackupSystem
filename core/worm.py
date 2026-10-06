@@ -1,10 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-core/worm.py: 진정한 WORM (Write Once Read Many / 랜섬웨어 변조 방지) 보호 엔진 (v2.4.1)
-- Windows NTFS ACL: Everyone(*S-1-1-0)에 대해 Delete(DE), WriteData(WD), AppendData(AD) 거부(Deny) ACL 적용
-- 디렉토리 수준 DeleteChild(DC) 거부로 파일 무단 삭제 및 덮어쓰기 원천 차단
-- POSIX/Non-Windows 환경: Read-Only 속성(S_IREAD) 자동 폴백
-- 정당한 보존 정책(Retention Pruning) 시 ACL 복구 및 원자적 해제 지원
+core/worm.py: WORM (Write Once Read Many / 불변성 제어) 엔진 (v2.13.5)
+
+[현재 실측 방어 상태 및 한계 명시]
+- Read-Only 속성 (Windows os.chmod / stat.S_IREAD):
+  * 블롭 및 매니페스트에 실제 적용 중. 파일 '변조/수정'은 방지하나,
+    디렉터리에 쓰기 권한이 있는 사용자 세션에서의 '파일 삭제(os.remove)'는 원천 방어하지 못함.
+- Windows NTFS ACL (icacls Everyone Deny):
+  * 현재 대화형 단일 사용자 계정(Interactive User) 환경에서는 Everyone(*S-1-1-0) Deny ACL 적용 시
+    자체 프로세스 쓰기 및 서비스 계정 미분리로 인한 충돌 가능성이 있어 자동 호출이 비활성화(미배선)되어 있음.
+  * 완전한 랜섬웨어 방어(WORM)를 위해서는 '전용 서비스 계정(NT SERVICE)' 분리 또는
+    '물리적 오프사이트 복제본(외장/Tailscale 원격 PC)'이 필수적임.
+- 무결성 보증:
+  * 랜섬웨어 사후 침해 탐지는 Ed25519 전자서명 검증으로 수행됨.
 """
 
 import os
@@ -12,7 +20,7 @@ import sys
 import stat
 import logging
 import subprocess
-from typing import Optional, Dict
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +55,12 @@ class WORMManager:
                 timeout=15,
                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0) if self._is_windows else 0
             )
+            output = (result.stdout or "") + (result.stderr or "")
             if result.returncode != 0:
-                logger.debug(f"icacls notice for {target_path}: {result.stderr.strip() or result.stdout.strip()}")
+                logger.debug(f"icacls failed for {target_path}: {output.strip()}")
+                return False
+            if "0 files processed" in output or "Access denied" in output:
+                logger.debug(f"icacls reported failure for {target_path}: {output.strip()}")
                 return False
             return True
         except FileNotFoundError:
@@ -86,7 +98,7 @@ class WORMManager:
 
         return success
 
-    def unprotect_file(self, filepath: str, authorized: bool = True) -> bool:
+    def unprotect_file(self, filepath: str, authorized: bool = False) -> bool:
         """
         정당한 삭제나 정리를 위해 WORM 보호를 해제합니다.
         명시적 관리자 권한(authorized=True)이 필요하며, 인가되지 않은 호출은 차단됩니다.
@@ -101,8 +113,8 @@ class WORMManager:
 
         # 1. Remove NTFS Deny ACL
         if self._is_windows:
-            self._run_icacls(filepath, ["/remove:d", SID_EVERYONE])
-            success = True
+            if self._run_icacls(filepath, ["/remove:d", SID_EVERYONE]):
+                success = True
 
         # 2. Restore Write attribute
         try:
@@ -126,9 +138,9 @@ class WORMManager:
             return self._run_icacls(dirpath, ["/deny", f"{SID_EVERYONE}:(DC)"])
         return True
 
-    def unprotect_directory(self, dirpath: str, authorized: bool = True) -> bool:
+    def unprotect_directory(self, dirpath: str, authorized: bool = False) -> bool:
         """
-        디렉토리의 Delete Child 거부 ACL을 해제합니다.
+        디렉토리 및 하위 디렉토리의 Delete Child 거부 ACL을 해제합니다.
         명시적 관리자 권한(authorized=True)이 필요합니다.
         """
         if not authorized:
@@ -138,12 +150,17 @@ class WORMManager:
             return False
 
         if self._is_windows:
-            return self._run_icacls(dirpath, ["/remove:d", SID_EVERYONE])
+            success = True
+            for root, dirs, files in os.walk(dirpath):
+                if not self._run_icacls(root, ["/remove:d", SID_EVERYONE]):
+                    success = False
+            return success
         return True
 
-    def protect_repository(self, repo_dir: str, protect_dirs: bool = False) -> Dict[str, int]:
+    def protect_repository(self, repo_dir: str, protect_dirs: bool = True) -> Dict[str, int]:
         """
         저장소 내 모든 스냅샷 매니페스트 및 블롭 디렉토리에 대해 일괄 WORM을 적용합니다.
+        기본적으로 protect_dirs=True가 활성화되어 blobs 디렉토리 트리에 DeleteChild 거부 ACL을 적용합니다.
         """
         protected_blobs = 0
         protected_snapshots = 0
@@ -160,7 +177,9 @@ class WORMManager:
         if os.path.exists(blobs_dir):
             if protect_dirs:
                 self.protect_directory(blobs_dir)
-            for root, _, files in os.walk(blobs_dir):
+            for root, dirs, files in os.walk(blobs_dir):
+                if protect_dirs and root != blobs_dir:
+                    self.protect_directory(root)
                 for f in files:
                     if f.endswith(".blob"):
                         fpath = os.path.join(root, f)

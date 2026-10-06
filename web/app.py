@@ -1,18 +1,19 @@
 import os
 import sys
 import time
-import json
 import base64
 import shutil
 import threading
 import psutil
 import datetime
 import tempfile
+import logging
+import urllib.request
 from collections import deque
 from contextlib import asynccontextmanager
 from typing import Dict, List, Any, Optional
-from fastapi import FastAPI, Request, Response, BackgroundTasks, HTTPException, UploadFile, File
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse
+from fastapi import FastAPI, Request, BackgroundTasks, HTTPException, UploadFile, File
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -25,14 +26,22 @@ from core.scheduler import BackupScheduler
 from core.app_scanner import get_installed_applications, get_project_items
 from core.driver_backup import export_windows_drivers
 from core.auth import (
-    is_auth_configured, get_auth_status, setup_master_password,
+    is_auth_configured, is_auth_corrupted, get_auth_status, setup_master_password,
     verify_master_password, change_master_password, create_session,
-    validate_session, revoke_session, set_localhost_bypass
+    validate_session, revoke_session, set_localhost_bypass,
+    check_login_rate_limit, record_login_failure, record_login_success
 )
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
+
+# 모듈 로거 (예외 경로에서 사용)
+logger = logging.getLogger("BackupSystem")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
 
 def get_current_version() -> str:
     v_file = os.path.join(BASE_DIR, "VERSION")
@@ -130,7 +139,7 @@ app = FastAPI(title="Server & System Backup Manager", version="2.9.22", lifespan
 
 # ==================== Auth Pydantic Models ====================
 class AuthSetupRequest(BaseModel):
-    password: str = Field(..., min_length=4, description="최소 4자 이상의 마스터 비밀번호")
+    password: str = Field(..., min_length=8, description="최소 8자 이상의 마스터 비밀번호")
     allow_localhost_bypass: bool = Field(default=True, description="로컬 루프백 접속 시 인증 우회 여부")
 
 class AuthLoginRequest(BaseModel):
@@ -138,7 +147,7 @@ class AuthLoginRequest(BaseModel):
 
 class AuthChangePasswordRequest(BaseModel):
     old_password: str = Field(..., description="현재 비밀번호")
-    new_password: str = Field(..., min_length=4, description="최소 4자 이상의 새 비밀번호")
+    new_password: str = Field(..., min_length=8, description="최소 8자 이상의 새 비밀번호")
 
 class AuthBypassRequest(BaseModel):
     enabled: bool = Field(..., description="로컬 루프백 인증 우회 활성화 여부")
@@ -149,6 +158,18 @@ class AuthBypassRequest(BaseModel):
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
     
+    # 0. 인증 설정 파일 손상 상태 검사 (Fail-Closed: 모든 API 요청 차단)
+    if is_auth_corrupted():
+        if not (path.startswith("/static") or path == "/favicon.ico" or path == "/api/auth/status"):
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "error": "보안 경고(Fail-Closed): auth_config.json 설정 파일이 손상되었습니다. 시스템 보호를 위해 모든 API 요청이 차단되었습니다.",
+                    "corrupted": True
+                }
+            )
+
     # 인증 불필요 경로 (정적 리소스, 인증 API, favicon, 원격 릴리즈 배포 API)
     if (
         path.startswith("/static") or
@@ -218,9 +239,29 @@ async def auth_setup(req: AuthSetupRequest):
         return JSONResponse(status_code=500, content={"success": False, "error": f"설정 중 오류: {str(e)}"})
 
 @app.post("/api/auth/login")
-async def auth_login(req: AuthLoginRequest):
+async def auth_login(req: AuthLoginRequest, request: Request):
+    client_ip = request.client.host if request.client else "unknown"
+    locked, remaining_sec = check_login_rate_limit(client_ip)
+    if locked:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "success": False,
+                "error": f"로그인 시도 횟수를 초과했습니다. {remaining_sec}초 후 다시 시도하세요.",
+                "locked": True,
+                "remaining_sec": remaining_sec
+            }
+        )
     if not verify_master_password(req.password):
-        return JSONResponse(status_code=401, content={"success": False, "error": "비밀번호가 일치하지 않습니다."})
+        failures, is_now_locked = record_login_failure(client_ip)
+        err_msg = "비밀번호가 일치하지 않습니다."
+        if is_now_locked:
+            err_msg += " (5회 연속 실패: 5분간 로그인이 제한됩니다.)"
+        else:
+            err_msg += f" (실패 {failures}/5회)"
+        return JSONResponse(status_code=401, content={"success": False, "error": err_msg})
+    
+    record_login_success(client_ip)
     token = create_session()
     resp = JSONResponse(content={"success": True, "token": token, "message": "로그인 성공"})
     resp.set_cookie(
@@ -315,6 +356,9 @@ def get_storage_stats(repo_dir: Optional[str] = None):
     stored_bytes = 0
     logical_bytes = 0
     total_snapshots = 0
+    total_chunks = 0
+    chunked_files_count = 0
+    chunk_strategies = {}
 
     for r in repos:
         if os.path.exists(r):
@@ -323,6 +367,10 @@ def get_storage_stats(repo_dir: Optional[str] = None):
             stored_bytes += st["stored_bytes"]
             logical_bytes += st["logical_bytes"]
             total_snapshots += st["total_snapshots"]
+            total_chunks += st.get("total_chunks", 0)
+            chunked_files_count += st.get("chunked_files_count", 0)
+            for strat, count in st.get("chunk_strategies", {}).items():
+                chunk_strategies[strat] = chunk_strategies.get(strat, 0) + count
 
     saved_bytes = max(0, logical_bytes - stored_bytes)
     ratio = round((saved_bytes / logical_bytes * 100), 1) if logical_bytes > 0 else 0.0
@@ -333,7 +381,10 @@ def get_storage_stats(repo_dir: Optional[str] = None):
         "logical_bytes": logical_bytes,
         "total_snapshots": total_snapshots,
         "dedup_saved_bytes": saved_bytes,
-        "savings_percentage": ratio
+        "savings_percentage": ratio,
+        "total_chunks": total_chunks,
+        "chunked_files_count": chunked_files_count,
+        "chunk_strategies": chunk_strategies
     }
 
 # --- Directory Browser API ---
@@ -596,7 +647,6 @@ class RunCustomSelectionBackupRequest(BaseModel):
     exclude_patterns: Optional[List[str]] = None
 
 def _background_custom_backup_task(params: Dict[str, Any]):
-    global current_task
     try:
         include_drivers = params.get("include_drivers", True)
         selected_projects = params.get("selected_projects", [])
@@ -769,6 +819,7 @@ def _background_custom_backup_task(params: Dict[str, Any]):
         )
 
         pruned = SnapshotEngine.prune_snapshots(repo_dir, effective_retention_count, effective_retention_days, authorized=True)
+        append_task_log(f"[보존 정책] 만료된 스냅샷 {len(pruned)}개 정리 완료")
 
         # Update profile
         prof = ConfigManager.get_profile(profile_id)
@@ -787,12 +838,6 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             f"중복제거 절감: {round(summary.get('dedup_saved_bytes', 0)/(1024*1024), 2)}MB | "
             f"소요: {summary.get('duration_seconds')}초"
         )
-        # Fix #1: Send KakaoTalk notification for custom selection backup
-        try:
-            from core.notifier import notify_backup_result
-            notify_backup_result(manifest=manifest, profile_name=profile_name)
-        except Exception as e_notif:
-            append_task_log(f"카카오톡 알림 전송 실패: {e_notif}", level="WARNING")
 
         manifest_summary = {
             "id": manifest.get("id"),
@@ -836,11 +881,6 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             import traceback
             append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
             append_task_log(traceback.format_exc(), level="ERROR")
-        try:
-            from core.notifier import notify_backup_result
-            notify_backup_result(error_msg=str(e), profile_name=profile_name)
-        except Exception:
-            pass
         with task_lock:
             current_task["error"] = str(e)
     finally:
@@ -849,7 +889,6 @@ def _background_custom_backup_task(params: Dict[str, Any]):
 
 @app.post("/api/backup/custom-selection")
 def run_custom_selection_backup(req: RunCustomSelectionBackupRequest, background_tasks: BackgroundTasks):
-    global current_task
     with task_lock:
         if current_task["running"]:
             raise HTTPException(status_code=409, detail="이미 다른 백업 또는 복원 작업이 실행 중입니다.")
@@ -870,7 +909,6 @@ def run_custom_selection_backup(req: RunCustomSelectionBackupRequest, background
 
 
 def _background_backup_task(params: Dict[str, Any]):
-    global current_task
     try:
         profile_id = params.get("profile_id")
         profile = None
@@ -950,13 +988,6 @@ def _background_backup_task(params: Dict[str, Any]):
         if pruned:
             append_task_log(f"오래된 백업 스냅샷 {len(pruned)}개를 보관 정책에 따라 자동 정리했습니다.")
 
-        # Send KakaoTalk notification
-        try:
-            from core.notifier import notify_backup_result
-            notify_backup_result(manifest=manifest, profile_name=profile_name)
-        except Exception as e_notif:
-            append_task_log(f"카카오톡 알림 전송 실패: {e_notif}", level="WARNING")
-
         manifest_summary = {
             "id": manifest.get("id"),
             "created_at": manifest.get("created_at"),
@@ -996,11 +1027,6 @@ def _background_backup_task(params: Dict[str, Any]):
             import traceback
             append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
             append_task_log(traceback.format_exc(), level="ERROR")
-        try:
-            from core.notifier import notify_backup_result
-            notify_backup_result(error_msg=str(e), profile_name=profile_name)
-        except Exception:
-            pass
         with task_lock:
             current_task["error"] = str(e)
             if profile_id and profile:
@@ -1012,7 +1038,6 @@ def _background_backup_task(params: Dict[str, Any]):
 
 @app.post("/api/backup/run")
 def run_backup(req: RunBackupRequest, background_tasks: BackgroundTasks):
-    global current_task
     with task_lock:
         if current_task["running"]:
             raise HTTPException(status_code=409, detail="이미 다른 백업 또는 복원 작업이 실행 중입니다.")
@@ -1063,7 +1088,6 @@ class RunRestoreRequest(BaseModel):
     in_place: bool = False
 
 def _background_restore_task(params: Dict[str, Any]):
-    global current_task
     snap_id = params["snapshot_id"]
     target_dir = params.get("target_dir")
     selected = params.get("selected_rel_paths")
@@ -1120,7 +1144,6 @@ def _background_restore_task(params: Dict[str, Any]):
 
 @app.post("/api/restore/run")
 def run_restore(req: RunRestoreRequest, background_tasks: BackgroundTasks):
-    global current_task
     with task_lock:
         if current_task["running"]:
             raise HTTPException(status_code=409, detail="이미 다른 백업 또는 복원 작업이 실행 중입니다.")
@@ -1183,10 +1206,14 @@ def prune_storage(repo_dir: Optional[str] = None):
         profiles = ConfigManager.get_profiles()
         repo_dir = profiles[0].get("repo_dir") if profiles else os.path.join(BASE_DIR, "backup_repository")
 
-    res = SnapshotEngine.prune_storage(repo_dir)
-    freed_mb = round(res['freed_bytes'] / (1024 * 1024), 2)
-    append_task_log(f"가비지 컬렉션 완료: 참조되지 않는 고아 블롭 {res['deleted_blobs']}개 삭제, {freed_mb}MB 용량 회수")
-    return res
+    try:
+        res = SnapshotEngine.prune_storage(repo_dir)
+        freed_mb = round(res['freed_bytes'] / (1024 * 1024), 2)
+        append_task_log(f"가비지 컬렉션 완료: 참조되지 않는 고아 블롭 {res['deleted_blobs']}개 삭제, {freed_mb}MB 용량 회수")
+        return res
+    except Exception as e:
+        append_task_log(f"가비지 컬렉션 실패/중단: {e}", level="ERROR")
+        raise HTTPException(status_code=409 if "실행 중" in str(e) or "잠겨 있습니다" in str(e) else 500, detail=str(e))
 
 # --- Windows Task Scheduler API (On/Off Smart Execution) ---
 from core.windows_task import register_windows_scheduled_task, unregister_windows_scheduled_task, get_windows_scheduled_task_status

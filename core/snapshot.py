@@ -7,21 +7,22 @@ import threading
 import queue
 import concurrent.futures
 from typing import Dict, List, Any, Optional, Callable, Tuple
-from core.hasher import calculate_sha256, get_file_stat
 from core.filter import PathFilter
 from core.storage import (
-    BlobStorage, lock_file_immutable, unlock_file_writable, get_disk_free_gb,
-    verify_disk_space_or_fail, InsufficientDiskSpaceError
+    BlobStorage, lock_file_immutable, unlock_file_writable,
+    verify_disk_space_or_fail
 )
-from core.lock import BackupLock, BackupAlreadyRunningError
+from core.lock import BackupLock
 from core.verify import (
     IntegrityVerifier, RestoreVerificationError,
-    generate_manifest_signature, verify_manifest_signature
+    generate_manifest_signature
 )
 from core.retention import RetentionManager
-from core.vss_manager import VSSContext, VSSRequiredError
+from core.vss_manager import VSSContext
 from core.crypto_sign import Ed25519Signer
 from core.crypto_at_rest import CryptoAtRestEngine
+from core.chunk_engine import ChunkPolicySelector, CHUNK_THRESHOLD_BYTES
+
 
 class SnapshotEngine:
     @staticmethod
@@ -401,6 +402,8 @@ class SnapshotEngine:
         lock = threading.Lock()
         new_blobs_count = 0  # Fix #11: track unique new blobs (≠ new files due to dedup)
 
+        chunk_selector = ChunkPolicySelector(threshold_bytes=CHUNK_THRESHOLD_BYTES)
+
         def _worker_process_file(item):
             full_p, s_root, r_path, size, mtime, p_entry = item
             if cancel_event and cancel_event.is_set():
@@ -408,23 +411,56 @@ class SnapshotEngine:
             try:
                 # One-Pass streaming hash + compression (read via VSS shadow copy if active)
                 read_p = vss_ctx.get_shadow_path(full_p) if (vss_ctx and vss_ctx.vss_active) else None
-                sha256_hash, orig_sz, stored_sz, is_new = storage.put_file_blob_onepass(
-                    full_p,
-                    compress_level=compress_level,
-                    cancel_event=cancel_event,
-                    read_path=read_p
-                )
+                actual_read_path = read_p if read_p else full_p
                 st = "modified" if p_entry else "new"
-                res_entry = {
-                    "source_root": s_root,
-                    "rel_path": r_path,
-                    "size": orig_sz,
-                    "mtime": mtime,
-                    "sha256": sha256_hash,
-                    "blob_id": sha256_hash,
-                    "status": st
-                }
-                return res_entry, is_new, stored_sz, st, None
+
+                # Check if multi-chunk strategy should be applied (size >= 16MB)
+                adapter = chunk_selector.select_adapter(actual_read_path, size, prev_entry=p_entry)
+                if adapter.strategy_id != "whole_file":
+                    # Multi-chunk Ingest
+                    chunk_ids = []
+                    stored_sz_total = 0
+                    is_new_overall = False
+
+                    def _chunk_sink(c_item, c_data):
+                        nonlocal stored_sz_total, is_new_overall
+                        c_h, c_orig, c_stored, c_is_new = storage.put_bytes_blob(c_data, compress_level=compress_level, use_pack=True)
+                        chunk_ids.append(c_h)
+                        stored_sz_total += c_stored
+                        if c_is_new:
+                            is_new_overall = True
+
+                    file_sha, items = adapter.chunk_file(actual_read_path, chunk_sink_cb=_chunk_sink)
+                    res_entry = {
+                        "source_root": s_root,
+                        "rel_path": r_path,
+                        "size": size,
+                        "mtime": mtime,
+                        "sha256": file_sha,
+                        "blob_id": file_sha,
+                        "chunk_ids": chunk_ids,
+                        "chunk_strategy": adapter.strategy_id,
+                        "status": st
+                    }
+                    return res_entry, is_new_overall, stored_sz_total, st, None
+                else:
+                    # Single Blob Ingest (Fast Path)
+                    sha256_hash, orig_sz, stored_sz, is_new = storage.put_file_blob_onepass(
+                        full_p,
+                        compress_level=compress_level,
+                        cancel_event=cancel_event,
+                        read_path=read_p
+                    )
+                    res_entry = {
+                        "source_root": s_root,
+                        "rel_path": r_path,
+                        "size": orig_sz,
+                        "mtime": mtime,
+                        "sha256": sha256_hash,
+                        "blob_id": sha256_hash,
+                        "status": st
+                    }
+                    return res_entry, is_new, stored_sz, st, None
             except Exception as ex:
                 return {
                     "source_root": s_root,
@@ -434,6 +470,7 @@ class SnapshotEngine:
                     "error": str(ex),
                     "status": "error"
                 }, False, 0, "error", str(ex)
+
 
         if files_to_process_parallel:
             # --- SOLUTION 3: Sliding Window Batch Scheduler ---
@@ -571,7 +608,10 @@ class SnapshotEngine:
             "entries": entries
         }
 
-        # 4. Batch update metadata DB once for all new blobs (Single atomic transaction!)
+        # 4. Commit any active Pack Containers written by chunk workers
+        storage.commit_active_pack()
+
+        # Batch update metadata DB once for all new blobs (Single atomic transaction!)
         # Fix #11: pass new_blobs_count (unique new blobs) not new_files_count (which includes dedup)
         if new_stored_bytes > 0 or new_blobs_count > 0:
             try:
@@ -628,8 +668,12 @@ class SnapshotEngine:
         try:
             signer = Ed25519Signer(repo_dir)
             snapshot_manifest["ed25519_signature"] = signer.sign_manifest(snapshot_manifest)
-        except Exception:
-            snapshot_manifest["ed25519_signature"] = None
+        except Exception as e_sign:
+            import logging
+            logging.getLogger("BackupSystem").error(
+                f"[SECURITY FAIL-CLOSED] 스냅샷 Ed25519 전자서명 생성 실패: {e_sign}", exc_info=True
+            )
+            raise RuntimeError(f"스냅샷 Ed25519 전자서명 생성 실패 (Fail-Closed): 무결성 서명 없이는 저장을 중단합니다: {e_sign}")
 
         # 7. Save final signed snapshot manifest — Atomic write via .tmp + os.replace prevents corrupted partial JSON
         snapshot_file = os.path.join(storage.snapshots_dir, f"{snapshot_id}.json")
@@ -662,6 +706,7 @@ class SnapshotEngine:
                 rq.enqueue(snapshot_id, repo_dir, offsite_repo_dir)
                 rq.start_background_worker()
             except Exception as e_rq:
+                _ = e_rq  # 예외 무시 (폴백 경로로 진행)
                 def _async_replicate_task():
                     try:
                         from core.replication import ReplicationManager
@@ -830,7 +875,7 @@ class SnapshotEngine:
         if not authorized:
             from core.worm import WORMAuthorizationError
             raise WORMAuthorizationError("스냅샷 보존 정리(Prune) 거부: WORM 권한 분리 (명시적 관리자 승인 권한 필요)")
-        try:
+        with BackupLock(repo_dir, timeout_sec=15.0, process_desc="스냅샷 보존 정리(Prune)"):
             mgr = RetentionManager(repo_dir)
             res = mgr.apply_policy(
                 retention_count=retention_count or 30,
@@ -839,30 +884,37 @@ class SnapshotEngine:
                 authorized=authorized
             )
             return res.get("deleted_snapshots", [])
-        except Exception:
-            return []
 
     @classmethod
     def prune_storage(cls, repo_dir: str) -> Dict[str, int]:
         """Collects all referenced blob hashes across all existing snapshots and removes orphaned blobs."""
-        storage = BlobStorage(repo_dir)
-        active_hashes = set()
+        with BackupLock(repo_dir, timeout_sec=15.0, process_desc="스토리지 고아 블롭 정리(GC)"):
+            storage = BlobStorage(repo_dir)
+            active_hashes = set()
 
-        for filename in os.listdir(storage.snapshots_dir):
-            if filename.endswith(".json"):
-                snap_path = os.path.join(storage.snapshots_dir, filename)
-                try:
-                    with open(snap_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        for entry in data.get("entries", []):
-                            blob_id = entry.get("blob_id") or entry.get("sha256")
-                            if blob_id:
-                                active_hashes.add(blob_id)
-                except Exception:
-                    pass
+            for filename in os.listdir(storage.snapshots_dir):
+                if filename.endswith(".json"):
+                    snap_path = os.path.join(storage.snapshots_dir, filename)
+                    try:
+                        with open(snap_path, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                            for entry in data.get("entries", []):
+                                blob_id = entry.get("blob_id") or entry.get("sha256")
+                                if blob_id:
+                                    active_hashes.add(blob_id)
+                    except Exception as e_snap:
+                        # CRITICAL #2 FAIL-CLOSED: 매니페스트 파싱/읽기 실패 시 고아 블롭 정리 전면 중단!
+                        # active_hashes에서 누락되어 정상 블롭이 영구 삭제되는 재앙 방지
+                        import logging
+                        logging.getLogger("BackupSystem").error(
+                            f"[CRITICAL FAIL-CLOSED] 매니페스트 읽기 실패로 인한 GC 중단: {snap_path} ({e_snap})"
+                        )
+                        raise RuntimeError(
+                            f"스토리지 GC 중단: 스냅샷 매니페스트를 읽을 수 없어 데이터 보호를 위해 정리를 중단합니다: {filename} ({e_snap})"
+                        )
 
-        deleted_count, freed_bytes = storage.prune_unreferenced_blobs(active_hashes)
-        return {"deleted_blobs": deleted_count, "freed_bytes": freed_bytes}
+            deleted_count, freed_bytes = storage.prune_unreferenced_blobs(active_hashes)
+            return {"deleted_blobs": deleted_count, "freed_bytes": freed_bytes}
 
     @classmethod
     def build_snapshot_tree(cls, snapshot_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -978,7 +1030,9 @@ class SnapshotEngine:
                     "size": e.get("size", 0),
                     "mtime": e.get("mtime", 0),
                     "rel_path": rp,
-                    "status": e.get("status", "unmodified")
+                    "status": e.get("status", "unmodified"),
+                    "chunk_strategy": e.get("chunk_strategy"),
+                    "chunk_count": len(e.get("chunk_ids", [])) if e.get("chunk_ids") else 1
                 })
             else:
                 dirname = parts[0]

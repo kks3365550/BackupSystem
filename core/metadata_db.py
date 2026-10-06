@@ -4,7 +4,7 @@ import json
 import sqlite3
 import threading
 import contextlib
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Tuple
 
 class MetadataDB:
     _lock = threading.Lock()
@@ -373,13 +373,41 @@ class MetadataDB:
         saved_bytes = max(0, total_logical_bytes - stored_bytes)
         ratio = round((saved_bytes / total_logical_bytes * 100), 1) if total_logical_bytes > 0 else 0.0
 
+        # 청킹 통계 계산 (최근 50개 스냅샷 샘플링으로 I/O 최소화)
+        total_chunks = 0
+        chunked_files_count = 0
+        chunk_strategies = {}
+
+        sample_snapshots = snapshots[:50]
+        for snap in sample_snapshots:
+            snap_id = snap.get("id")
+            if not snap_id:
+                continue
+            snap_path = os.path.join(self.snapshots_dir, f"{snap_id}.json")
+            try:
+                with open(snap_path, "r", encoding="utf-8") as fp:
+                    data = json.load(fp)
+                    entries = data.get("entries") or data.get("files", [])
+                    for entry in entries:
+                        chunk_ids = entry.get("chunk_ids")
+                        if chunk_ids and len(chunk_ids) > 1:
+                            total_chunks += len(chunk_ids)
+                            chunked_files_count += 1
+                            strategy = entry.get("chunk_strategy", "unknown")
+                            chunk_strategies[strategy] = chunk_strategies.get(strategy, 0) + 1
+            except Exception:
+                continue
+
         return {
             "total_blobs": total_blobs,
             "stored_bytes": stored_bytes,
             "logical_bytes": total_logical_bytes,
             "total_snapshots": len(snapshots),
             "dedup_saved_bytes": saved_bytes,
-            "savings_percentage": ratio
+            "savings_percentage": ratio,
+            "total_chunks": total_chunks,
+            "chunked_files_count": chunked_files_count,
+            "chunk_strategies": chunk_strategies
         }
 
     def delete_snapshot_record(self, snapshot_id: str):

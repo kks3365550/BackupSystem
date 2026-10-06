@@ -10,18 +10,13 @@ core/replication.py - P1-1 Offsite CAS Blob Replication Module (v2.4.0)
 import os
 import json
 import time
-import shutil
 import threading
 from typing import Set, List, Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from core.storage import (
     lock_file_immutable,
-    unlock_file_writable,
-    get_disk_free_gb,
-    verify_disk_space_or_fail,
-    InsufficientDiskSpaceError,
-    DEFAULT_CHUNK_SIZE
+    verify_disk_space_or_fail
 )
 
 

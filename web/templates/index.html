@@ -215,6 +215,30 @@
                         <div id="stat-dedup-saved" class="text-2xl font-black text-emerald-400 font-mono">0 B (0%)</div>
                         <div class="text-[11px] text-emerald-400/80">증분 & 중복제거 효과</div>
                     </div>
+
+                    <div class="p-4 rounded-2xl glass-card border border-slate-700/60 space-y-1 col-span-1 sm:col-span-2 lg:col-span-4 bg-slate-900/50">
+                        <div class="flex justify-between items-center text-slate-400 text-xs font-medium">
+                            <span class="flex items-center gap-1.5"><i data-lucide="split" class="w-4 h-4 text-cyan-400"></i> 스마트 청킹 엔진 (FastCDC / Fixed) 텔레메트리</span>
+                            <span id="stat-chunk-files-badge" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-cyan-950/80 text-cyan-300 border border-cyan-800">청킹 파일: 0개</span>
+                        </div>
+                        <div class="flex flex-wrap items-center justify-between gap-4 pt-1">
+                            <div>
+                                <div class="text-xs text-slate-400">총 분할 청크 수</div>
+                                <div id="stat-total-chunks" class="text-xl font-bold text-slate-100 font-mono">0개</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-slate-400">적용 전략 분포</div>
+                                <div id="stat-chunk-strategies" class="text-xs text-slate-300 font-mono mt-0.5 flex items-center gap-2">
+                                    <span class="px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800/60">FastCDC: 0</span>
+                                    <span class="px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800/60">Fixed(4MB): 0</span>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[11px] text-slate-500">16MB 초과 대용량 파일 변경 분할율</div>
+                                <div class="text-xs font-medium text-cyan-400">Zero-Overhead Ingest 활성</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">

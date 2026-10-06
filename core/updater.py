@@ -26,7 +26,6 @@ import hashlib
 import zipfile
 import logging
 import tempfile
-import datetime
 import subprocess
 import urllib.request
 import urllib.error
@@ -386,15 +385,6 @@ def install_update(zip_path: str, target_dir: Optional[str] = None) -> bool:
 
     current_ver = get_current_installed_version()
     logger.info("UPDATE_INSTALL_START current=%s target_dir=%s", current_ver, target_dir)
-
-    # Pythonw 인터프리터 경로 탐색 (데스크탑 내장 python 폴더, .venv 또는 시스템 pythonw)
-    pyw_candidates = [
-        os.path.join(target_dir, "python", "pythonw.exe"),
-        os.path.join(target_dir, ".venv", "Scripts", "pythonw.exe"),
-        os.path.join(os.path.dirname(sys.executable), "pythonw.exe"),
-        sys.executable
-    ]
-    launch_py = next((p for p in pyw_candidates if os.path.exists(p)), "pythonw.exe")
 
     updater_ps1 = os.path.join(tempfile.gettempdir(), f"run_updater_{int(time.time())}.ps1")
     # Clean paths for PowerShell single quotes

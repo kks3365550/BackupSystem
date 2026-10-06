@@ -1,44 +1,10 @@
-# Python
 __pycache__/
-*.py[cod]
-*$py.class
 *.pyc
-.venv/
-venv/
-env/
-
-# Backup Repositories
-backup_repository/
-MyBackup_Repository/
-
-# Runtime Data & Personal Configurations
-data/*.json
-!data/profiles.json.example
-
-# Temporary & Logs
 *.tmp
-*.temp
 *.log
-logs/
-
-# Build artifacts & Binaries
-build/
-dist/
-*.spec
-installer/Output/
-installer/runtime/
-*.exe
-*.zip
-*.sig
-
-# Keys & Secrets (Only public keys are allowed)
+.venv/
+data/
 keys/*.key
-keys/*.pem
-keys/*.pfx
 keys/*private*
-
-# Internal & Scratch
 .ai/
 scratch/
-audit/
-reports/

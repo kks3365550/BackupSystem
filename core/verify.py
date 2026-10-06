@@ -9,14 +9,17 @@ core/verify.py: 백업 무결성 자동 검증 및 복원 시뮬레이션 엔진
 import os
 import json
 import time
-import zlib
 import hashlib
 import random
 from typing import Dict, Any, List, Optional, Tuple
-from core.storage import BlobStorage, ZSTD_MAGIC, HAS_ZSTD, unlock_file_writable
+from core.storage import BlobStorage, HAS_ZSTD
 
+# zstd 는 하위 모듈이 on-demand 로 참조하는 가용성 신호다.
+# pyflakes 는 사용으로 보지 못하므로 유지한다.
 if HAS_ZSTD:
     import zstandard as zstd
+
+_HAS_ZSTD_MODULE = zstd  # 가용성 플래그로 외부에서 참조
 
 
 class RestoreVerificationError(Exception):
@@ -64,59 +67,12 @@ class IntegrityVerifier:
 
     def verify_blob(self, sha256_hash: str) -> Tuple[bool, Optional[str]]:
         """
-        단일 블롭의 압축 해제 및 SHA-256 일치 여부를 검증 (v1 암호화 및 v0 평문 자동 지원).
+        단일 블롭의 압축 해제 및 SHA-256 일치 여부를 검증 (저장소 내부 verify_blob 위임).
         반환: (성공 여부, 오류 메시지)
         """
-        blob_path = self.storage.get_blob_abs_path(sha256_hash)
-        if not os.path.exists(blob_path):
-            return False, f"블롭 파일이 존재하지 않음: {sha256_hash}"
+        ok, err, _ = self.storage.verify_blob(sha256_hash)
+        return ok, err
 
-        try:
-            with open(blob_path, "rb") as f:
-                magic = f.read(4)
-
-            # v1 암호화 블롭 처리
-            if magic == b"ENC\x01":
-                if not self.crypto_engine:
-                    return False, "암호화된 블롭입니다 (복호화 키 필요)"
-                with open(blob_path, "rb") as f_in:
-                    raw_blob = f_in.read()
-                decompressed = self.crypto_engine.decrypt_blob_data(raw_blob, sha256_hash)
-                calc_hash = hashlib.sha256(decompressed).hexdigest()
-                if calc_hash.lower() != sha256_hash.lower():
-                    return False, f"해시 불일치 (기록: {sha256_hash}, 계산: {calc_hash})"
-                return True, None
-
-            is_zstd = (magic == ZSTD_MAGIC)
-            decompressed_hasher = hashlib.sha256()
-
-            with open(blob_path, "rb") as f_in:
-                if is_zstd and HAS_ZSTD:
-                    dctx = zstd.ZstdDecompressor()
-                    with dctx.stream_reader(f_in) as reader:
-                        while True:
-                            chunk = reader.read(262144)
-                            if not chunk:
-                                break
-                            decompressed_hasher.update(chunk)
-                else:
-                    decomp = zlib.decompressobj()
-                    while True:
-                        raw = f_in.read(262144)
-                        if not raw:
-                            break
-                        chunk = decomp.decompress(raw)
-                        if chunk:
-                            decompressed_hasher.update(chunk)
-
-            calculated_hash = decompressed_hasher.hexdigest()
-            if calculated_hash.lower() != sha256_hash.lower():
-                return False, f"해시 불일치 (기록: {sha256_hash}, 계산: {calculated_hash})"
-
-            return True, None
-
-        except Exception as e:
-            return False, f"압축 해제 또는 데이터 무결성 오류: {str(e)}"
 
     def verify_snapshot(
         self,
@@ -185,46 +141,14 @@ class IntegrityVerifier:
         }
 
     def _decompress_and_hash_blob(self, blob_path: str) -> Tuple[int, str]:
-        """블롭 파일을 스트리밍 압축 해제하며 크기와 SHA-256을 실시간 계산."""
-        with open(blob_path, "rb") as f:
-            magic = f.read(4)
+        """블롭 파일을 스트리밍 압축 해제하며 크기와 SHA-256을 실시간 계산 (저장소 위임)."""
+        fname = os.path.basename(blob_path)
+        blob_id = fname[:-5].lower() if fname.endswith(".blob") else fname.lower()
+        ok, err_msg, total_size = self.storage.verify_blob(blob_id)
+        if not ok:
+            raise RuntimeError(err_msg or f"블롭 검증 실패: {blob_id}")
+        return total_size, blob_id
 
-        # v1 암호화 블롭 처리
-        if magic == b"ENC\x01":
-            if not self.crypto_engine:
-                raise RuntimeError("암호화된 블롭 검증을 위해 복호화 키가 필요합니다.")
-            expected_hash = os.path.splitext(os.path.basename(blob_path))[0]
-            with open(blob_path, "rb") as f_in:
-                raw_blob = f_in.read()
-            decompressed = self.crypto_engine.decrypt_blob_data(raw_blob, expected_hash)
-            return len(decompressed), hashlib.sha256(decompressed).hexdigest()
-
-        is_zstd = (magic == ZSTD_MAGIC)
-        hasher = hashlib.sha256()
-        total_size = 0
-
-        with open(blob_path, "rb") as f_in:
-            if is_zstd and HAS_ZSTD:
-                dctx = zstd.ZstdDecompressor()
-                with dctx.stream_reader(f_in) as reader:
-                    while True:
-                        chunk = reader.read(262144)
-                        if not chunk:
-                            break
-                        hasher.update(chunk)
-                        total_size += len(chunk)
-            else:
-                decomp = zlib.decompressobj()
-                while True:
-                    raw = f_in.read(262144)
-                    if not raw:
-                        break
-                    chunk = decomp.decompress(raw)
-                    if chunk:
-                        hasher.update(chunk)
-                        total_size += len(chunk)
-
-        return total_size, hasher.hexdigest()
 
     def _has_special_chars(self, path: str) -> bool:
         """경로에 한글, 공백, 유니코드 문자가 포함되어 있는지 검사."""
@@ -336,28 +260,44 @@ class IntegrityVerifier:
                     f"자동 복원 검증 실패: {rel_path} (블롭 ID 또는 SHA-256 누락)"
                 )
 
-            blob_path = self.storage.get_blob_abs_path(blob_id)
-            if not os.path.exists(blob_path):
-                raise RestoreVerificationError(
-                    f"자동 복원 검증 실패: {rel_path} (저장소 내 블롭 파일 누락: {blob_id})"
-                )
-
             corrupted = False
             corruption_reason = ""
             actual_size = 0
-            actual_sha256 = ""
 
-            try:
-                actual_size, actual_sha256 = self._decompress_and_hash_blob(blob_path)
-                if expected_size >= 0 and actual_size != expected_size:
+            chunk_ids = entry.get("chunk_ids")
+            if chunk_ids and isinstance(chunk_ids, list):
+
+                # Multi-chunk verification: verify all chunks exist and are valid
+                for cid in chunk_ids:
+                    if not self.storage.has_blob(cid):
+                        raise RestoreVerificationError(
+                            f"자동 복원 검증 실패: {rel_path} (청크 누락: {cid})"
+                        )
+                    c_ok, c_err, c_sz = self.storage.verify_blob(cid)
+                    if not c_ok:
+                        corrupted = True
+                        corruption_reason = f"청크 손상 ({cid}): {c_err}"
+                        break
+                    actual_size += c_sz
+
+                if not corrupted and expected_size >= 0 and actual_size != expected_size:
+                    corrupted = True
+                    corruption_reason = f"다중 청크 합산 크기 불일치 (기대값: {expected_size}, 복원값: {actual_size})"
+            else:
+                if not self.storage.has_blob(blob_id):
+                    raise RestoreVerificationError(
+                        f"자동 복원 검증 실패: {rel_path} (저장소 내 블롭 파일 누락: {blob_id})"
+                    )
+
+                # 저장소 논리 API(verify_blob)로 검증 수행
+                ok, err_msg, actual_size = self.storage.verify_blob(blob_id)
+                if not ok:
+                    corrupted = True
+                    corruption_reason = err_msg or "블롭 무결성 검증 실패"
+                elif expected_size >= 0 and actual_size != expected_size:
                     corrupted = True
                     corruption_reason = f"크기 불일치 (기대값: {expected_size}, 복원값: {actual_size})"
-                elif expected_sha256 and actual_sha256.lower() != expected_sha256.lower():
-                    corrupted = True
-                    corruption_reason = f"해시 불일치 (기대값: {expected_sha256}, 복원값: {actual_sha256})"
-            except Exception as e:
-                corrupted = True
-                corruption_reason = f"압축 해제 스트림 에러: {str(e)}"
+
 
             if corrupted:
                 healed = False
@@ -372,18 +312,17 @@ class IntegrityVerifier:
                                 with open(candidate_src, "rb") as f_src:
                                     src_bytes = f_src.read()
                                 if hashlib.sha256(src_bytes).hexdigest().lower() == expected_sha256.lower():
-                                    unlock_file_writable(blob_path)
-                                    if os.path.exists(blob_path):
-                                        os.remove(blob_path)
-                                    with self.storage._cache_lock:
-                                        self.storage._blob_cache.discard(expected_sha256)
+                                    self.storage.delete_blob(blob_id)
                                     self.storage.put_file_blob_onepass(candidate_src)
                                     # 재검증
-                                    actual_size, actual_sha256 = self._decompress_and_hash_blob(blob_path)
-                                    if actual_sha256.lower() == expected_sha256.lower():
+                                    ok_re, _, re_size = self.storage.verify_blob(blob_id)
+                                    if ok_re:
                                         healed = True
+                                        actual_size = re_size
+
                             except Exception:
                                 pass
+
 
                 if healed:
                     healed_count += 1
@@ -490,16 +429,25 @@ class IntegrityVerifier:
 
                 # 3. 매니페스트 내 참조 블롭 수집 및 누락 여부 확인
                 for entry in manifest.get("entries", []):
-                    b_id = entry.get("blob_id") or entry.get("sha256")
-                    if b_id:
-                        b_id_lower = b_id.lower()
-                        referenced_blob_ids.add(b_id_lower)
-                        b_abs = self.storage.get_blob_abs_path(b_id_lower)
-                        if not os.path.exists(b_abs):
-                            if b_id_lower not in results["missing_blobs"]:
-                                results["missing_blobs"].append(b_id_lower)
+                    chunk_ids = entry.get("chunk_ids")
+                    if chunk_ids and isinstance(chunk_ids, list):
+                        for cid in chunk_ids:
+                            cid_lower = cid.lower()
+                            referenced_blob_ids.add(cid_lower)
+                            if not self.storage.has_blob(cid_lower):
+                                if cid_lower not in results["missing_blobs"]:
+                                    results["missing_blobs"].append(cid_lower)
+                    else:
+                        b_id = entry.get("blob_id") or entry.get("sha256")
+                        if b_id:
+                            b_id_lower = b_id.lower()
+                            referenced_blob_ids.add(b_id_lower)
+                            if not self.storage.has_blob(b_id_lower):
+                                if b_id_lower not in results["missing_blobs"]:
+                                    results["missing_blobs"].append(b_id_lower)
 
                 results["valid_snapshots"] += 1
+
 
             except Exception as e:
                 results["corrupted_snapshots"].append({
@@ -516,25 +464,19 @@ class IntegrityVerifier:
             if current_task % 100 == 0 or current_task == total_tasks:
                 _report(f"블롭 바이트 검증 중: {fname}")
 
-            try:
-                actual_size, calculated_sha = self._decompress_and_hash_blob(blob_path)
-                if calculated_sha.lower() != blob_id:
-                    results["corrupted_blobs"].append({
-                        "blob_id": blob_id,
-                        "error": f"Bit Rot 해시 불일치 (기대값: {blob_id}, 실제해시: {calculated_sha})"
-                    })
-                else:
-                    results["valid_blobs"] += 1
-                    results["total_scanned_bytes"] += actual_size
-
-                if blob_id not in referenced_blob_ids:
-                    results["orphaned_blobs"].append(blob_id)
-
-            except Exception as e:
+            ok, err_msg, actual_size = self.storage.verify_blob(blob_id)
+            if not ok:
                 results["corrupted_blobs"].append({
                     "blob_id": blob_id,
-                    "error": f"압축 스트림 손상: {str(e)}"
+                    "error": err_msg or "압축 스트림 손상"
                 })
+            else:
+                results["valid_blobs"] += 1
+                results["total_scanned_bytes"] += actual_size
+
+            if blob_id not in referenced_blob_ids:
+                results["orphaned_blobs"].append(blob_id)
+
 
         results["duration_seconds"] = round(time.time() - start_time, 2)
 

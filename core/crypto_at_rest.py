@@ -20,7 +20,6 @@ import secrets
 import hashlib
 import threading
 from typing import Dict, Any, Optional, Tuple
-from pathlib import Path
 
 try:
     import zstandard as zstd

@@ -9,7 +9,7 @@ core/retention.py: 스마트 저장소 롤링 및 세대 보존 정책 관리자
 
 import os
 import time
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from core.storage import get_disk_free_gb
 
 
@@ -24,7 +24,7 @@ class RetentionManager:
         retention_count: Optional[int] = 30,
         retention_days: Optional[int] = 60,
         min_free_gb: Optional[float] = 20.0,
-        authorized: bool = True
+        authorized: bool = False
     ) -> Dict[str, Any]:
         """
         저장소에 보존 정책을 적용하여 만료된 스냅샷을 정리하고 고아 청크를 회수.
@@ -84,8 +84,9 @@ class RetentionManager:
         if actually_deleted:
             try:
                 gc_result = SnapshotEngine.prune_storage(self.repo_dir)
-            except Exception:
-                pass
+            except Exception as e_gc:
+                import logging
+                logging.getLogger("BackupSystem").error(f"보존 정책 후 고아 블롭 GC 중단/실패: {e_gc}")
 
         return {
             "deleted_snapshots": actually_deleted,
