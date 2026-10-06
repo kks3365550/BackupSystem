@@ -19,7 +19,6 @@ emergency_restore/python/
 *.log
 
 # Sensitive credentials & runtime states
-data/kakao_token.json
 config/deep_scan_state.json
 
 # OS specific

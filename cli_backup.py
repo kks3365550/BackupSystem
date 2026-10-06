@@ -136,13 +136,6 @@ def run_cli_backup(profile_id: str = None):
         # 5. Offsite Replication (2차 이중화 - 백업 성공 후에만 수행)
         _run_offsite_replication(repo_dir, profile)
 
-        # 6. Send KakaoTalk / Push Notification
-        try:
-            from core.notifier import notify_backup_result
-            notify_backup_result(manifest=manifest, profile_name=profile_name)
-        except Exception as e_notif:
-            print(f"[WARNING] 알림 전송 실패: {e_notif}")
-
         print("=== 백업 프로세스 정상 종료 (메모리 완전 회수) ===")
         sys.exit(0)
 
@@ -150,11 +143,6 @@ def run_cli_backup(profile_id: str = None):
         print(f"[ERROR] 백업 실행 실패: {e}")
         profile["last_status"] = "failed"
         ConfigManager.save_profile(profile)
-        try:
-            from core.notifier import notify_backup_result
-            notify_backup_result(error_msg=str(e), profile_name=profile_name)
-        except Exception:
-            pass
         sys.exit(1)
 
 if __name__ == "__main__":

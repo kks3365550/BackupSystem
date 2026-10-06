@@ -164,24 +164,11 @@ class BackupScheduler:
             if pruned:
                 self._log(profile_name, f"보관 주기 만료 스냅샷 {len(pruned)}개 정리 완료.")
 
-            # Fix #4: Send KakaoTalk success notification for scheduled auto-backup
-            try:
-                from core.notifier import notify_backup_result
-                notify_backup_result(manifest=manifest, profile_name=profile_name)
-            except Exception:
-                pass
-
         except Exception as e:
             self._log(profile_name, f"백업 중 오류 발생: {str(e)}", level="ERROR")
             profile["last_status"] = "failed"
             profile["last_run"] = time.time()
             ConfigManager.save_profile(profile)
-            # Fix #4: Send KakaoTalk failure notification for scheduled auto-backup
-            try:
-                from core.notifier import notify_backup_result
-                notify_backup_result(error_msg=str(e), profile_name=profile_name)
-            except Exception:
-                pass
 
         finally:
             if profile_id in self.active_jobs:
@@ -251,11 +238,6 @@ class BackupScheduler:
         if corrupted_snaps:
             err_msg = f"[Tier 2 경고] {len(corrupted_snaps)}개 스냅샷 무결성 손상 감지! " + "; ".join(corrupted_snaps[:5])
             self._log("DeepScan", err_msg, level="ERROR")
-            try:
-                from core.notifier import notify_backup_result
-                notify_backup_result(error_msg=err_msg, profile_name="DeepScan-Tier2")
-            except Exception:
-                pass
         else:
             self._log("DeepScan", f"[Tier 2 통과] {len(snap_files)}개 스냅샷 Manifest 서명 및 지문 무결성 100% 정상")
 
@@ -270,11 +252,6 @@ class BackupScheduler:
             if corrupted > 0:
                 err_msg = f"[Tier 3 비상] 저장소 내 {corrupted}개의 손상된 Bit-Rot 블롭이 발견되었습니다! (총 {total}개 중)"
                 self._log("DeepScan", err_msg, level="ERROR")
-                try:
-                    from core.notifier import notify_backup_result
-                    notify_backup_result(error_msg=err_msg, profile_name="DeepScan-Tier3")
-                except Exception:
-                    pass
             else:
                 self._log("DeepScan", f"[Tier 3 통과] 총 {total}개 블롭 SHA-256 Bit-Rot 무결성 100% 정상 확인")
         except Exception as e:

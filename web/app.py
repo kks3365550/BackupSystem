@@ -838,12 +838,6 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             f"중복제거 절감: {round(summary.get('dedup_saved_bytes', 0)/(1024*1024), 2)}MB | "
             f"소요: {summary.get('duration_seconds')}초"
         )
-        # Fix #1: Send KakaoTalk notification for custom selection backup
-        try:
-            from core.notifier import notify_backup_result
-            notify_backup_result(manifest=manifest, profile_name=profile_name)
-        except Exception as e_notif:
-            append_task_log(f"카카오톡 알림 전송 실패: {e_notif}", level="WARNING")
 
         manifest_summary = {
             "id": manifest.get("id"),
@@ -887,11 +881,6 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             import traceback
             append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
             append_task_log(traceback.format_exc(), level="ERROR")
-        try:
-            from core.notifier import notify_backup_result
-            notify_backup_result(error_msg=str(e), profile_name=profile_name)
-        except Exception:
-            pass
         with task_lock:
             current_task["error"] = str(e)
     finally:
@@ -999,13 +988,6 @@ def _background_backup_task(params: Dict[str, Any]):
         if pruned:
             append_task_log(f"오래된 백업 스냅샷 {len(pruned)}개를 보관 정책에 따라 자동 정리했습니다.")
 
-        # Send KakaoTalk notification
-        try:
-            from core.notifier import notify_backup_result
-            notify_backup_result(manifest=manifest, profile_name=profile_name)
-        except Exception as e_notif:
-            append_task_log(f"카카오톡 알림 전송 실패: {e_notif}", level="WARNING")
-
         manifest_summary = {
             "id": manifest.get("id"),
             "created_at": manifest.get("created_at"),
@@ -1045,11 +1027,6 @@ def _background_backup_task(params: Dict[str, Any]):
             import traceback
             append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
             append_task_log(traceback.format_exc(), level="ERROR")
-        try:
-            from core.notifier import notify_backup_result
-            notify_backup_result(error_msg=str(e), profile_name=profile_name)
-        except Exception:
-            pass
         with task_lock:
             current_task["error"] = str(e)
             if profile_id and profile:
