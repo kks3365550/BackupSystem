@@ -5,8 +5,14 @@ import argparse
 import datetime
 from core.config import ConfigManager
 from core.snapshot import SnapshotEngine
-from core.driver_backup import export_windows_drivers
-from core.registry_backup import collect_full_app_package
+
+# NOTE: export_windows_drivers / collect_full_app_package 는 현재 미사용(pyflakes).
+# 제거하지 않는 이유: 웹 UI(app.py:688)는 드라이버를 .inf로 '추출'하지만,
+# CLI 스케줄 백업은 프로필 sources(137개 경로)의 폴더를 그대로 '복사'한다.
+# 즉 두 경로의 백업 방식이 다르며, 이 import는 두 방식의 차이를 명시한다.
+# 프로필에 드라이버 추출을 추가하려면 아래를 활성화해야 한다.
+# from core.driver_backup import export_windows_drivers
+# from core.registry_backup import collect_full_app_package
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 os.chdir(BASE_DIR)
@@ -104,7 +110,6 @@ def run_cli_backup(profile_id: str = None):
     print(f" -> 백업 저장소: {repo_dir}")
 
     # 2. Run backup
-    t0 = time.time()
     try:
         manifest = SnapshotEngine.create_snapshot(
             repo_dir=repo_dir,
@@ -114,7 +119,6 @@ def run_cli_backup(profile_id: str = None):
             exclude_patterns=excludes,
             compress_level=compress
         )
-        t1 = time.time()
 
         # 3. Prune old snapshots
         try:

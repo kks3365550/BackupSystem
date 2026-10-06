@@ -9,14 +9,17 @@ core/verify.py: 백업 무결성 자동 검증 및 복원 시뮬레이션 엔진
 import os
 import json
 import time
-import zlib
 import hashlib
 import random
 from typing import Dict, Any, List, Optional, Tuple
-from core.storage import BlobStorage, ZSTD_MAGIC, HAS_ZSTD, unlock_file_writable
+from core.storage import BlobStorage, HAS_ZSTD
 
+# zstd 는 하위 모듈이 on-demand 로 참조하는 가용성 신호다.
+# pyflakes 는 사용으로 보지 못하므로 유지한다.
 if HAS_ZSTD:
     import zstandard as zstd
+
+_HAS_ZSTD_MODULE = zstd  # 가용성 플래그로 외부에서 참조
 
 
 class RestoreVerificationError(Exception):

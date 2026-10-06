@@ -4,7 +4,7 @@ import json
 import sqlite3
 import threading
 import contextlib
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Tuple
 
 class MetadataDB:
     _lock = threading.Lock()

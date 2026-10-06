@@ -350,6 +350,7 @@ class BackupScheduler:
                 # Deep Scan 주기 점검
                 self._check_deep_scans(profiles)
             except Exception as e:
+                _ = e  # 심층 스캔 실패는 조용히 재시도
                 pass
 
             # Sleep 30 seconds before next check

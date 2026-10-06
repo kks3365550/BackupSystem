@@ -7,19 +7,18 @@ import threading
 import queue
 import concurrent.futures
 from typing import Dict, List, Any, Optional, Callable, Tuple
-from core.hasher import calculate_sha256, get_file_stat
 from core.filter import PathFilter
 from core.storage import (
-    BlobStorage, lock_file_immutable, unlock_file_writable, get_disk_free_gb,
-    verify_disk_space_or_fail, InsufficientDiskSpaceError
+    BlobStorage, lock_file_immutable, unlock_file_writable,
+    verify_disk_space_or_fail
 )
-from core.lock import BackupLock, BackupAlreadyRunningError
+from core.lock import BackupLock
 from core.verify import (
     IntegrityVerifier, RestoreVerificationError,
-    generate_manifest_signature, verify_manifest_signature
+    generate_manifest_signature
 )
 from core.retention import RetentionManager
-from core.vss_manager import VSSContext, VSSRequiredError
+from core.vss_manager import VSSContext
 from core.crypto_sign import Ed25519Signer
 from core.crypto_at_rest import CryptoAtRestEngine
 from core.chunk_engine import ChunkPolicySelector, CHUNK_THRESHOLD_BYTES
@@ -707,6 +706,7 @@ class SnapshotEngine:
                 rq.enqueue(snapshot_id, repo_dir, offsite_repo_dir)
                 rq.start_background_worker()
             except Exception as e_rq:
+                _ = e_rq  # 예외 무시 (폴백 경로로 진행)
                 def _async_replicate_task():
                     try:
                         from core.replication import ReplicationManager

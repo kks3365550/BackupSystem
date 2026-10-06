@@ -1,10 +1,10 @@
 import argparse
 import sys
 import os
-import json
 from core.snapshot import SnapshotEngine
 from core.restore import RestoreEngine
 from core.config import ConfigManager
+from core.storage import BlobStorage
 
 if sys.platform.startswith("win"):
     try:
@@ -39,12 +39,12 @@ def cmd_backup(args):
     exclude = profile.get("exclude_patterns", []) if profile else []
     compress = profile.get("compression_level", 6) if profile else 6
 
-    print(f"==================================================")
-    print(f" [BACKUP START]")
+    print("==================================================")
+    print(" [BACKUP START]")
     print(f" Profile: {profile.get('name') if profile else 'Custom'}")
     print(f" Sources: {sources}")
     print(f" Repository: {repo_dir}")
-    print(f"==================================================")
+    print("==================================================")
 
     def on_progress(p):
         print(f"\rProgress: {p.get('percent', 0)}% | File {p.get('processed_files')}/{p.get('total_files')} | {p.get('current_file')[:40]:<40}", end="", flush=True)
@@ -61,14 +61,14 @@ def cmd_backup(args):
     print()
 
     summary = manifest.get("summary", {})
-    print(f"==================================================")
+    print("==================================================")
     print(f" [BACKUP FINISHED] Snapshot ID: {manifest['id']}")
     print(f" Type: {manifest['backup_type'].upper()}")
     print(f" Total files: {summary.get('total_files')} ({format_bytes(summary.get('total_bytes', 0))})")
     print(f" New: {summary.get('new_files')}, Modified: {summary.get('modified_files')}, Unmodified: {summary.get('unmodified_files')}")
     print(f" Saved via Dedup: {format_bytes(summary.get('dedup_saved_bytes', 0))}")
     print(f" Duration: {summary.get('duration_seconds')}s")
-    print(f"==================================================")
+    print("==================================================")
 
 def cmd_list(args):
     repo_dir = args.repo or "./backup_repository"
@@ -121,15 +121,15 @@ def cmd_stats(args):
     repo_dir = args.repo or "./backup_repository"
     storage = BlobStorage(repo_dir)
     stats = storage.get_storage_stats()
-    print(f"==================================================")
+    print("==================================================")
     print(f" Repository Statistics ({repo_dir})")
-    print(f"==================================================")
+    print("==================================================")
     print(f" Total Snapshots:        {stats['total_snapshots']}")
     print(f" Unique Blobs Stored:    {stats['total_blobs']}")
     print(f" Actual Stored Size:     {format_bytes(stats['stored_bytes'])}")
     print(f" Total Logical Size:     {format_bytes(stats['logical_bytes'])}")
     print(f" Deduplication Saved:    {format_bytes(stats['dedup_saved_bytes'])} ({stats['savings_percentage']}%)")
-    print(f"==================================================")
+    print("==================================================")
 
 def main():
     parser = argparse.ArgumentParser(description="System & Server Incremental Backup CLI Tool")

@@ -7,7 +7,6 @@ core/lock.py: 백업 시스템 동시성 제어 및 파일 기반 상호 배제 
 """
 
 import os
-import sys
 import time
 import json
 import socket

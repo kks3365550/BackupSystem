@@ -7,20 +7,16 @@ Production Composite Storage Facade providing unified logical interface over:
 Dual-Read: Pack in-memory index first -> Individual Blob fallback
 """
 
-import os
 import zlib
 import hashlib
-from typing import Dict, Any, Optional, Tuple, Set, List
+from typing import Dict, Any, Optional, Tuple
 from pathlib import Path
 
 from core.pack_format import (
     PackContainerReader,
-    PackContainerWriter,
     PackConsistencyError,
     PackFormatError,
-    PackRecoveryEngine,
-    HEADER_SIZE,
-    FOOTER_SIZE
+    PackRecoveryEngine
 )
 
 try:

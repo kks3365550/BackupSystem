@@ -20,7 +20,7 @@ import sys
 import stat
 import logging
 import subprocess
-from typing import Optional, Dict
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 

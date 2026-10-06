@@ -1,7 +1,7 @@
 import os
 import sys
 import subprocess
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Tuple, Optional
 
 class AppPackageCollector:
     """

@@ -9,7 +9,7 @@ core/retention.py: 스마트 저장소 롤링 및 세대 보존 정책 관리자
 
 import os
 import time
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from core.storage import get_disk_free_gb
 
 

@@ -9,7 +9,7 @@ import os
 import struct
 import zlib
 import hashlib
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Tuple
 from pathlib import Path
 
 PACK_MAGIC = b"PCK1"

@@ -1,4 +1,5 @@
 import os
+import stat as stat_mod
 import zlib
 import json
 import hashlib
@@ -13,13 +14,11 @@ try:
 except ImportError:
     HAS_ZSTD = False
 
-import stat as stat_mod
-
 class InsufficientDiskSpaceError(Exception):
     """Raised when repository disk free space is below the safety threshold (Fail-Closed safeguard)."""
     pass
 
-from core.worm import lock_file_immutable, unlock_file_writable, WORMManager
+from core.worm import lock_file_immutable, unlock_file_writable
 
 def get_disk_free_gb(path: str) -> float:
     """Returns free disk space in gigabytes for the volume containing path."""
@@ -527,7 +526,6 @@ class BlobStorage:
         target_dest = dest_filepath if direct_write else (dest_filepath + ".restore.tmp")
         if os.path.exists(target_dest):
             try:
-                import stat as stat_mod
                 os.chmod(target_dest, stat_mod.S_IWRITE)
             except Exception:
                 pass
@@ -663,7 +661,6 @@ class BlobStorage:
 
             if os.path.exists(dest_filepath):
                 try:
-                    import stat as stat_mod
                     os.chmod(dest_filepath, stat_mod.S_IWRITE)
                     os.remove(dest_filepath)
                 except OSError:

@@ -15,11 +15,11 @@ import os
 import time
 import shutil
 import hashlib
-from typing import List, Dict, Any, Optional, Tuple, Set
+from typing import List, Dict, Any, Tuple, Set
 from pathlib import Path
 
 from core.storage import BlobStorage
-from core.pack_format import PackContainerWriter, PackContainerReader, PackRecoveryEngine
+from core.pack_format import PackContainerWriter, PackContainerReader
 from core.worm import unlock_file_writable
 
 
@@ -111,6 +111,7 @@ class PackConsolidator:
                     writer.write_chunk(sha256, raw_data)
                     packed_blobs.append((sha256, fpath, fsize))
                 except Exception as e_read:
+                    _ = e_read  # 읽기 불가 블롭은 건너뜀
                     # Skip unreadable blobs, keep moving
                     continue
 

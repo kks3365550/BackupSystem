@@ -12,7 +12,7 @@ import os
 import hashlib
 from abc import ABC, abstractmethod
 from typing import Optional, Callable, Dict, Any, List, Tuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 try:
     import fastcdc

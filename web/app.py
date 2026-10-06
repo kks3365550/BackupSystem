@@ -1,18 +1,19 @@
 import os
 import sys
 import time
-import json
 import base64
 import shutil
 import threading
 import psutil
 import datetime
 import tempfile
+import logging
+import urllib.request
 from collections import deque
 from contextlib import asynccontextmanager
 from typing import Dict, List, Any, Optional
-from fastapi import FastAPI, Request, Response, BackgroundTasks, HTTPException, UploadFile, File
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse
+from fastapi import FastAPI, Request, BackgroundTasks, HTTPException, UploadFile, File
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -34,6 +35,13 @@ from core.auth import (
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
+
+# 모듈 로거 (예외 경로에서 사용)
+logger = logging.getLogger("BackupSystem")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
 
 def get_current_version() -> str:
     v_file = os.path.join(BASE_DIR, "VERSION")
@@ -639,7 +647,6 @@ class RunCustomSelectionBackupRequest(BaseModel):
     exclude_patterns: Optional[List[str]] = None
 
 def _background_custom_backup_task(params: Dict[str, Any]):
-    global current_task
     try:
         include_drivers = params.get("include_drivers", True)
         selected_projects = params.get("selected_projects", [])
@@ -812,6 +819,7 @@ def _background_custom_backup_task(params: Dict[str, Any]):
         )
 
         pruned = SnapshotEngine.prune_snapshots(repo_dir, effective_retention_count, effective_retention_days, authorized=True)
+        append_task_log(f"[보존 정책] 만료된 스냅샷 {len(pruned)}개 정리 완료")
 
         # Update profile
         prof = ConfigManager.get_profile(profile_id)
@@ -892,7 +900,6 @@ def _background_custom_backup_task(params: Dict[str, Any]):
 
 @app.post("/api/backup/custom-selection")
 def run_custom_selection_backup(req: RunCustomSelectionBackupRequest, background_tasks: BackgroundTasks):
-    global current_task
     with task_lock:
         if current_task["running"]:
             raise HTTPException(status_code=409, detail="이미 다른 백업 또는 복원 작업이 실행 중입니다.")
@@ -913,7 +920,6 @@ def run_custom_selection_backup(req: RunCustomSelectionBackupRequest, background
 
 
 def _background_backup_task(params: Dict[str, Any]):
-    global current_task
     try:
         profile_id = params.get("profile_id")
         profile = None
@@ -1055,7 +1061,6 @@ def _background_backup_task(params: Dict[str, Any]):
 
 @app.post("/api/backup/run")
 def run_backup(req: RunBackupRequest, background_tasks: BackgroundTasks):
-    global current_task
     with task_lock:
         if current_task["running"]:
             raise HTTPException(status_code=409, detail="이미 다른 백업 또는 복원 작업이 실행 중입니다.")
@@ -1106,7 +1111,6 @@ class RunRestoreRequest(BaseModel):
     in_place: bool = False
 
 def _background_restore_task(params: Dict[str, Any]):
-    global current_task
     snap_id = params["snapshot_id"]
     target_dir = params.get("target_dir")
     selected = params.get("selected_rel_paths")
@@ -1163,7 +1167,6 @@ def _background_restore_task(params: Dict[str, Any]):
 
 @app.post("/api/restore/run")
 def run_restore(req: RunRestoreRequest, background_tasks: BackgroundTasks):
-    global current_task
     with task_lock:
         if current_task["running"]:
             raise HTTPException(status_code=409, detail="이미 다른 백업 또는 복원 작업이 실행 중입니다.")

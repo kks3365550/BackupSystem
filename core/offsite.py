@@ -20,7 +20,7 @@ import os
 import time
 import subprocess
 import logging
-from typing import Dict, Optional, Any
+from typing import Dict, Any
 
 logger = logging.getLogger("BackupSystem")
 
@@ -92,12 +92,6 @@ class OffsiteReplicator:
         # 원격 상위 폴더 도달 가능성 확인 (쓰기 없이)
         probe = self.remote_repo_dir
         reachable = False
-        # UNC 최상위 서버까지만 확인
-        if probe.startswith("\\\\"):
-            parts = probe[2:].split("\\")
-            server = "\\\\" + parts[0]
-        else:
-            server = os.path.splitdrive(probe)[0] + "\\"
         try:
             os.makedirs(probe, exist_ok=True)
             reachable = os.path.isdir(probe)
