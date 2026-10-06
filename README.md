@@ -1,13 +1,13 @@
 # BackupSystem: Enterprise Zero-Cloud Hybrid Backup & 3-Tier Disaster Recovery Engine
 
-[![Version](https://img.shields.io/badge/version-v2.10.6-blue.svg?style=flat-square)](https://github.com/kks3365550/BackupSystem/releases)
+[![Version](https://img.shields.io/badge/version-v2.13.6-blue.svg?style=flat-square)](https://github.com/kks3365550/BackupSystem/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20%7C%20Server-0078D6.svg?style=flat-square&logo=windows)](https://microsoft.com/windows)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB.svg?style=flat-square&logo=python)](https://www.python.org/)
 [![Architecture](https://img.shields.io/badge/architecture-x86__64-informational.svg?style=flat-square)](#architecture-overview)
 [![License](https://img.shields.io/badge/license-Enterprise%20Proprietary-red.svg?style=flat-square)](#license)
 [![Zero Cloud Dependency](https://img.shields.io/badge/dependency-Zero--Cloud%20Air--Gapped-success.svg?style=flat-square)](#deterministic-content-addressed-storage-cas)
 
-An enterprise-grade, deterministic Windows backup orchestration and disaster recovery system designed for air-gapped, zero-cloud, and compliance-sensitive environments. **BackupSystem** combines immutable Content-Addressed Storage (CAS), non-intrusive Volume Shadow Copy Service (VSS) live captures, Windows Bare-Metal Recovery (BMR), and cryptographically verified self-updating pipelines.
+An enterprise-grade, deterministic Windows backup orchestration and disaster recovery system designed for air-gapped, zero-cloud, and compliance-sensitive environments. **BackupSystem** combines immutable Content-Addressed Storage (CAS), multi-chunk ingestion, high-speed offsite replication (SMB/NAS), non-intrusive Volume Shadow Copy Service (VSS) live captures, Windows Bare-Metal Recovery (BMR), and cryptographically verified self-updating pipelines.
 
 ---
 
@@ -140,10 +140,17 @@ The auto-update engine communicates securely with the official GitHub Releases A
 3. **UAC Boundary Isolation**: Update payload execution explicitly triggers Windows UAC elevation, preserving strict separation between runtime operation and binary replacement.
 
 ### 8. Lifecycle-Aware Inno Setup 6+ Installer Engine
-Version `v2.10.6` implements advanced installer lifecycle hooks to eliminate Windows "File in Use" locks during upgrades and uninstalls:
+Version `v2.10.6+` implements advanced installer lifecycle hooks to eliminate Windows "File in Use" locks during upgrades and uninstalls:
 - **`InitializeSetup` Win32 Detection**: Custom Pascal scripting scans for listening ports (8765) and processes before initiating file copies.
 - **Targeted Process Termination**: Gracefully signals system tray and web worker processes, terminating only processes matching the application's unique executable path.
 - **Directive Enforcement**: Configured with `CloseApplications=force` and `RestartApplications=no` for deterministic enterprise deployment.
+
+### 9. High-Speed Offsite Replication (3-2-1 Rule)
+- Native multi-threaded network replication (SMB/NAS) using optimized Robocopy pipelines with sub-second pre-flight health checks.
+- Guarantees complete fault isolation: offsite network timeouts or offline target hosts never degrade local snapshot success.
+
+### 10. Multi-Chunk Ingestion & Containerized Pack Storage
+- Advanced split-chunk pipeline with deduplication support for ultra-large files and containerized pack storage to eliminate filesystem inode/metadata exhaustion.
 
 ---
 
@@ -199,7 +206,7 @@ Version `v2.10.6` implements advanced installer lifecycle hooks to eliminate Win
 1. Download the latest `BackupSystem_Setup_vX.Y.Z.exe` from [GitHub Releases](https://github.com/kks3365550/BackupSystem/releases).
 2. Execute the installer with standard administrator rights:
    ```cmd
-   BackupSystem_Setup_v2.10.6.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+   BackupSystem_Setup_v2.13.6.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
    ```
 3. The installer automatically configures:
    - File permission inheritance (`Users: Modify` for `data/` and `logs/`).
@@ -303,10 +310,10 @@ To verify the integrity of your local deployment:
 
 ```powershell
 # Compute SHA-256 hash of downloaded installer
-Get-FileHash -Algorithm SHA256 .\BackupSystem_Setup_v2.10.6.exe
+Get-FileHash -Algorithm SHA256 .\BackupSystem_Setup_v2.13.6.exe
 
 # Compare with published release manifest
-python tools/verify_integrity.py --binary .\BackupSystem_Setup_v2.10.6.exe
+python tools/verify_integrity.py --binary .\BackupSystem_Setup_v2.13.6.exe
 ```
 
 ---

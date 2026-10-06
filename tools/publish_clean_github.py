@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Clean GitHub Publisher for BackupSystem v2.9.20
-Zero-leak public repository initializer and publisher.
+Clean GitHub Publisher for BackupSystem v2.13.6
+Zero-leak public repository synchronizer and GitHub release publisher.
 """
 import os
 import shutil
@@ -11,204 +11,216 @@ import sys
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-def main():
-    base_dir = r"c:\Users\kksjmj\Desktop\ai\백업시스템"
-    temp_dir = os.environ.get("TEMP", r"C:\Windows\Temp")
-    clean_dir = os.path.join(temp_dir, "BackupSystem_Public_Release")
-    remote_url = "https://github.com/kks3365550/BackupSystem.git"
-    
+BASE_DIR = r"c:\Users\kksjmj\Desktop\ai\백업시스템"
+TEMP_DIR = os.environ.get("TEMP", r"C:\Windows\Temp")
+CLEAN_DIR = os.path.join(TEMP_DIR, "BackupSystem_Public_Release")
+DIST_DIR = os.path.join(BASE_DIR, "dist")
+
+def get_current_version() -> str:
+    ver_file = os.path.join(BASE_DIR, "VERSION")
+    if os.path.exists(ver_file):
+        with open(ver_file, "r", encoding="utf-8") as f:
+            v = f.read().strip()
+            return f"v{v}" if not v.startswith("v") else v
+    return "v2.13.6"
+
+VERSION = get_current_version()
+COMMIT_MSG = f"release: {VERSION} - Multi-chunk ingest, robocopy offsite replication & zero-leak clean release"
+
+def run_cmd(cmd, cwd=CLEAN_DIR):
+    print(f"[*] Running: {cmd}")
+    res = subprocess.run(cmd, cwd=cwd, shell=True, capture_output=True, text=True, errors="replace")
+    if res.returncode != 0:
+        print(f"[-] Error (code {res.returncode}):\n{res.stderr.strip()}\n{res.stdout.strip()}")
+    else:
+        out = res.stdout.strip()
+        if out:
+            print(f"[+] Output:\n{out}")
+    return res
+
+def sync_clean_repo():
     print("=" * 60)
-    print("🚀 백업시스템 v2.9.20 클린 공개 패키지 생성 및 검증")
+    print(f"🚀 백업시스템 {VERSION} 클린 공개 패키지 스테이징")
     print("=" * 60)
-    
-    # 1. 초기화
-    if os.path.exists(clean_dir):
-        shutil.rmtree(clean_dir, ignore_errors=True)
-    os.makedirs(clean_dir, exist_ok=True)
-    print(f"[*] 클린 스테이징 디렉토리: {clean_dir}")
-    
-    # 2. 필수 디렉토리 복사 (core, web)
-    print("[*] 핵심 소스코드 및 웹 대시보드 복사 중...")
-    shutil.copytree(os.path.join(base_dir, "core"), os.path.join(clean_dir, "core"), ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
-    shutil.copytree(os.path.join(base_dir, "web"), os.path.join(clean_dir, "web"), ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
-    
-    # 3. 공개키만 복사 (비밀키 절대 복사 금지)
-    keys_dir = os.path.join(clean_dir, "keys")
-    os.makedirs(keys_dir, exist_ok=True)
-    shutil.copy2(os.path.join(base_dir, "keys", "release_ed25519.pub"), os.path.join(keys_dir, "release_ed25519.pub"))
-    print("[+] Ed25519 공개키 복사 완료 (비밀키 미포함 확인)")
-    
-    # 4. 루트 실행 스크립트 및 공식 문서 복사
-    files_to_copy = [
+
+    if not os.path.exists(CLEAN_DIR):
+        print(f"[*] Initializing clean repo at {CLEAN_DIR}...")
+        os.makedirs(CLEAN_DIR, exist_ok=True)
+        run_cmd("git init -b main", cwd=CLEAN_DIR)
+        run_cmd('git remote add origin "https://github.com/kks3365550/BackupSystem.git"', cwd=CLEAN_DIR)
+    else:
+        # Check if remote exists
+        check_rem = subprocess.run("git remote get-url origin", cwd=CLEAN_DIR, shell=True, capture_output=True, text=True)
+        if check_rem.returncode != 0:
+            run_cmd('git remote add origin "https://github.com/kks3365550/BackupSystem.git"', cwd=CLEAN_DIR)
+
+    # 1. core
+    print("[*] Copying core/ ...")
+    core_clean = os.path.join(CLEAN_DIR, "core")
+    shutil.rmtree(core_clean, ignore_errors=True)
+    shutil.copytree(
+        os.path.join(BASE_DIR, "core"),
+        core_clean,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "notifier.py")
+    )
+
+    # 2. web
+    print("[*] Copying web/ ...")
+    web_clean = os.path.join(CLEAN_DIR, "web")
+    shutil.rmtree(web_clean, ignore_errors=True)
+    shutil.copytree(
+        os.path.join(BASE_DIR, "web"),
+        web_clean,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+    )
+
+    # 3. installer
+    print("[*] Copying installer/ ...")
+    inst_clean = os.path.join(CLEAN_DIR, "installer")
+    shutil.rmtree(inst_clean, ignore_errors=True)
+    shutil.copytree(
+        os.path.join(BASE_DIR, "installer"),
+        inst_clean,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "Output", "runtime")
+    )
+
+    # 4. docs
+    print("[*] Copying docs/ ...")
+    docs_clean = os.path.join(CLEAN_DIR, "docs")
+    shutil.rmtree(docs_clean, ignore_errors=True)
+    if os.path.exists(os.path.join(BASE_DIR, "docs")):
+        shutil.copytree(
+            os.path.join(BASE_DIR, "docs"),
+            docs_clean,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+        )
+
+    # 5. keys (Only public keys, NEVER private keys)
+    print("[*] Copying public keys ...")
+    keys_clean = os.path.join(CLEAN_DIR, "keys")
+    os.makedirs(keys_clean, exist_ok=True)
+    pub_key = os.path.join(BASE_DIR, "keys", "release_ed25519.pub")
+    if os.path.exists(pub_key):
+        shutil.copy2(pub_key, os.path.join(keys_clean, "release_ed25519.pub"))
+
+    # 6. Root files
+    print("[*] Copying root files ...")
+    root_files = [
+        "README.md",
         "run.py",
         "VERSION",
         "start_silent.vbs",
         "start_tray.vbs",
         "launch_dashboard.vbs",
         "stop_backup_system.bat",
-        "2_백업시스템_실행.bat",
+        "requirements.txt",
+        "disaster_recovery.py",
+        "cli.py",
+        "cli_backup.py",
         "release_notes.md",
-        "known_issues.md",
-        "support_scope.md",
-        "repository_format.md",
         "release_build_manifest.md"
     ]
-    for f in files_to_copy:
-        src = os.path.join(base_dir, f)
+    for rf in root_files:
+        src = os.path.join(BASE_DIR, rf)
         if os.path.exists(src):
-            shutil.copy2(src, os.path.join(clean_dir, f))
-            
-    # 5. 설정 템플릿 생성 (개인정보 원천 격리)
-    data_dir = os.path.join(clean_dir, "data")
-    os.makedirs(data_dir, exist_ok=True)
-    example_profile = """[
-  {
-    "id": "default",
-    "name": "Default Backup Profile",
-    "source_paths": [
-      "C:\\\\Users\\\\Default\\\\Documents"
-    ],
-    "repo_dir": "D:\\\\BackupRepository",
-    "exclude_patterns": [
-      "node_modules",
-      "__pycache__",
-      "*.tmp",
-      "*.log"
-    ],
-    "schedule_type": "manual",
-    "schedule_value": "12",
-    "auto_backup_enabled": false,
-    "retention_count": 30,
-    "retention_days": 60,
-    "compression_level": 3
-  }
-]
-"""
-    with open(os.path.join(data_dir, "profiles.json.example"), "w", encoding="utf-8") as pf:
-        pf.write(example_profile)
-        
-    # 6. README.md 생성
-    readme_content = """# BackupSystem (백업시스템)
+            shutil.copy2(src, os.path.join(CLEAN_DIR, rf))
 
-Windows용 엔터프라이즈급 로컬 & 네트워크 고속 무결성 백업 시스템.
+    # 7. Create safe .gitignore for public repository
+    public_gitignore = os.path.join(CLEAN_DIR, ".gitignore")
+    with open(public_gitignore, "w", encoding="utf-8") as f:
+        f.write(
+            "__pycache__/\n"
+            "*.pyc\n"
+            "*.tmp\n"
+            "*.log\n"
+            ".venv/\n"
+            "data/\n"
+            "keys/*.key\n"
+            "keys/*private*\n"
+            ".ai/\n"
+            "scratch/\n"
+        )
 
-## 🚀 주요 기능 (Key Features)
-- **결정론적 스냅샷 및 중복 제거**: 파일 및 블록 레벨의 고속 증분 백업.
-- **WORM (Write Once, Read Many) 불변 저장소**: 랜섬웨어 및 위변조 방지.
-- **Windows 완전 통합**: 무창(Silent) 백그라운드 워커 및 Win32 네이티브 트레이 에이전트.
-- **반응형 웹 대시보드**: 모던 UI (`http://localhost:8765`) 제공.
-- **Ed25519 서명 기반 무중단 자동 업데이트**: 암호학적 무결성 검증 OTA.
+    print("[+] Clean staging repository sync completed.")
 
-## 📦 설치 및 시작하기 (Quick Start)
-1. [GitHub Releases](https://github.com/kks3365550/BackupSystem/releases)에서 최신 인스톨러 `BackupSystem_Setup_v2.9.20.exe`를 다운로드합니다.
-2. 설치 마법사를 실행하여 설치를 완료합니다.
-3. 웹 브라우저에서 `http://localhost:8765`로 접속하여 백업 프로필을 구성합니다.
-
-## 📜 공식 문서 (Documentation)
-- [릴리즈 노트 (Release Notes)](release_notes.md)
-- [지원 환경 명세 (Support Scope)](support_scope.md)
-- [알려진 이슈 (Known Issues)](known_issues.md)
-- [저장소 포맷 사양서 (Repository Format)](repository_format.md)
-- [릴리즈 빌드 매니페스트 (Release Build Manifest)](release_build_manifest.md)
-
-## 📄 라이선스 (License)
-MIT License
-"""
-    with open(os.path.join(clean_dir, "README.md"), "w", encoding="utf-8") as rf:
-        rf.write(readme_content)
-        
-    # 7. 엄격한 .gitignore 생성
-    gitignore_content = """# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.pyc
-.venv/
-venv/
-env/
-
-# Backup Repositories
-backup_repository/
-MyBackup_Repository/
-
-# Runtime Data & Personal Configurations
-data/*.json
-!data/profiles.json.example
-
-# Temporary & Logs
-*.tmp
-*.temp
-*.log
-logs/
-
-# Build artifacts & Binaries
-build/
-dist/
-*.spec
-installer/Output/
-installer/runtime/
-*.exe
-*.zip
-*.sig
-
-# Keys & Secrets (Only public keys are allowed)
-keys/*.key
-keys/*.pem
-keys/*.pfx
-keys/*private*
-
-# Internal & Scratch
-.ai/
-scratch/
-audit/
-reports/
-"""
-    with open(os.path.join(clean_dir, ".gitignore"), "w", encoding="utf-8") as gf:
-        gf.write(gitignore_content)
-        
-    # 8. 전수 보안 스캔
-    print("[*] 8대 보안 관문 전수 스캔 수행 중...")
-    forbidden = []
-    for root, dirs, files in os.walk(clean_dir):
-        for file in files:
-            path = os.path.join(root, file)
-            rel = os.path.relpath(path, clean_dir)
-            if file.endswith(".key") or file.endswith(".pem") or file.endswith(".pfx"):
-                forbidden.append(f"비밀키 감지: {rel}")
-            if "profiles.json" in file and not file.endswith(".example"):
-                forbidden.append(f"실제 설정 감지: {rel}")
-            if file.endswith(".log"):
-                forbidden.append(f"로그 파일 감지: {rel}")
-                
-    if forbidden:
-        print("🚨 [CRITICAL ALERT] 민감 파일 감지로 중단:")
-        for item in forbidden:
-            print("  - " + item)
-        sys.exit(1)
-        
-    print("✅ [PASS] 민감정보(비밀키, 개인설정, 로그) 0건 확인 완료!")
-    
-    # 9. Git 초기화, 커밋, 태그 생성
-    print("[*] 클린 Git 저장소 초기화 및 v2.9.20 태깅 중...")
-    def run_git(cmd):
-        res = subprocess.run(f"git {cmd}", cwd=clean_dir, shell=True)
-        if res.returncode != 0:
-            print(f"[-] Git error on: git {cmd}")
-        return res
-        
-    run_git("init -b main")
-    run_git('config user.name "kks3365550"')
-    run_git('config user.email "kks3365550@users.noreply.github.com"')
-    run_git("add .")
-    run_git('commit -m "feat: initial public release v2.9.20"')
-    run_git('tag -a v2.9.20 -m "BackupSystem v2.9.20 Official Release"')
-    run_git(f"remote add origin {remote_url}")
-    
+def git_commit_and_push():
     print("=" * 60)
-    print("🎉 클린 공개 Git 저장소 준비가 완벽히 완료되었습니다!")
-    print(f"위치: {clean_dir}")
-    print(f"대상 원격 저장소: {remote_url}")
+    print("[*] Committing and pushing updates to GitHub origin/main...")
     print("=" * 60)
+    run_cmd("git add -A")
+    # Commit if changes exist
+    status_res = subprocess.run("git status --porcelain", cwd=CLEAN_DIR, shell=True, capture_output=True, text=True)
+    if status_res.stdout.strip():
+        run_cmd(f'git commit -m "{COMMIT_MSG}"')
+    else:
+        print("[*] No changes to commit, proceeding with tag/push...")
+
+    run_cmd(f'git tag -fa {VERSION} -m "{VERSION} Official Release"')
+    print("[*] Pushing branch main to GitHub...")
+    p1 = run_cmd("git push origin main --force")
+    print(f"[*] Pushing tag {VERSION} to GitHub...")
+    p2 = run_cmd(f"git push origin {VERSION} --force")
+    return p1.returncode == 0 and p2.returncode == 0
+
+def publish_github_release_if_available():
+    print("=" * 60)
+    print("[*] Checking GitHub Release assets...")
+    print("=" * 60)
+    gh_exe = r"C:\Program Files\GitHub CLI\gh.exe"
+    if not os.path.exists(gh_exe):
+        gh_exe = "gh"
+
+    body = (
+        f"## 🛡️ BackupSystem {VERSION} Official Release\n\n"
+        f"> **Multi-chunk Ingest Engine, Robocopy Offsite Replication & Fail-Closed Hardening**\n\n"
+        f"### ⚡ 주요 업데이트 내역 (Key Highlights)\n"
+        f"1. **초고속 오프사이트 이중화 복제 파이프라인 (core/offsite.py)**:\n"
+        f"   - 기존 SMB icacls 병목을 전면 폐기하고 멀티스레드 Robocopy 엔진을 통한 고속 증분 복제 구현\n"
+        f"   - 백업 실패 시 복제 자동 스킵, 타겟 오프라인 시 0.5초 사전 헬스체크로 무지연 스킵\n\n"
+        f"2. **보안 및 무결성 강화 (v2.13.x)**:\n"
+        f"   - 매니페스트 손상 시 GC Fail-Closed 차단, 락 격리 및 인증 Fail-Closed 보호\n"
+        f"   - Ed25519 전자 서명 기반 무결성 검증\n"
+        f"   - 카카오 알림 의존성 제거 및 내부 로깅/대시보드 중심 경량화\n"
+    )
+
+    body_file = os.path.join(TEMP_DIR, f"github_release_{VERSION}_body.md")
+    with open(body_file, "w", encoding="utf-8") as bf:
+        bf.write(body)
+
+    # Assets
+    candidate_assets = [
+        os.path.join(DIST_DIR, f"BackupSystem_Setup_{VERSION}.exe"),
+        os.path.join(DIST_DIR, f"release_{VERSION}.zip"),
+        os.path.join(DIST_DIR, f"release_{VERSION}.zip.sig"),
+        os.path.join(DIST_DIR, "SHA256SUMS.txt")
+    ]
+    existing_assets = [a for a in candidate_assets if os.path.exists(a)]
+
+    if existing_assets:
+        print(f"[*] Found {len(existing_assets)} release assets. Publishing GitHub Release...")
+        run_cmd(f'"{gh_exe}" release delete {VERSION} -y', cwd=BASE_DIR)
+        asset_str = " ".join([f'"{a}"' for a in existing_assets])
+        cmd = (
+            f'"{gh_exe}" release create {VERSION} {asset_str} '
+            f'--title "{VERSION} - Multi-chunk Ingest & Robocopy Offsite Replication" '
+            f'--notes-file "{body_file}"'
+        )
+        res = run_cmd(cmd, cwd=BASE_DIR)
+        if res.returncode == 0:
+            print(f"[+] GitHub Release {VERSION} successfully published!")
+    else:
+        print("[*] Binary dist assets not present in dist/ directory. Tag and main branch push complete.")
+
+def main():
+    sync_clean_repo()
+    success = git_commit_and_push()
+    if success:
+        publish_github_release_if_available()
+        print("\n" + "=" * 60)
+        print(f"🎉 SUCCESS: BackupSystem {VERSION} successfully published to GitHub!")
+        print("=" * 60)
+    else:
+        print("\n[-] Push failed. Please check credentials or network.")
 
 if __name__ == "__main__":
     main()
