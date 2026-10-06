@@ -12,6 +12,67 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 os.chdir(BASE_DIR)
 sys.path.insert(0, BASE_DIR)
 
+def _run_offsite_replication(repo_dir: str, profile: dict):
+    """
+    오프사이트(이중화) 복제를 수행한다.
+
+    설계 원칙:
+      - 로컬 백업 결과를 절대 훼손하지 않는다 (격리된 예외 처리)
+      - 실패해도 로컬 백업은 '성공'으로 유지된다
+      - 원격 미도달 시 조용히 스킵하되 로그와 프로필에 상태를 남긴다
+    """
+    remote = profile.get("offsite_repo_dir")
+    if not remote:
+        return  # 미설정 = 정상 (단일 저장소 운용)
+
+    try:
+        from core.offsite import replicate_offsite
+        timeout = int(profile.get("offsite_timeout_sec", 7200))
+    except Exception as e_import:
+        print(f"[오프사이트] 모듈 로드 실패, 복제 건너뜀: {e_import}")
+        return
+
+    print(f" -> 오프사이트 복제 시작: {repo_dir} -> {remote}")
+    try:
+        res = replicate_offsite(repo_dir, remote, timeout_sec=timeout)
+    except Exception as e_rep:
+        # 어떤 예외든 로컬 백업 결과에는 영향 없음
+        print(f"[오프사이트] 복제 중 예외 (백업 결과에 영향 없음): {e_rep}")
+        profile["last_offsite_status"] = "error"
+        profile["last_offsite_message"] = str(e_rep)[:300]
+        try:
+            ConfigManager.save_profile(profile)
+        except Exception:
+            pass
+        return
+
+    if res.get("skipped"):
+        print(f"[오프사이트] 스킵: {res.get('reason')}")
+        profile["last_offsite_status"] = "skipped"
+        profile["last_offsite_message"] = res.get("reason", "")[:300]
+    elif res.get("success"):
+        print(
+            f"[오프사이트] 완료: 신규 {res.get('files_copied', 0)}개 "
+            f"(전체 {res.get('files_total', 0)}, 실패 {res.get('files_failed', 0)}, "
+            f"{res.get('duration_sec', 0):.0f}초)"
+        )
+        profile["last_offsite_status"] = "success"
+        profile["last_offsite_message"] = (
+            f"신규 {res.get('files_copied', 0)}개 / {res.get('duration_sec', 0):.0f}초"
+        )
+        profile["last_offsite_run"] = time.time()
+    else:
+        # 실패는 조용히 넘기지 않는다 - 로컬 백업은 성공이어도 오프사이트는 없을 수 있음
+        print(f"[오프사이트] 실패: {res.get('reason')}")
+        profile["last_offsite_status"] = "failed"
+        profile["last_offsite_message"] = res.get("reason", "")[:300]
+
+    try:
+        ConfigManager.save_profile(profile)
+    except Exception:
+        pass
+
+
 def run_cli_backup(profile_id: str = None):
     print(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] === 스마트 원샷 백업 시작 ===")
 
@@ -68,7 +129,10 @@ def run_cli_backup(profile_id: str = None):
         profile["last_snapshot_id"] = manifest["id"]
         ConfigManager.save_profile(profile)
 
-        # 5. Send KakaoTalk / Push Notification
+        # 5. Offsite Replication (2차 이중화 - 백업 성공 후에만 수행)
+        _run_offsite_replication(repo_dir, profile)
+
+        # 6. Send KakaoTalk / Push Notification
         try:
             from core.notifier import notify_backup_result
             notify_backup_result(manifest=manifest, profile_name=profile_name)
