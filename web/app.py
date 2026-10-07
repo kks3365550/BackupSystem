@@ -5,18 +5,16 @@ import base64
 import shutil
 import threading
 import psutil
-import datetime
 import tempfile
 import logging
 import urllib.request
-from collections import deque
 from contextlib import asynccontextmanager
 from typing import Dict, List, Any, Optional
 from fastapi import FastAPI, Request, BackgroundTasks, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from core.config import ConfigManager
 from core.snapshot import SnapshotEngine
@@ -25,11 +23,15 @@ from core.storage import BlobStorage
 from core.scheduler import BackupScheduler
 from core.app_scanner import get_installed_applications, get_project_items
 from core.driver_backup import export_windows_drivers
-from core.auth import (
-    is_auth_configured, is_auth_corrupted, get_auth_status, setup_master_password,
-    verify_master_password, change_master_password, create_session,
-    validate_session, revoke_session, set_localhost_bypass,
-    check_login_rate_limit, record_login_failure, record_login_success
+# 인증 미들웨어에서 필요한 심볼만 남긴다.
+# 나머지(설정/로그인/변경/우회 토글)는 web/api_auth.py 로 분리되었다.
+from core.auth import is_auth_configured, is_auth_corrupted, get_auth_status, validate_session
+
+# 전역 실행 상태는 web/state.py 가 유일한 소유자다.
+# 라우터들이 상태를 공유해야 하므로 app.py 가 직접 들지 않는다.
+from web.state import (
+    current_task, task_lock, append_task_log,
+    snapshot_task_status, request_cancel,
 )
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -72,26 +74,9 @@ def _cpu_monitor():
 _cpu_monitor_thread = threading.Thread(target=_cpu_monitor, daemon=True)
 _cpu_monitor_thread.start()
 
-# Global execution state (Optimization #3: deque maxlen=500 circular buffer for O(1) appending)
-current_task = {
-    "type": None,  # "backup", "restore", "verify", None
-    "running": False,
-    "progress": {},
-    "logs": deque(maxlen=500),
-    "cancel_event": None,
-    "start_time": None,
-    "result": None,
-    "error": None
-}
-
-task_lock = threading.Lock()
+# 전역 실행 상태(current_task, task_lock, append_task_log)는 web/state.py 에 있다.
+# 라우터 분리 시 상태가 갈라지지 않도록 한 곳에서만 소유한다.
 scheduler = BackupScheduler()
-
-def append_task_log(msg: str, level: str = "INFO"):
-    ts = datetime.datetime.now().strftime("%H:%M:%S")
-    entry = f"[{ts}] [{level}] {msg}"
-    with task_lock:
-        current_task["logs"].append(entry)
 
 scheduler.register_log_callback(append_task_log)
 
@@ -136,21 +121,6 @@ async def lifespan(app: FastAPI):
     scheduler.stop()
 
 app = FastAPI(title="Server & System Backup Manager", version="2.9.22", lifespan=lifespan)
-
-# ==================== Auth Pydantic Models ====================
-class AuthSetupRequest(BaseModel):
-    password: str = Field(..., min_length=8, description="최소 8자 이상의 마스터 비밀번호")
-    allow_localhost_bypass: bool = Field(default=True, description="로컬 루프백 접속 시 인증 우회 여부")
-
-class AuthLoginRequest(BaseModel):
-    password: str = Field(..., description="마스터 비밀번호")
-
-class AuthChangePasswordRequest(BaseModel):
-    old_password: str = Field(..., description="현재 비밀번호")
-    new_password: str = Field(..., min_length=8, description="최소 8자 이상의 새 비밀번호")
-
-class AuthBypassRequest(BaseModel):
-    enabled: bool = Field(..., description="로컬 루프백 인증 우회 활성화 여부")
 
 
 # ==================== Auth HTTP Middleware ====================
@@ -214,99 +184,13 @@ async def auth_middleware(request: Request, call_next):
     # 대시보드 페이지(/) 등 일반 요청은 통과 (프론트엔드에서 로그인 모달 표시)
     return await call_next(request)
 
-
-# ==================== Auth Endpoints ====================
-@app.get("/api/auth/status")
-async def auth_status(request: Request):
-    client_ip = request.client.host if request.client else ""
-    status = get_auth_status(client_ip)
-    token = request.cookies.get("backup_session")
-    if not token:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:].strip()
-    status["authenticated"] = bool(token and validate_session(token))
-    return JSONResponse(content={"success": True, "data": status})
-
-@app.post("/api/auth/setup")
-async def auth_setup(req: AuthSetupRequest):
-    try:
-        setup_master_password(req.password, req.allow_localhost_bypass)
-        return JSONResponse(content={"success": True, "message": "마스터 비밀번호가 성공적으로 설정되었습니다."})
-    except ValueError as e:
-        return JSONResponse(status_code=400, content={"success": False, "error": str(e)})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"success": False, "error": f"설정 중 오류: {str(e)}"})
-
-@app.post("/api/auth/login")
-async def auth_login(req: AuthLoginRequest, request: Request):
-    client_ip = request.client.host if request.client else "unknown"
-    locked, remaining_sec = check_login_rate_limit(client_ip)
-    if locked:
-        return JSONResponse(
-            status_code=429,
-            content={
-                "success": False,
-                "error": f"로그인 시도 횟수를 초과했습니다. {remaining_sec}초 후 다시 시도하세요.",
-                "locked": True,
-                "remaining_sec": remaining_sec
-            }
-        )
-    if not verify_master_password(req.password):
-        failures, is_now_locked = record_login_failure(client_ip)
-        err_msg = "비밀번호가 일치하지 않습니다."
-        if is_now_locked:
-            err_msg += " (5회 연속 실패: 5분간 로그인이 제한됩니다.)"
-        else:
-            err_msg += f" (실패 {failures}/5회)"
-        return JSONResponse(status_code=401, content={"success": False, "error": err_msg})
-    
-    record_login_success(client_ip)
-    token = create_session()
-    resp = JSONResponse(content={"success": True, "token": token, "message": "로그인 성공"})
-    resp.set_cookie(
-        key="backup_session",
-        value=token,
-        httponly=True,
-        samesite="lax",
-        max_age=86400 * 30,
-        path="/"
-    )
-    return resp
-
-@app.post("/api/auth/logout")
-async def auth_logout(request: Request):
-    token = request.cookies.get("backup_session")
-    if not token:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:].strip()
-    if token:
-        revoke_session(token)
-    resp = JSONResponse(content={"success": True, "message": "로그아웃 성공"})
-    resp.delete_cookie("backup_session", path="/")
-    return resp
-
-@app.post("/api/auth/change-password")
-async def auth_change_password(req: AuthChangePasswordRequest):
-    try:
-        change_master_password(req.old_password, req.new_password)
-        return JSONResponse(content={"success": True, "message": "비밀번호가 성공적으로 변경되었습니다."})
-    except ValueError as e:
-        return JSONResponse(status_code=400, content={"success": False, "error": str(e)})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"success": False, "error": f"변경 중 오류: {str(e)}"})
-
-@app.post("/api/auth/toggle-bypass")
-async def auth_toggle_bypass(req: AuthBypassRequest):
-    try:
-        set_localhost_bypass(req.enabled)
-        return JSONResponse(content={"success": True, "message": f"로컬 루프백 자동 우회 설정이 {'활성화' if req.enabled else '비활성화'}되었습니다."})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"success": False, "error": f"설정 변경 중 오류: {str(e)}"})
-
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
+
+# 분리된 라우터 등록
+# 경로 계약(/api/*)은 app.py 내부 라우터와 동일하게 유지된다.
+from web.api_auth import router as auth_router
+app.include_router(auth_router)
 
 # --- Web UI Route ---
 @app.get("/", response_class=HTMLResponse)
@@ -1058,25 +942,14 @@ def run_backup(req: RunBackupRequest, background_tasks: BackgroundTasks):
 
 @app.post("/api/backup/cancel")
 def cancel_backup():
-    with task_lock:
-        if not current_task["running"] or not current_task["cancel_event"]:
-            return {"status": "not_running"}
-        current_task["cancel_event"].set()
-        append_task_log("작업 취소 신호를 전송했습니다...", level="WARNING")
-        return {"status": "cancelling"}
+    if not request_cancel():
+        return {"status": "not_running"}
+    append_task_log("작업 취소 신호를 전송했습니다...", level="WARNING")
+    return {"status": "cancelling"}
 
 @app.get("/api/task/status")
 def get_task_status():
-    with task_lock:
-        return {
-            "type": current_task["type"],
-            "running": current_task["running"],
-            "progress": current_task["progress"],
-            "logs": list(current_task["logs"])[-30:],
-            "start_time": current_task["start_time"],
-            "result": current_task["result"],
-            "error": current_task["error"]
-        }
+    return snapshot_task_status()
 
 # --- Restore Execution API ---
 class RunRestoreRequest(BaseModel):
