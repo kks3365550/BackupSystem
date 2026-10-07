@@ -951,6 +951,62 @@ def cancel_backup():
 def get_task_status():
     return snapshot_task_status()
 
+@app.get("/api/backup/logs")
+def get_backup_logs(limit: int = 200):
+    """
+    스케줄러 백업 로그를 반환한다.
+
+    왜 이 엔드포인트가 필요한가:
+        작업 스케줄러는 pythonw.exe 로 cli_backup.py 를 실행한다.
+        표준출력이 없어 예전에는 어떤 정보도 남지 않았다.
+        core/logging_setup.py 가 logs/backup.log 에 기록하지만,
+        서버가 곧바로 읽을 수 있어야 현장에서 확인 가능하다.
+    """
+    try:
+        from core.logging_setup import BACKUP_LOG
+    except Exception as e:
+        return {"success": False, "error": f"로깅 모듈 로드 실패: {e}"}
+
+    result = {
+        "success": True,
+        "path": BACKUP_LOG,
+        "lines": [],
+        "exists": os.path.exists(BACKUP_LOG),
+        "rotated": [],
+    }
+
+    # 회전된 이전 파일까지 함께 보여준다 (최근 실패 원인이 직전 회전에 있을 수 있음)
+    targets = [BACKUP_LOG]
+    for suffix in [".1", ".2"]:
+        targets.append(BACKUP_LOG + suffix)
+
+    for path in targets:
+        try:
+            if not os.path.exists(path):
+                continue
+            size_kb = round(os.path.getsize(path) / 1024, 1)
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                lines = f.read().splitlines()
+            if path == BACKUP_LOG:
+                result["lines"] = lines[-max(1, min(limit, 2000)):]
+                result["size_kb"] = size_kb
+            else:
+                result["rotated"].append({
+                    "file": os.path.basename(path),
+                    "size_kb": size_kb,
+                    "lines": len(lines),
+                })
+        except Exception as e:
+            result.setdefault("warnings", []).append(f"{os.path.basename(path)}: {e}")
+
+    # 로그가 아예 없으면 왜인지 알려준다 (pythonw 문제 재발 시 대비)
+    if not result["exists"] and not result["rotated"]:
+        result["notice"] = (
+            "백업 로그가 아직 없습니다. 첫 스케줄러 실행(기본 09:00) 이후에 생성됩니다."
+        )
+
+    return result
+
 # --- Restore Execution API ---
 class RunRestoreRequest(BaseModel):
     snapshot_id: str

@@ -15,7 +15,7 @@ core/updater_v2/policy_verifier.py: Step 1 정책 무결성 및 리플레이 방
 
 import json
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional
 from datetime import datetime
 
 from .jcs import canonicalize

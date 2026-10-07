@@ -26,8 +26,7 @@ import io
 import os
 import re
 import zipfile
-from typing import Optional, Union, Dict, Set
-from pathlib import Path
+from typing import Union, Set
 
 from .models import AcquiredUpdate, ValidationError
 

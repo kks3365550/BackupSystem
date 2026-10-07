@@ -4,7 +4,7 @@ core/updater_v2/artifact_safety.py: Step 4B 아티팩트 무해성 및 시스템
 
 보강된 방어 체계:
 1. Windows 경로 정규화 우회 벡터 전수 차단:
-   - 혼합 슬래시 (..\/, ..\, /../, .\\..)
+   - 혼합 슬래시 (`../`, `..\\`, `/../`, `.\\..`)
    - 유니코드 경로 분리자 / 전각 문자 치환 방어
    - posixpath 및 ntpath 2중 검사
 2. 4축 독립 리소스 제한 (Zip Bomb 방어):
@@ -25,8 +25,16 @@ import zipfile
 from typing import Union, List, Set, Tuple
 
 
-class SafetyViolationError(SecurityError if "SecurityError" in dir(__builtins__) else Exception):
-    """아티팩트 안전성 검증 위반 예외"""
+class SafetyViolationError(Exception):
+    """아티팩트 안전성 검증 위반 예외
+
+    이전 코드는 `SecurityError if "SecurityError" in dir(__builtins__) else Exception`
+    이었다. __builtins__ 는 모듈(dict) 또는 모듈(lexical) 두形态이므로
+    dir() 결과가 실행 환경마다 달라졌다. pyflakes 는 여기서
+    `undefined name 'SecurityError'` 로 잡았고, 실제로 조건식이
+    의도와 다르게 평가될 수 있었다.
+    상위 예외 타입을 바꾸지 않고 Exception 으로 고정한다.
+    """
     pass
 
 

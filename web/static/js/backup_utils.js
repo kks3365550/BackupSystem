@@ -76,6 +76,43 @@ function closeModal(id) {
     if (modal) modal.classList.add('hidden');
 }
 
+// --- 스케줄러 백업 로그 보기 ---
+// 작업 스케줄러는 pythonw.exe 로 cli_backup.py 를 실행한다.
+// 콘솔이 없어 표준출력이 버려지므로, 로그는 logs/backup.log 에만 남는다.
+// 이 함수가 그 파일을 서버를 통해 읽는다.
+async function showScheduledBackupLogs() {
+    const body = document.getElementById('backup-log-body');
+    const meta = document.getElementById('backup-log-meta');
+    if (!body) return;
+
+    body.textContent = '불러오는 중...';
+    meta.textContent = '';
+    openModal('backup-log-modal');
+
+    try {
+        const d = await fetchAPI('/api/backup/logs?limit=400');
+        meta.textContent = `${d.path}  (${d.exists ? (d.size_kb + ' KB') : '파일 없음'})`;
+
+        if (d.notice) {
+            body.textContent = d.notice;
+            return;
+        }
+        if (!d.lines || !d.lines.length) {
+            body.textContent = '기록된 로그가 없습니다.';
+            return;
+        }
+
+        let out = d.lines.join('\n');
+        if (d.rotated && d.rotated.length) {
+            out += '\n\n--- 회전된 이전 로그 ---\n' +
+                d.rotated.map(r => `${r.file}  (${r.size_kb} KB, ${r.lines}줄)`).join('\n');
+        }
+        body.textContent = out;
+    } catch (e) {
+        body.textContent = '로그를 불러오지 못했습니다: ' + (e.message || e);
+    }
+}
+
 // --- 글로벌 경보 배너 시스템 (Red Alert System) ---
 let _bannerDismissedUntil = 0;
 
