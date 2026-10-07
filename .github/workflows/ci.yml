@@ -39,7 +39,15 @@ jobs:
       # 문제는 이미 알고 있고(키 회전 절차 진행 중), CI 는 앞으로 오는
       # 실수만 막는 용도로 쓴다.
       # 전체 이력 감사: python tools/scan_secrets.py --history
+      #
+      # PYTHONIOENCODING 을 명시한다. windows-latest 러너의 표준출력은 cp1252 라서
+      # 한국어 print 가 UnicodeEncodeError 로 죽고 exit code 1 이 된다.
+      # 그러면 "비밀 발견" 과 "도구 자체가 죽음" 이 구분되지 않는다.
+      # 스캐너 안에서도 stdout 을 재설정하지만, CI 와 로컬 양쪽을 막으려면
+      # 환경변수 쪽이 확실하다.
       - name: 추적 파일에서 비밀 탐지
+        env:
+          PYTHONIOENCODING: utf-8
         run: python tools/scan_secrets.py
 
   static-analysis:

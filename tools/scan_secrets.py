@@ -39,6 +39,19 @@ import argparse
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
+# 표준출력 인코딩을 UTF-8 로 고정한다.
+#
+# 2026-10-08, 이 스캐너의 첫 CI 실행이 UnicodeEncodeError 로 죽었다.
+# windows-latest 러너의 표준출력은 cp1252 인데 한국어를 출력하려 했기 때문이다.
+#   UnicodeEncodeError: 'charmap' codec can't encode characters
+#
+# exit code 1 이 "비밀 발견" 과 구분되지 않는 실패가 된다.
+# 게이트가 조용히 통과한 것보다 나쁘다.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # 검사 대상 확장자 (텍스트로 볼 수 있는 것만)
 TEXT_EXT = (
     ".py", ".json", ".bat", ".cmd", ".vbs", ".ps1", ".js", ".html",
