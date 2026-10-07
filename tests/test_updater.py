@@ -27,12 +27,54 @@ from core.updater import (
 from core.crypto_sign import sign_bytes_ed25519
 
 
+def _make_test_key_pair(temp_dir: str):
+    """
+    테스트 전용 Ed25519 키 페어를 임시 디렉토리에 만든다.
+
+    왜 이렇게 하는가:
+        이전에는 keys/release_ed25519.key (배포 서명용 개인키) 를 썼다.
+        그 파일은 .gitignore 대상이라 CI 에 없는데,
+        2026-10-07 CI 2차 실행에서 test_updater.py 7건이
+        FileNotFoundError 로 죽었다. 로컬에는 키가 있어서 통과했고.
+
+        배포용 개인키에 테스트가 의존하면 두 가지 문제가 생긴다:
+          1) 깨끗한 클론/CI 에서 테스트가 돌지 않는다
+          2) 테스트가 실제 배포 키를 만진다 (오염 위험)
+
+        서명/검증 로직 자체는 어떤 키로든 동일하게 동작하므로,
+        테스트는 테스트용 키를 직접 만들어 쓴다.
+    """
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives import serialization
+
+    priv = Ed25519PrivateKey.generate()
+
+    priv_pem = priv.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    pub_pem = priv.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+
+    priv_path = os.path.join(temp_dir, "test_ed25519.key")
+    pub_path = os.path.join(temp_dir, "test_ed25519.pub")
+    with open(priv_path, "wb") as f:
+        f.write(priv_pem)
+    with open(pub_path, "wb") as f:
+        f.write(pub_pem)
+
+    return priv_path, pub_path
+
+
 class TestUpdaterSecurityAndIntegrity(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp(prefix="test_updater_")
-        self.priv_key_path = os.path.join(BASE_DIR, "keys", "release_ed25519.key")
-        self.pub_key_path = os.path.join(BASE_DIR, "keys", "release_ed25519.pub")
+        # 배포용 키 대신 이 테스트에서 만든 키를 쓴다.
+        self.priv_key_path, self.pub_key_path = _make_test_key_pair(self.temp_dir)
 
         # Create a valid test ZIP
         self.valid_zip_path = os.path.join(self.temp_dir, "valid_test.zip")
