@@ -13,6 +13,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  secret-scan:
+    name: 비밀 스캔
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # 2026-10-08: 공개 저장소의 이력에서 실제 credential 5종이 발견됐다.
+      #   - 배포 서명 Ed25519 개인키 (지금 사용 중, 서명 위조 실증)
+      #   - 마스터 비밀번호 해시 + salt 2종
+      #   - 살아있는 Firebase API 키
+      #   - 사내 계정 (release_admin_test@sunhang.internal)
+      #   - 테스트 저장소 개인키
+      #
+      # 여기서는 '추적 파일'만 검사한다. 비밀을 커밋하면 그 파일이 추적되므로
+      # 이 검사만으로 새 유출은 전부 막힌다.
+      #
+      # 이력 전체 검사는 하지 않는다. 기존 유출 31건 때문에 CI 가 영구히
+      # 실패하고, 그 빨간 상태는 아무도 보지 않게 된다. 이미 알고 있는
+      # 문제는 이미 알고 있고(키 회전 절차 진행 중), CI 는 앞으로 오는
+      # 실수만 막는 용도로 쓴다.
+      # 전체 이력 감사: python tools/scan_secrets.py --history
+      - name: 추적 파일에서 비밀 탐지
+        run: python tools/scan_secrets.py
+
   static-analysis:
     name: 정적 분석 (pyflakes)
     runs-on: windows-latest
@@ -72,7 +101,7 @@ jobs:
   build:
     name: 배포 산출물 빌드
     runs-on: windows-latest
-    needs: [ static-analysis, test ]
+    needs: [ secret-scan, static-analysis, test ]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     steps:
       - uses: actions/checkout@v4
