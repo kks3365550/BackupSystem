@@ -47,3 +47,12 @@ tests/test_repo/
 tests/test_repo2/
 scratch/test_backup_repo/
 scratch/
+
+# Legacy snapshot (v2.9.10) - 구버전 아카이브라 빌드/검증에서 참조하지 않는다.
+# 하위 개인키는 tools/build_v2921_release.py 가 서명용으로 찾으므로
+# 로컬에는 남겨 두되 git 에서는 제외한다.
+backup/v2.9.10/
+
+# 빌드/배포 산출물
+dist/
+installer/runtime/
