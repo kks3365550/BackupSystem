@@ -23,6 +23,13 @@ from web.paths import BASE_DIR
 from web.version import VERSION, _cached_update_info
 from web.state import append_task_log
 
+# 릴리즈 확인에 쓰는 함수.
+#
+# 라우터 본문 안에서 import 하면 같은 이름이 세 곳에 생긴다
+# (백그라운드 체크 / 원격 릴리즈 조회 / 업데이트 상태).
+# 한쪽만 고치면 조용히 어긋나고 pyflakes 는 중복을 잡지 못한다.
+from core.updater import check_for_update, get_current_installed_version
+
 logger = logging.getLogger("BackupSystem.update")
 router = APIRouter()
 
@@ -30,7 +37,6 @@ router = APIRouter()
 def _background_update_check():
     time.sleep(5)
     try:
-        from core.updater import check_for_update
         info = check_for_update()
         _cached_update_info["checked_at"] = time.time()
         _cached_update_info["data"] = info
@@ -230,7 +236,6 @@ def check_remote_release():
     GitHub 공식 Releases를 직접 조회하여 최신 버전 감지 여부를 반환합니다.
     (미니피씨 P2P 의존성 제거, 글로벌 GitHub 릴리즈 직결)
     """
-    from core.updater import check_for_update, get_current_installed_version
     cur_ver = get_current_installed_version()
 
     try:
@@ -304,7 +309,6 @@ async def sync_remote_release(request: Request):
 @router.get("/api/update/status")
 def get_software_update_status(force_check: bool = False):
     """최신 소프트웨어 릴리즈 업데이트 상태 반환 (온라인/오프라인 지원)"""
-    from core.updater import check_for_update, get_current_installed_version
     now = time.time()
     # Cache for 10 minutes unless force_check is requested
     if force_check or _cached_update_info["data"] is None or (now - _cached_update_info["checked_at"] > 600):

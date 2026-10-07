@@ -26,7 +26,7 @@ from core.auth import is_auth_configured, is_auth_corrupted, get_auth_status, va
 from web.state import current_task, task_lock, append_task_log
 
 from web.paths import STATIC_DIR, TEMPLATES_DIR
-from web.version import get_current_version
+from web.version import get_current_version, VERSION
 from web.api_snapshots import (
     router as snapshots_router,
     _get_all_candidate_repos,
@@ -89,7 +89,10 @@ async def lifespan(app: FastAPI):
     yield
     scheduler.stop()
 
-app = FastAPI(title="Server & System Backup Manager", version="2.9.22", lifespan=lifespan)
+# version 은 VERSION 파일에서 읽는다 (web/version.py).
+# 여기서 하드코딩하면 릴리즈마다 OpenAPI 문서와 실제 버전이 어긋난다.
+# v2.13.7 까지 "2.9.22" 로 굳어 있었다.
+app = FastAPI(title="Server & System Backup Manager", version=VERSION, lifespan=lifespan)
 
 
 # ==================== Auth HTTP Middleware ====================
@@ -458,6 +461,8 @@ def get_alerts_summary():
         pass
 
     # 3. Check Replication Queue
+    # ReplicationQueueManager 는 이 함수 스코프에서 import 한다.
+    # (lifespan 안의 같은 이름 import 는 다른 함수 스코프라 충돌이 아니다)
     try:
         from core.replication_queue import ReplicationQueueManager
         candidate_repos = _get_all_candidate_repos()

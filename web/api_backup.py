@@ -28,6 +28,16 @@ from core.storage import BlobStorage
 from core.app_scanner import get_installed_applications
 from core.driver_backup import export_windows_drivers
 
+# 백업이 거부될 때의 예외 타입.
+#
+# 예외 핸들러 안에서만 import 하면 같은 이름이 두 곳에 생긴다
+# (선택 백업 핸들러 / 일반 백업 핸들러). 한쪽만 수정하면 조용히 어긋나고
+# pyflakes 는 중복을 잡지 못한다. 모듈 상단에 한 번만 둔다.
+from core.lock import BackupAlreadyRunningError
+from core.storage import InsufficientDiskSpaceError
+from core.vss_manager import VSSRequiredError
+from core.verify import RestoreVerificationError
+
 router = APIRouter()
 
 
@@ -270,10 +280,6 @@ def _background_custom_backup_task(params: Dict[str, Any]):
         with task_lock:
             current_task["error"] = "Cancelled by user"
     except Exception as e:
-        from core.lock import BackupAlreadyRunningError
-        from core.storage import InsufficientDiskSpaceError
-        from core.vss_manager import VSSRequiredError
-        from core.verify import RestoreVerificationError
         if isinstance(e, BackupAlreadyRunningError):
             append_task_log(f"선택 백업 거부: {str(e)}", level="WARNING")
         elif isinstance(e, InsufficientDiskSpaceError):
@@ -417,10 +423,6 @@ def _background_backup_task(params: Dict[str, Any]):
         with task_lock:
             current_task["error"] = "Cancelled by user"
     except Exception as e:
-        from core.lock import BackupAlreadyRunningError
-        from core.storage import InsufficientDiskSpaceError
-        from core.vss_manager import VSSRequiredError
-        from core.verify import RestoreVerificationError
         if isinstance(e, BackupAlreadyRunningError):
             append_task_log(f"백업 거부: {str(e)}", level="WARNING")
         elif isinstance(e, InsufficientDiskSpaceError):
