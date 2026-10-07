@@ -125,28 +125,36 @@ class TestUpdaterSecurityAndIntegrity(unittest.TestCase):
             self.assertIsNone(result, "오프라인/장애 시 Fail-Safe로 None을 반환해야 함")
 
     def test_check_for_update_detection(self):
-        """신규 버전 감지 시 정확한 release_info 반환 검증"""
-        mock_response = MagicMock()
-        mock_data = {
-            "fields": {
-                "version": {"stringValue": "2.9.2"},
-                "download_url": {"stringValue": "https://example.com/update.zip"},
-                "sha256": {"stringValue": "abcdef123456"},
-                "signature": {"stringValue": "fedcba654321"},
-                "mandatory": {"booleanValue": False},
-                "changelog": {"stringValue": "Test release"}
-            }
-        }
-        mock_response.read.return_value = json.dumps(mock_data).encode('utf-8')
-        mock_response.__enter__.return_value = mock_response
+        """
+        신규 버전 감지 시 정확한 release_info 반환 검증.
 
-        with patch('urllib.request.urlopen', return_value=mock_response):
+        NOTE: v2.10.1에서 Firebase -> GitHub Releases API로 전환되었다.
+              이 테스트는 현행 GitHub API 응답 형식(tag_name + assets[])을 사용한다.
+        """
+        github_release = {
+            "tag_name": "v2.9.2",
+            "assets": [
+                {"name": "release_2.9.2.zip",
+                 "browser_download_url": "https://example.com/release_2.9.2.zip"},
+                {"name": "release_2.9.2.zip.sig",
+                 "browser_download_url": "https://example.com/release_2.9.2.zip.sig"},
+            ]
+        }
+
+        def _fake_urlopen(req, *a, **kw):
+            resp = MagicMock()
+            resp.read.return_value = json.dumps(github_release).encode('utf-8')
+            resp.__enter__.return_value = resp
+            resp.__exit__.return_value = False
+            return resp
+
+        with patch('urllib.request.urlopen', side_effect=_fake_urlopen):
             # 1. 현재 버전이 2.9.1일 때 -> 업데이트 감지됨
             info = check_for_update(current_ver="2.9.1")
-            self.assertIsNotNone(info)
+            self.assertIsNotNone(info, "신규 버전이 있으면 release_info 를 반환해야 함")
             self.assertTrue(info["update_available"])
             self.assertEqual(info["latest_version"], "2.9.2")
-            self.assertEqual(info["sha256"], "abcdef123456")
+            self.assertTrue(info["download_url"].endswith("release_2.9.2.zip"))
 
             # 2. 현재 버전이 이미 2.9.2일 때 -> 업데이트 없음
             info_same = check_for_update(current_ver="2.9.2")

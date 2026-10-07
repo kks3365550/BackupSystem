@@ -47,12 +47,12 @@ class TestV241Features(unittest.TestCase):
     def tearDown(self):
         # Clean up any WORM protections before removing temp directory
         try:
-            self.worm_manager.unprotect_directory(self.repo_dir)
+            self.worm_manager.unprotect_directory(self.repo_dir, authorized=True)
             for root, dirs, files in os.walk(self.temp_dir):
                 for f in files:
-                    self.worm_manager.unprotect_file(os.path.join(root, f))
+                    self.worm_manager.unprotect_file(os.path.join(root, f), authorized=True)
                 for d in dirs:
-                    self.worm_manager.unprotect_directory(os.path.join(root, d))
+                    self.worm_manager.unprotect_directory(os.path.join(root, d), authorized=True)
         except Exception:
             pass
 
@@ -84,7 +84,7 @@ class TestV241Features(unittest.TestCase):
             pass
 
         # Unprotect File
-        self.assertTrue(self.worm_manager.unprotect_file(test_file))
+        self.assertTrue(self.worm_manager.unprotect_file(test_file, authorized=True))
 
         # Modification and deletion after unprotect must succeed
         with open(test_file, 'a', encoding='utf-8') as f:
@@ -100,7 +100,7 @@ class TestV241Features(unittest.TestCase):
             f.write("inner data")
 
         self.assertTrue(self.worm_manager.protect_directory(test_sub_dir))
-        self.assertTrue(self.worm_manager.unprotect_directory(test_sub_dir))
+        self.assertTrue(self.worm_manager.unprotect_directory(test_sub_dir, authorized=True))
         os.remove(inner_file)
         os.rmdir(test_sub_dir)
 
@@ -147,7 +147,7 @@ class TestV241Features(unittest.TestCase):
         blob_path = storage.get_blob_abs_path(target_blob_id)
 
         # Unlock and corrupt 1 byte
-        self.worm_manager.unprotect_file(blob_path)
+        self.worm_manager.unprotect_file(blob_path, authorized=True)
         with open(blob_path, 'r+b') as f:
             f.seek(15)
             f.write(b'\x00' if f.read(1) != b'\x00' else b'\xFF')
@@ -173,7 +173,7 @@ class TestV241Features(unittest.TestCase):
         )
 
         snap_file = os.path.join(self.repo_dir, "snapshots", f"{snap['id']}.json")
-        self.worm_manager.unprotect_file(snap_file)
+        self.worm_manager.unprotect_file(snap_file, authorized=True)
 
         with open(snap_file, 'r', encoding='utf-8') as f:
             manifest = json.load(f)

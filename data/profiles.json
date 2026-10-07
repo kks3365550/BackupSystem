@@ -184,8 +184,11 @@
     "compression_level": 9,
     "offsite_repo_dir": "\\\\품관김기수\\k12백업\\repo",
     "offsite_timeout_sec": 7200,
-    "last_run": 1791244808.1031775,
+    "last_run": 1791331405.62157,
     "last_status": "success",
-    "last_snapshot_id": "snap_20261006_090006_3451ab"
+    "last_snapshot_id": "snap_20261007_090323_235248",
+    "last_offsite_status": "success",
+    "last_offsite_message": "신규 28910개 / 283초",
+    "last_offsite_run": 1791331688.7853043
   }
 ]

@@ -129,7 +129,7 @@ class TestV239Verification(unittest.TestCase):
         storage = BlobStorage(self.repo_dir)
         blob_path = storage.get_blob_abs_path(blob_id)
 
-        unlock_file_writable(blob_path)
+        unlock_file_writable(blob_path, authorized=True)
         with open(blob_path, "wb") as f:
             f.write(b"CORRUPTED_GARBAGE_BYTES")
 

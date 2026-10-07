@@ -184,7 +184,7 @@ class TestDisasterScenarios(unittest.TestCase):
         self.assertIsNotNone(target_blob_id)
 
         corrupt_blob_path = storage.get_blob_abs_path(target_blob_id)
-        unlock_file_writable(corrupt_blob_path)
+        unlock_file_writable(corrupt_blob_path, authorized=True)
         with open(corrupt_blob_path, "wb") as f:
             f.write(b"CORRUPTED_DISASTER_GARBAGE")
 
@@ -222,7 +222,7 @@ class TestDisasterScenarios(unittest.TestCase):
 
         # 최신 snap2의 manifest 파일을 완전히 삭제(손상)시킴
         snap2_file = os.path.join(self.local_repo, "snapshots", f"{snap2['id']}.json")
-        unlock_file_writable(snap2_file)
+        unlock_file_writable(snap2_file, authorized=True)
         os.remove(snap2_file)
 
         # 직전 snap1 스냅샷으로 롤백 복원 시도 -> 100% 정상 성공해야 함

@@ -233,11 +233,19 @@ class TestEncryptionChaos(unittest.TestCase):
         self.assertIn("복원 작업 완료", proc.stdout)
 
         # 복원 파일 내용 일치 확인
+        #
+        # disaster_recovery.restore_snapshot()은 dest_dir 지정 시
+        # '드라이브 문자만 제거한 전체 절대 경로'를 dest 아래에 재현한다
+        # (disaster_recovery.py:478-481). 즉 dest 루트 바로 아래를 가정하면 안 된다.
+        #   dest\Users\<user>\...\chaos_test_xxx\source\file_alpha.txt
+        def _find_restored(dest_root, filename):
+            for root_d, _, files in os.walk(dest_root):
+                if filename in files:
+                    return os.path.join(root_d, filename)
+            raise AssertionError(f"복원된 파일을 찾을 수 없음: {filename} (dest={dest_root})")
+
         for rel_path, data in self.files_data.items():
-            restored_path = os.path.join(dest, rel_path)
-            if not os.path.exists(restored_path):
-                restored_path = os.path.join(dest, "source", rel_path)
-            self.assertTrue(os.path.exists(restored_path))
+            restored_path = _find_restored(dest, os.path.basename(rel_path))
             with open(restored_path, "rb") as f:
                 self.assertEqual(f.read(), data)
 
@@ -312,12 +320,15 @@ class TestEncryptionChaos(unittest.TestCase):
         # 복원된 모든 파일 바이트 일치 확인
         for rel_path, expected_data in self.files_data.items():
             out_file = os.path.join(fresh_dest, rel_path)
-            if not os.path.exists(out_file):
-                out_file = os.path.join(fresh_dest, "source", rel_path)
-            self.assertTrue(os.path.exists(out_file))
+        # 신메신(新 machines)에서 키 파일만으로 전체 복원 가능 확인
+        # (restore_snapshot 은 드라이브 문자만 제거한 전체 경로를 dest 아래에 생성한다)
+        def _find_restored(dest_root, filename):
+            for root_d, _, files in os.walk(dest_root):
+                if filename in files:
+                    return os.path.join(root_d, filename)
+            raise AssertionError(f"복원된 파일을 찾을 수 없음: {filename} (dest={dest_root})")
+
+        for rel_path, expected_data in self.files_data.items():
+            out_file = _find_restored(fresh_dest, os.path.basename(rel_path))
             with open(out_file, "rb") as f:
                 self.assertEqual(f.read(), expected_data)
-
-
-if __name__ == "__main__":
-    unittest.main()

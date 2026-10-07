@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+# 같은 브랜치에 연속 push 시 이전 실행 취소
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-analysis:
+    name: 정적 분석 (pyflakes)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: pyflakes 정적 분석
+        run: |
+          python -m pip install --upgrade pip pyflakes
+          python -m pyflakes core web cli_backup.py cli.py run.py disaster_recovery.py
+        # 미사용 import / 정의되지 않은 이름 / 미사용 변수를 차단한다.
+        # 백업 시스템은 정상 경로에서 드러나지 않는 NameError가Operational 리스크다.
+
+  test:
+    name: 회귀 테스트
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 의존성 설치
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+
+      - name: 빠른 회귀 테스트 (CI 게이트)
+        run: |
+          python -m pytest -q \
+            tests/test_critical_fixes.py \
+            tests/test_offsite.py \
+            tests/test_p0_fail_closed.py \
+            tests/test_disaster_scenarios.py \
+            tests/test_crypto_at_rest.py \
+            tests/test_auth.py \
+            tests/test_repository_chaos.py \
+            tests/test_encryption_chaos.py \
+            tests/test_updater.py
+
+      - name: 전체 테스트 스위트
+        run: python -m pytest -q
+        continue-on-error: true
+        # 장시간 테스트가 포함될 수 있어 실패를 관찰용으로만 기록한다.
+
+      - name: 테스트 로그 아티팩트 업로드 (실패 시)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-logs
+          path: |
+            logs/
+            **/pytest*.log
+          retention-days: 7
+
+  build:
+    name: 배포 산출물 빌드
+    runs-on: windows-latest
+    needs: [ static-analysis, test ]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 의존성 설치
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: 배포 매니페스트 생성
+        run: python tools/release.py --dry-run
+        continue-on-error: true
+        # 빌드 산출물은 운영 사내 배포 기준이며, 공개 배포는 별도 승인 절차다.
