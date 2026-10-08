@@ -1,9 +1,9 @@
-﻿; =========================================================================
+; =========================================================================
 ; 백업시스템 (BackupSystem) Inno Setup 6+ 인스톨러 빌드 스크립트 (v2.9.11)
 ; =========================================================================
 
 #define MyAppName "백업시스템"
-#define MyAppVersion "2.13.8"
+#define MyAppVersion "2.13.10"
 #define MyAppPublisher "삼영데리카후레쉬"
 #define MyAppURL "http://127.0.0.1:8765"
 #define MyAppExeName "BackupSystem.exe"
@@ -51,7 +51,7 @@ Source: "..\core\*"; DestDir: "{app}\core"; Flags: ignoreversion recursesubdirs 
 Source: "..\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "__pycache__,*.pyc,*.pyo"
 Source: "..\run.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\VERSION"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\keys\release_ed25519.pub"; DestDir: "{app}\keys"; Flags: ignoreversion
+Source: "..\keys\*.pub"; DestDir: "{app}\keys"; Flags: ignoreversion
 Source: "..\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 ; 3. VBScript 래퍼 및 운영 스크립트

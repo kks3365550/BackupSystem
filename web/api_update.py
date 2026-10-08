@@ -79,20 +79,30 @@ async def self_update(request: Request = None, custom_body: bytes = None, custom
         except Exception:
             raise HTTPException(status_code=403, detail="서명 인코딩 형식 오류")
 
-    pub_key_path = os.path.join(BASE_DIR, "keys", "release_ed25519.pub")
-    if not os.path.exists(pub_key_path):
+    # 키링 검증: keys/*.pub 를 모두 신뢰한다.
+    # 단일 경로만 보면 키 교체 전환 기간에 신 키로 서명한 패키지가 거부된다.
+    # 신뢰 목록은 core/updater.get_trusted_public_key_paths 가 유일하게 소유한다.
+    from core.updater import get_trusted_public_key_paths
+    trusted_pub_paths = get_trusted_public_key_paths()
+    if not trusted_pub_paths:
         raise HTTPException(
             status_code=403,
-            detail="업데이트 거부: 서버에 Ed25519 릴리즈 공개키(release_ed25519.pub)가 등록되지 않았습니다."
+            detail="업데이트 거부: 서버에 Ed25519 릴리즈 공개키가 등록되지 않았습니다."
         )
 
     try:
-        from core.crypto_sign import verify_bytes_ed25519
-        if not verify_bytes_ed25519(body, signature_hex, pub_key_path):
+        from core.crypto_sign import verify_bytes_ed25519_any
+        _ok, _matched = verify_bytes_ed25519_any(body, signature_hex, trusted_pub_paths)
+        if not _ok:
             raise HTTPException(
                 status_code=403,
                 detail="패키지 전자서명 검증 실패: 유효하지 않거나 변조된 업데이트 패키지입니다."
             )
+        try:
+            _label = os.path.basename(trusted_pub_paths[_matched]) if isinstance(trusted_pub_paths[_matched], str) else "key-%d" % _matched
+        except Exception:
+            _label = "unknown"
+        logger.info("SELF_UPDATE_SIGNATURE_OK key=%s", _label)
     except HTTPException:
         raise
     except Exception as e:
