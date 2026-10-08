@@ -172,15 +172,15 @@ def publish_github_release_if_available():
 
     body = (
         f"## 🛡️ BackupSystem {VERSION} Official Release\n\n"
-        f"> **Inno Setup .exe Installer, Multi-chunk Ingest Engine & Zero-Leak Hardening**\n\n"
+        f"> **Ed25519 v2 Key Migration, Legacy Key Deprecation & Zero-Leak Hardening**\n\n"
         f"### ⚡ 주요 업데이트 내역 (Key Highlights)\n"
-        f"1. **Inno Setup 공식 인스톨러(.exe) 배포 및 원클릭 다운로드**:\n"
+        f"1. **Ed25519 v2 키 단독 전환 및 구 키 폐기**:\n"
+        f"   - **v2 키 체계 도입**: 새로운 Ed25519 v2 공개/비공개 키 쌍으로 완전 전환\n"
+        f"   - **구 키 폐기**: 기존 v1 키 및 관련 서명 데이터 영구 무효화 및 삭제\n"
+        f"   - **무결성 검증 강화**: v2 키 기반 서명 검증 로직 업데이트 및 호환성 확인 완료\n\n"
+        f"2. **Inno Setup 공식 인스톨러(.exe) 배포 및 원클릭 다운로드**:\n"
         f"   - 릴리즈 에셋에 정식 윈도우 설치 파일(`BackupSystem_Setup_{VERSION}.exe`) 자동 빌드 및 첨부\n"
         f"   - 웹 대시보드 업데이트 감지 시 인스톨러 직접 다운로드 버튼 제공\n\n"
-        f"2. **보안 및 클라우드 정리 (v2.13.8)**:\n"
-        f"   - **Firebase 완전 폐기**: 콘솔 프로젝트 영구 삭제에 맞춰 100% 로컬 독립 운용 체제 확립\n"
-        f"   - 마스터 비밀번호 PBKDF2 단방향 해시 갱신 및 유출 해시 무효화 완료\n"
-        f"   - Ed25519 전자 서명 기반 무결성 검증\n\n"
         f"3. **초고속 오프사이트 이중화 복제 파이프라인 (core/offsite.py)**:\n"
         f"   - 멀티스레드 Robocopy 엔진을 통한 고속 증분 복제 및 0.5초 무지연 헬스체크\n"
     )
