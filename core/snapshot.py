@@ -22,6 +22,9 @@ from core.vss_manager import VSSContext
 from core.crypto_sign import Ed25519Signer
 from core.crypto_at_rest import CryptoAtRestEngine
 from core.chunk_engine import ChunkPolicySelector, CHUNK_THRESHOLD_BYTES
+from core.logging_setup import get_logger
+
+log = get_logger("core.snapshot")
 
 
 class SnapshotEngine:
@@ -462,6 +465,7 @@ class SnapshotEngine:
                     }
                     return res_entry, is_new, stored_sz, st, None
             except Exception as ex:
+                log.error(f"스냅샷 파일 백업 실패 [{s_root}/{r_path}]: {ex}", exc_info=True)
                 return {
                     "source_root": s_root,
                     "rel_path": r_path,
@@ -655,6 +659,7 @@ class SnapshotEngine:
         except RestoreVerificationError as e_rv:
             raise e_rv
         except Exception as e_hc:
+            log.warning(f"스냅샷 자동 복원 검증 비치명적 경고: {e_hc}", exc_info=True)
             if progress_callback:
                 progress_callback({
                     "type": "verify_warning",

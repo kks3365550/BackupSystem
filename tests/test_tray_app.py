@@ -139,6 +139,34 @@ class TestBackupTrayApp(unittest.TestCase):
         self.assertFalse(self.app.running)
         mock_post_msg.assert_called_once_with(self.app.hwnd, 0x0010, 0, 0)  # WM_CLOSE = 0x0010
 
+    @patch("tray_app.user32.DestroyWindow")
+    def test_wnd_proc_wm_close_calls_destroy_window(self, mock_destroy):
+        ret = self.app.wnd_proc(self.app.hwnd, 0x0010, 0, 0)  # WM_CLOSE
+        self.assertEqual(ret, 0)
+        mock_destroy.assert_called_once_with(self.app.hwnd)
+
+    @patch("tray_app.user32.PostQuitMessage")
+    def test_wnd_proc_wm_destroy_quits_message_loop(self, mock_quit):
+        self.app.running = True
+        ret = self.app.wnd_proc(self.app.hwnd, 0x0002, 0, 0)  # WM_DESTROY
+        self.assertEqual(ret, 0)
+        self.assertFalse(self.app.running)
+        mock_quit.assert_called_once_with(0)
+
+    @patch("tray_app.user32.PostMessageW")
+    @patch("tray_app.user32.TrackPopupMenuEx")
+    @patch("tray_app.user32.SetForegroundWindow")
+    @patch("tray_app.user32.DestroyMenu")
+    @patch("tray_app.user32.AppendMenuW")
+    @patch("tray_app.user32.CreatePopupMenu", return_value=12345)
+    @patch("tray_app.user32.GetCursorPos")
+    def test_show_context_menu_posts_wm_null(self, mock_get_pos, mock_create_menu, mock_append_menu,
+                                             mock_destroy_menu, mock_set_fg, mock_track_menu, mock_post_msg):
+        self.app.show_context_menu()
+        mock_track_menu.assert_called_once()
+        mock_post_msg.assert_called_once_with(self.app.hwnd, 0x0000, 0, 0)  # WM_NULL = 0x0000
+        mock_destroy_menu.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

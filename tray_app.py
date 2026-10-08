@@ -27,6 +27,7 @@ WM_TRAYICON = WM_USER + 20
 WM_COMMAND = 0x0111
 WM_DESTROY = 0x0002
 WM_CLOSE = 0x0010
+WM_NULL = 0x0000
 WM_LBUTTONDBLCLK = 0x0203
 WM_RBUTTONUP = 0x0205
 
@@ -238,7 +239,10 @@ class BackupTrayApp:
             elif cmd_id == IDM_EXIT:
                 self.exit_app()
             return 0
-        elif msg in (WM_CLOSE, WM_DESTROY):
+        elif msg == WM_CLOSE:
+            user32.DestroyWindow(hwnd)
+            return 0
+        elif msg == WM_DESTROY:
             self.running = False
             user32.PostQuitMessage(0)
             return 0
@@ -260,6 +264,7 @@ class BackupTrayApp:
 
         user32.SetForegroundWindow(self.hwnd)
         user32.TrackPopupMenuEx(hmenu, TPM_RIGHTBUTTON | TPM_BOTTOMALIGN, pt.x, pt.y, self.hwnd, None)
+        user32.PostMessageW(self.hwnd, WM_NULL, 0, 0)
         user32.DestroyMenu(hmenu)
 
     def open_dashboard(self):
