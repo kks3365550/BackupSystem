@@ -14,6 +14,7 @@ import time
 import ctypes
 import webbrowser
 import threading
+import subprocess
 import urllib.request
 import urllib.error
 from ctypes import wintypes
@@ -139,6 +140,7 @@ class BackupTrayApp:
         self.nid = None
         self.running = True
         self.last_task_state = None  # 이전 백그라운드 태스크 상태 추적
+        self._notif_lock = threading.Lock()
         self._wndproc = WNDPROC(self.wnd_proc)
 
     def run(self):
@@ -207,11 +209,12 @@ class BackupTrayApp:
         """Windows Native 풍선/토스트 알림 발송"""
         if not self.nid or not self.hwnd:
             return
-        self.nid.uFlags = NIF_INFO
-        self.nid.szInfoTitle = title[:63]
-        self.nid.szInfo = text[:255]
-        self.nid.dwInfoFlags = info_flag
-        shell32.Shell_NotifyIconW(NIM_MODIFY, ctypes.byref(self.nid))
+        with self._notif_lock:
+            self.nid.uFlags = NIF_INFO
+            self.nid.szInfoTitle = title[:63]
+            self.nid.szInfo = text[:255]
+            self.nid.dwInfoFlags = info_flag
+            shell32.Shell_NotifyIconW(NIM_MODIFY, ctypes.byref(self.nid))
 
     def wnd_proc(self, hwnd, msg, wparam, lparam):
         if msg == WM_TRAYICON:
@@ -260,7 +263,16 @@ class BackupTrayApp:
         user32.DestroyMenu(hmenu)
 
     def open_dashboard(self):
-        webbrowser.open(SERVER_URL)
+        try:
+            if sys.platform.startswith("win"):
+                os.startfile(SERVER_URL)
+                return
+        except Exception:
+            pass
+        try:
+            webbrowser.open(SERVER_URL)
+        except Exception:
+            pass
 
     def trigger_backup(self):
         def _call():
@@ -272,10 +284,20 @@ class BackupTrayApp:
                 )
                 with urllib.request.urlopen(req, timeout=5) as res:
                     data = json.loads(res.read().decode('utf-8'))
-                    if data.get("success"):
+                    if data.get("status") == "started" or data.get("success"):
                         self.show_notification("백업 시작", "새로운 시스템 백업 작업이 시작되었습니다.")
                     else:
                         self.show_notification("백업 알림", data.get("error", "백업 요청 실패"), NIIF_WARNING)
+            except urllib.error.HTTPError as e:
+                if e.code == 409:
+                    try:
+                        err_data = json.loads(e.read().decode('utf-8'))
+                        detail = err_data.get("detail", "이미 다른 백업 또는 복원 작업이 실행 중입니다.")
+                    except Exception:
+                        detail = "이미 다른 작업이 진행 중입니다."
+                    self.show_notification("백업 충돌", detail, NIIF_WARNING)
+                else:
+                    self.show_notification("백업 요청 실패", f"서버 오류 (HTTP {e.code})", NIIF_ERROR)
             except Exception as e:
                 self.show_notification("백업 요청 실패", f"서버와 통신할 수 없습니다: {e}", NIIF_ERROR)
 
@@ -287,10 +309,27 @@ class BackupTrayApp:
                 with urllib.request.urlopen(f"{SERVER_URL}/api/task/status", timeout=5) as res:
                     data = json.loads(res.read().decode('utf-8'))
                     if data.get("running"):
-                        task_type = data.get("type", "백업")
-                        self.show_notification("작업 진행 중", f"현재 '{task_type}' 작업이 진행 중입니다.")
+                        raw_type = data.get("type", "backup")
+                        type_map = {
+                            "backup": "시스템 백업",
+                            "restore": "시스템 복원",
+                            "verify": "무결성 검증"
+                        }
+                        task_name = type_map.get(raw_type, raw_type or "작업")
+                        progress = data.get("progress") or {}
+                        percent = progress.get("percent")
+                        curr_file = progress.get("current_file", "")
+                        if percent is not None:
+                            msg = f"현재 [{task_name}] 진행 중 ({percent}%)\n{curr_file}"[:250]
+                        else:
+                            msg = f"현재 [{task_name}] 진행 중입니다."
+                        self.show_notification("작업 진행 중", msg, NIIF_INFO)
                     else:
-                        self.show_notification("정상 대기 중", "모든 백업 엔진이 정상 대기 상태입니다.")
+                        last_err = data.get("error")
+                        if last_err:
+                            self.show_notification("상태: 오류 발생", f"최근 작업 오류: {last_err}"[:250], NIIF_WARNING)
+                        else:
+                            self.show_notification("정상 대기 중", "모든 백업 엔진이 정상 대기 상태입니다.")
             except Exception:
                 self.show_notification("서버 상태", "백업 서버 응답 없음 (오프라인)", NIIF_WARNING)
 
@@ -299,19 +338,72 @@ class BackupTrayApp:
     def restart_server(self):
         def _call():
             try:
-                # 릴리즈의 restart 로직과 동일하게 start_silent.vbs 구동
+                self.show_notification("서버 재시작", "백업 서버를 재기동합니다...", NIIF_INFO)
                 base_dir = os.path.dirname(os.path.abspath(__file__))
+
+                # 1. 기존 서버(8765 포트 / APP_DIR 프로세스) 안전 종료
+                stop_bat = os.path.join(base_dir, "stop_backup_system.bat")
+                if os.path.exists(stop_bat):
+                    subprocess.run(
+                        ["cmd.exe", "/c", stop_bat],
+                        cwd=base_dir,
+                        creationflags=0x08000000,
+                        timeout=10
+                    )
+                time.sleep(1.5)
+
+                # 2. start_silent.vbs 구동
                 vbs_path = os.path.join(base_dir, "start_silent.vbs")
                 if os.path.exists(vbs_path):
-                    import subprocess
-                    subprocess.Popen(["wscript.exe", vbs_path], creationflags=0x08000000)
-                    self.show_notification("서버 재시작", "백업 서버가 백그라운드에서 재시작되었습니다.")
+                    subprocess.Popen(
+                        ["wscript.exe", vbs_path],
+                        cwd=base_dir,
+                        creationflags=0x08000000
+                    )
+                else:
+                    py_exe = sys.executable
+                    subprocess.Popen(
+                        [py_exe, os.path.join(base_dir, "run.py"), "--silent"],
+                        cwd=base_dir,
+                        creationflags=0x08000000
+                    )
+
+                # 3. 서버 응답 대기 (최대 10초)
+                restarted = False
+                for _ in range(20):
+                    time.sleep(0.5)
+                    try:
+                        with urllib.request.urlopen(f"{SERVER_URL}/api/task/status", timeout=1) as res:
+                            if res.status == 200:
+                                restarted = True
+                                break
+                    except Exception:
+                        pass
+
+                if restarted:
+                    self.show_notification("재시작 완료", "백업 서버가 정상적으로 재시작되었습니다.", NIIF_INFO)
+                else:
+                    self.show_notification("재시작 확인", "서버 시작 명령을 전송했습니다.", NIIF_WARNING)
+
             except Exception as e:
                 self.show_notification("재시작 실패", str(e), NIIF_ERROR)
 
         threading.Thread(target=_call, daemon=True).start()
 
     def exit_app(self):
+        try:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            stop_bat = os.path.join(base_dir, "stop_backup_system.bat")
+            if os.path.exists(stop_bat):
+                subprocess.run(
+                    ["cmd.exe", "/c", stop_bat],
+                    cwd=base_dir,
+                    creationflags=0x08000000,
+                    timeout=10
+                )
+        except Exception:
+            pass
+
         self.running = False
         user32.PostMessageW(self.hwnd, WM_CLOSE, 0, 0)
 
@@ -323,7 +415,6 @@ class BackupTrayApp:
                 with urllib.request.urlopen(f"{SERVER_URL}/api/task/status", timeout=3) as res:
                     data = json.loads(res.read().decode('utf-8'))
                     is_running = data.get("running", False)
-                    task_type = data.get("type")
 
                     # 실행 중 -> 완료로 상태 전이 감지
                     if self.last_task_state is True and not is_running:
