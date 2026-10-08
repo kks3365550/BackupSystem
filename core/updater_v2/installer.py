@@ -29,13 +29,11 @@ import logging
 import tempfile
 import zipfile
 import subprocess
-from pathlib import Path
-from typing import Optional, List, Tuple, Callable, Dict, Any
+from typing import Optional, Callable, Dict, Any
 
 from .artifact_safety import (
     ArtifactSafetyChecker,
-    assert_safe_destination_path,
-    SafetyViolationError
+    assert_safe_destination_path
 )
 from .transaction import UpdateTransactionManager, UpdatePhase
 
@@ -263,7 +261,6 @@ class AtomicInstaller:
 
         staging_dir = tempfile.mkdtemp(prefix="backup_stage_")
         backup_ver_dir = os.path.join(self.target_dir, "backup", f"v{current_ver}")
-        package_zip_path = os.path.join(staging_dir, "package.zip")
         marker = None
 
         try:

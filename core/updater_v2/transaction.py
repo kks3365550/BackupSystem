@@ -28,7 +28,6 @@ core/updater_v2/transaction.py: OTA 트랜잭션 상태 머신 및 Fail-Closed S
 from __future__ import annotations
 
 import os
-import sys
 import json
 import shutil
 import hashlib
@@ -36,7 +35,6 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
-from pathlib import Path
 from typing import Callable, Dict, Optional, Tuple, Any
 
 logger = logging.getLogger("updater_v2.transaction")

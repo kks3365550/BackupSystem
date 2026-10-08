@@ -250,3 +250,45 @@ def verify_bytes_ed25519(data: bytes, signature_hex: str, pub_key_path_or_bytes:
         return True
     except Exception:
         return False
+
+
+def verify_bytes_ed25519_any(
+    data: bytes,
+    signature_hex: str,
+    candidates: list,
+) -> tuple:
+    """
+    여러 공개키 후보 중 하나라도 서명을 검증하면 True.
+
+    왜 필요한가:
+        배포 서명 개인키가 공개 저장소 이력에 유출됐다
+        (docs/SECURITY_20261008.md). 키를 교체하려면 기존 클라이언트가
+        구 공개키와 신 공개키를 동시에 신뢰해야 한다. 단일 키 검증만
+        지원하면 키를 바꾸는 순간 이미 배포된 모든 PC 가 새 업데이트를
+        거부한다.
+
+    인자:
+        candidates: 공개키 경로(str) 또는 PEM 바이트(bytes)의 리스트.
+            순서를 보장한다. 먼저 매칭된 키에서 중단한다.
+
+    반환:
+        (ok, matched_index)
+        ok가 True면 matched_index는 매칭된 후보의 인덱스.
+        실패하면 (False, None).
+
+    주의:
+        키 내용은 로그에 남기지 않는다. 호출자가 basename 만 기록한다.
+    """
+    if not HAS_CRYPTOGRAPHY:
+        return True, None
+    if not signature_hex or not isinstance(signature_hex, str):
+        return False, None
+    if not candidates:
+        return False, None
+    for idx, cand in enumerate(candidates):
+        try:
+            if verify_bytes_ed25519(data, signature_hex, cand):
+                return True, idx
+        except Exception:
+            continue
+    return False, None

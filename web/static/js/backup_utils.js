@@ -76,6 +76,65 @@ function closeModal(id) {
     if (modal) modal.classList.add('hidden');
 }
 
+// --- API 오류 메시지 추출 ---
+// 성공이 아닌 응답은 두 가지 형태다:
+//   1) {success: false, error: "..."}        (직접 만든 엔드포인트)
+//   2) {detail: [{type, loc, msg, ...}]}     (FastAPI/Pydantic 검증 오류, HTTP 422)
+// 2번에는 error 필드가 없어서 그대로 두면 '실패' 라는 막연한 문구만 나온다.
+function extractApiError(data) {
+    if (!data) return '';
+    if (typeof data.error === 'string' && data.error) return data.error;
+    if (Array.isArray(data.detail) && data.detail.length) {
+        const first = data.detail[0];
+        const field = Array.isArray(first.loc) ? first.loc[first.loc.length - 1] : '';
+        if (first.type === 'string_too_short') {
+            const need = first.ctx && first.ctx.min_length ? first.ctx.min_length : 8;
+            return (field === 'new_password' ? '새 비밀번호는' : '입력값은') +
+                ' 최소 ' + need + '자리 이상이어야 합니다.';
+        }
+        if (typeof first.msg === 'string' && first.msg) return first.msg;
+    }
+    if (typeof data.detail === 'string' && data.detail) return data.detail;
+    return '';
+}
+
+// --- 스케줄러 백업 로그 보기 ---
+// 작업 스케줄러는 pythonw.exe 로 cli_backup.py 를 실행한다.
+// 콘솔이 없어 표준출력이 버려지므로, 로그는 logs/backup.log 에만 남는다.
+// 이 함수가 그 파일을 서버를 통해 읽는다.
+async function showScheduledBackupLogs() {
+    const body = document.getElementById('backup-log-body');
+    const meta = document.getElementById('backup-log-meta');
+    if (!body) return;
+
+    body.textContent = '불러오는 중...';
+    meta.textContent = '';
+    openModal('backup-log-modal');
+
+    try {
+        const d = await fetchAPI('/api/backup/logs?limit=400');
+        meta.textContent = `${d.path}  (${d.exists ? (d.size_kb + ' KB') : '파일 없음'})`;
+
+        if (d.notice) {
+            body.textContent = d.notice;
+            return;
+        }
+        if (!d.lines || !d.lines.length) {
+            body.textContent = '기록된 로그가 없습니다.';
+            return;
+        }
+
+        let out = d.lines.join('\n');
+        if (d.rotated && d.rotated.length) {
+            out += '\n\n--- 회전된 이전 로그 ---\n' +
+                d.rotated.map(r => `${r.file}  (${r.size_kb} KB, ${r.lines}줄)`).join('\n');
+        }
+        body.textContent = out;
+    } catch (e) {
+        body.textContent = '로그를 불러오지 못했습니다: ' + (e.message || e);
+    }
+}
+
 // --- 글로벌 경보 배너 시스템 (Red Alert System) ---
 let _bannerDismissedUntil = 0;
 
@@ -128,6 +187,7 @@ function dismissAlertBanner() {
 
 // --- 원격 마스터 릴리즈 동기화 (One-Click Remote Sync) ---
 let _remoteReleaseDismissed = false;
+let _installerDownloadUrl = null;
 
 async function checkRemoteRelease() {
     try {
@@ -139,6 +199,11 @@ async function checkRemoteRelease() {
 
         if (!res || !res.success) return;
         const data = res.data || {};
+
+        // 설치 파일 다운로드 URL 캐싱
+        if (data.installer_download_url) {
+            _installerDownloadUrl = data.installer_download_url;
+        }
 
         if (data.current_version) {
             const versionBadge = document.getElementById('header-version-badge');
@@ -196,6 +261,17 @@ function dismissRemoteReleaseBanner() {
 
 function triggerRemoteReleaseSync() {
     window.open('https://github.com/kks3365550/BackupSystem/releases/latest', '_blank');
+}
+
+function downloadInstaller() {
+    const url = _installerDownloadUrl || '/api/system/download-installer';
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 }
 
 // 10초마다 자동 경보 점검 및 60초마다 원격 릴리즈 점검

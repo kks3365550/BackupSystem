@@ -14,10 +14,9 @@ core/updater_v2/policy_semantics.py: Step 2 정책 의미론(Semantics) 및 액�
    - 명시적인 PolicyDecision Enum 반환 (NOOP, PROCEED_UPDATE, FORCE_UPDATE, FORCE_ROLLBACK, REJECT_POLICY, REJECT_TARGET)
 """
 
-import re
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple
 
 from .models import PolicyDocument
 

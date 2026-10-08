@@ -13,7 +13,6 @@ core/updater_v2/default_keyring.py: 신뢰 앵커(Trust Anchor) 및 공개키 �
 import os
 import hashlib
 import logging
-from datetime import datetime, timezone
 from typing import Optional
 
 from cryptography.hazmat.primitives.serialization import load_pem_public_key

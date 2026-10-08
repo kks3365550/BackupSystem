@@ -9,8 +9,11 @@ core/retention.py: 스마트 저장소 롤링 및 세대 보존 정책 관리자
 
 import os
 import time
+import logging
 from typing import Dict, Any, Optional
 from core.storage import get_disk_free_gb
+
+log = logging.getLogger(__name__)
 
 
 class RetentionManager:
@@ -34,8 +37,20 @@ class RetentionManager:
 
         try:
             snapshots = SnapshotEngine.list_snapshots(self.repo_dir)
-        except Exception:
-            return {"deleted_snapshots": [], "freed_bytes": 0, "status": "no_snapshots"}
+        except Exception as e:
+            # 스냅샷 목록을 못 읽으면 정리를 수행하지 않는다 (삭제 안전).
+            # "no_snapshots" 라는 상태명은 실제 원인(읽기 실패)을 감춘다.
+            # 조용히 넘어가면 디스크가 계속 차는데 아무도 모른다.
+            log.warning(
+                "스냅샷 목록 읽기 실패, 보존 정책 적용 중단 (repo=%s): %s",
+                self.repo_dir, e, exc_info=True,
+            )
+            return {
+                "deleted_snapshots": [],
+                "freed_bytes": 0,
+                "status": "list_failed",
+                "error": str(e)[:300],
+            }
 
         if not snapshots or len(snapshots) <= 1:
             # 안전 장치: 스냅샷이 1개 이하일 때는 절대 삭제하지 않음

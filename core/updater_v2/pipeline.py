@@ -39,9 +39,9 @@ from datetime import datetime
 
 from .models import AcquiredUpdate
 from .keyring import KeyRing
-from .policy_verifier import PolicyVerifier, PolicyVerificationResult, PolicyVerificationError
+from .policy_verifier import PolicyVerifier, PolicyVerificationError
 from .policy_semantics import PolicySemanticsEvaluator, PolicyDecision
-from .artifact_verifier import ArtifactVerifier, ArtifactVerificationResult, ArtifactVerificationError
+from .artifact_verifier import ArtifactVerifier, ArtifactVerificationError
 from .installer import AtomicInstaller, InstallerError
 
 logger = logging.getLogger(__name__)

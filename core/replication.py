@@ -142,7 +142,24 @@ class ReplicationManager:
                     fout.write(chunk)
                     bytes_copied += len(chunk)
 
-            os.replace(tmp_path, remote_path)
+            # TOCTOU 경합 대응:
+            # 위의 os.path.exists(remote_path) 검사(125행)와 이 os.replace 사이에
+            # 다른 스레드가 같은 블롭을 먼저 복제할 수 있다. 그 경우 대상이
+            # ReadOnly(WORM) 상태가 되어 os.replace 가 PermissionError 로 실패한다.
+            # CAS 블롭은 내용 주소 기반이므로 '이미 존재 = 동일한 내용'이며,
+            # 이 경우 덮어쓰기가 불필요하다. 따라서 benign race 로 흡수한다.
+            try:
+                os.replace(tmp_path, remote_path)
+            except PermissionError:
+                if os.path.exists(remote_path):
+                    # 다른 스레드가 먼저 복제 완료. 임시 파일만 정리한다.
+                    try:
+                        os.remove(tmp_path)
+                    except OSError:
+                        pass
+                    return 0
+                raise
+
             lock_file_immutable(remote_path)
         except Exception:
             try:
@@ -208,7 +225,21 @@ class ReplicationManager:
                         self.limiter.consume(len(chunk))
                     fout.write(chunk)
 
-            os.replace(tmp_path, remote_manifest)
+            # TOCTOU 경합 대응 (replicate_blob 와 동일):
+            # 다른 스레드가 동일 manifest 를 먼저 복제했으면 대상이 ReadOnly 상태가 되어
+            # os.replace 가 PermissionError 로 실패한다. 스냅샷 manifest 는 동일 id 기준
+            # 동일 내용이므로 덮어쓰기가 불필요하다.
+            try:
+                os.replace(tmp_path, remote_manifest)
+            except PermissionError:
+                if os.path.exists(remote_manifest):
+                    try:
+                        os.remove(tmp_path)
+                    except OSError:
+                        pass
+                    return False
+                raise
+
             lock_file_immutable(remote_manifest)
             return True
         except Exception:
