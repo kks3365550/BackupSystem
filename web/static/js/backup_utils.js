@@ -187,6 +187,7 @@ function dismissAlertBanner() {
 
 // --- 원격 마스터 릴리즈 동기화 (One-Click Remote Sync) ---
 let _remoteReleaseDismissed = false;
+let _installerDownloadUrl = null;
 
 async function checkRemoteRelease() {
     try {
@@ -198,6 +199,11 @@ async function checkRemoteRelease() {
 
         if (!res || !res.success) return;
         const data = res.data || {};
+
+        // 설치 파일 다운로드 URL 캐싱
+        if (data.installer_download_url) {
+            _installerDownloadUrl = data.installer_download_url;
+        }
 
         if (data.current_version) {
             const versionBadge = document.getElementById('header-version-badge');
@@ -255,6 +261,17 @@ function dismissRemoteReleaseBanner() {
 
 function triggerRemoteReleaseSync() {
     window.open('https://github.com/kks3365550/BackupSystem/releases/latest', '_blank');
+}
+
+function downloadInstaller() {
+    const url = _installerDownloadUrl || '/api/system/download-installer';
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 }
 
 // 10초마다 자동 경보 점검 및 60초마다 원격 릴리즈 점검

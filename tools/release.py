@@ -109,7 +109,43 @@ def run_git_release(version: str, message: str):
     except subprocess.CalledProcessError as e:
         print(f"      Git warning/skip: {e}")
 
-def sync_install_directories():
+def compile_inno_setup_installer(version: str):
+    print(f"[3/5] Compiling Inno Setup installer for v{version}...")
+    if not os.path.exists(ISS_FILE):
+        print("      Warning: BackupSystem.iss not found, skipping installer compilation.")
+        return None
+
+    iscc_candidates = [
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"),
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Inno Setup 7\ISCC.exe"),
+        r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+        r"C:\Program Files\Inno Setup 6\ISCC.exe",
+        r"C:\Program Files (x86)\Inno Setup 7\ISCC.exe",
+        r"C:\Program Files\Inno Setup 7\ISCC.exe",
+        "ISCC.exe"
+    ]
+    iscc_bin = next((p for p in iscc_candidates if os.path.exists(p)), None)
+    if not iscc_bin:
+        print("      Warning: ISCC.exe not found. Skipping installer compilation.")
+        return None
+
+    dist_dir = os.path.join(BASE_DIR, 'dist')
+    os.makedirs(dist_dir, exist_ok=True)
+    expected_exe = os.path.join(dist_dir, f"BackupSystem_Setup_v{version}.exe")
+
+    try:
+        cmd = [iscc_bin, f"/DMyAppVersion={version}", ISS_FILE]
+        res = subprocess.run(cmd, capture_output=True, text=True, errors='replace', cwd=BASE_DIR)
+        if res.returncode == 0 and os.path.exists(expected_exe):
+            print(f"      [OK] Inno Setup installer compiled: {expected_exe} ({os.path.getsize(expected_exe):,} bytes)")
+            return expected_exe
+        else:
+            print(f"      Warning: ISCC compilation failed (code {res.returncode}):\n{res.stderr}\n{res.stdout}")
+    except Exception as e:
+        print(f"      Warning: Inno Setup compilation error: {e}")
+    return None
+
+def sync_install_directories(installer_exe: str = None):
     print("[3/5] Synchronizing install distribution folders...")
     targets = [
         r'D:\백업시스템_설치용'
@@ -145,6 +181,15 @@ def sync_install_directories():
                         wf.write(rf.read())
                 except Exception:
                     pass
+
+        # Sync compiled Inno Setup installer if available
+        if installer_exe and os.path.exists(installer_exe):
+            try:
+                shutil.copy2(installer_exe, os.path.join(target, os.path.basename(installer_exe)))
+                print(f"      Synced installer to: {target}")
+            except Exception as e_inst:
+                print(f"      Warning: Failed to copy installer to {target}: {e_inst}")
+
         print(f"      Synced to: {target}")
 
     # Also sync emergency disaster recovery kit to D:\MyBackup_Repository if it exists
@@ -524,7 +569,8 @@ def main():
         update_source_versions(new_ver)
 
     run_git_release(new_ver, args.message)
-    sync_install_directories()
+    installer_exe = compile_inno_setup_installer(new_ver)
+    sync_install_directories(installer_exe)
     bat_path, sig_hex, raw_bytes = build_self_extracting_updater(new_ver)
 
     if not args.skip_remote:

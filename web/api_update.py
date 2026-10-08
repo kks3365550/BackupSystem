@@ -17,7 +17,7 @@ import urllib.request
 import logging
 
 from fastapi import APIRouter, Request, HTTPException, BackgroundTasks, UploadFile, File
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 from web.paths import BASE_DIR
 from web.version import VERSION, _cached_update_info
@@ -242,6 +242,7 @@ def check_remote_release():
         info = check_for_update()
         if info and info.get("update_available"):
             latest_v = str(info.get("latest_version", "")).lstrip("vV")
+            inst_url = info.get("installer_download_url") or "/api/system/download-installer"
             return {
                 "success": True,
                 "data": {
@@ -252,7 +253,8 @@ def check_remote_release():
                     "package_size": 0,
                     "signature": info.get("signature", ""),
                     "changelog": info.get("changelog", ""),
-                    "download_url": info.get("download_url", "")
+                    "download_url": info.get("download_url", ""),
+                    "installer_download_url": inst_url
                 }
             }
         else:
@@ -262,7 +264,8 @@ def check_remote_release():
                     "update_available": False,
                     "current_version": cur_ver,
                     "remote_version": f"v{cur_ver}",
-                    "remote_url": "https://github.com/kks3365550/BackupSystem/releases/latest"
+                    "remote_url": "https://github.com/kks3365550/BackupSystem/releases/latest",
+                    "installer_download_url": "/api/system/download-installer"
                 }
             }
     except Exception as e:
@@ -272,7 +275,8 @@ def check_remote_release():
             "data": {
                 "update_available": False,
                 "current_version": cur_ver,
-                "error": str(e)
+                "error": str(e),
+                "installer_download_url": "/api/system/download-installer"
             }
         }
 
@@ -305,6 +309,33 @@ async def sync_remote_release(request: Request):
     return await self_update(request, custom_body=pkg_bytes, custom_signature=sig_header)
 
 
+@router.get("/api/system/download-installer")
+def download_installer():
+    """
+    dist/ 내의 BackupSystem_Setup_v*.exe 파일을 제공하거나,
+    GitHub 릴리즈 인스톨러 다운로드 URL(또는 latest)로 리다이렉트합니다.
+    """
+    import glob
+    dist_dir = os.path.join(BASE_DIR, "dist")
+    exe_pattern = os.path.join(dist_dir, "BackupSystem_Setup_v*.exe")
+
+    exe_files = glob.glob(exe_pattern)
+    if exe_files:
+        latest_exe = max(exe_files, key=os.path.getmtime)
+        return FileResponse(
+            latest_exe,
+            media_type="application/vnd.microsoft.portable-executable",
+            filename=os.path.basename(latest_exe)
+        )
+
+    # 캐시된 GitHub 릴리즈 에셋 정보 확인
+    info = _cached_update_info.get("data")
+    if info and info.get("installer_download_url"):
+        return RedirectResponse(info["installer_download_url"], status_code=307)
+
+    return RedirectResponse("https://github.com/kks3365550/BackupSystem/releases/latest", status_code=307)
+
+
 # ==================== Software Auto-Update API ====================
 @router.get("/api/update/status")
 def get_software_update_status(force_check: bool = False):
@@ -324,6 +355,7 @@ def get_software_update_status(force_check: bool = False):
 
     cur_ver = get_current_installed_version()
     if info and info.get("update_available"):
+        inst_url = info.get("installer_download_url") or "/api/system/download-installer"
         return {
             "success": True,
             "update_available": True,
@@ -331,14 +363,16 @@ def get_software_update_status(force_check: bool = False):
             "latest_version": info.get("latest_version"),
             "mandatory": info.get("mandatory", False),
             "changelog": info.get("changelog", ""),
-            "download_url": info.get("download_url", "")
+            "download_url": info.get("download_url", ""),
+            "installer_download_url": inst_url
         }
     return {
         "success": True,
         "update_available": False,
         "current_version": cur_ver,
         "latest_version": cur_ver,
-        "message": "최신 버전을 사용 중입니다."
+        "message": "최신 버전을 사용 중입니다.",
+        "installer_download_url": "/api/system/download-installer"
     }
 
 

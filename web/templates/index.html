@@ -113,9 +113,13 @@
             <span id="remote-release-text" class="text-slate-200 font-medium"></span>
         </div>
         <div class="flex items-center gap-2.5">
+            <button id="btn-download-installer" onclick="downloadInstaller()" class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1.5 bg-slate-800/90 hover:bg-slate-700/90 text-indigo-300 border border-indigo-500/40 hover:border-indigo-400">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                <span>인스톨러 (.exe) 다운로드</span>
+            </button>
             <button id="btn-sync-remote-release" onclick="triggerRemoteReleaseSync()" class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-600/30">
                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="sync-btn-icon"></i>
-                <span id="sync-btn-text">최신 릴리즈 동기화</span>
+                <span id="sync-btn-text">GitHub 릴리즈 보기</span>
             </button>
             <button onclick="dismissRemoteReleaseBanner()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition" title="닫기">
                 <i data-lucide="x" class="w-4 h-4"></i>

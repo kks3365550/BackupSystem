@@ -150,6 +150,7 @@ def _check_github_release(current_ver: str) -> Optional[Dict[str, Any]]:
         zip_url = None
         sig_url = None
         sha_url = None
+        installer_url = None
 
         for asset in assets:
             name = asset.get("name", "")
@@ -160,6 +161,8 @@ def _check_github_release(current_ver: str) -> Optional[Dict[str, Any]]:
                 sig_url = dl_url
             elif name == "SHA256SUMS.txt":
                 sha_url = dl_url
+            elif name.startswith("BackupSystem_Setup_") and name.endswith(".exe"):
+                installer_url = dl_url
 
         if not zip_url:
             logger.warning("UPDATE_CHECK_GITHUB no_zip_asset_found")
@@ -196,6 +199,7 @@ def _check_github_release(current_ver: str) -> Optional[Dict[str, Any]]:
             "current_version": current_ver,
             "latest_version": latest_tag.lstrip("vV"),
             "download_url": zip_url,
+            "installer_download_url": installer_url,
             "sha256": expected_sha,
             "signature": expected_sig,
             "mandatory": False,
