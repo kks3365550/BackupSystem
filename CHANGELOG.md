@@ -6,6 +6,25 @@
 
 ---
 
+## [2.13.7] - 2026-10-07
+
+### 변경
+- `web/app.py` 모듈화: 1,741 → 436줄
+  - `web/paths.py` (경로 상수), `web/version.py` (버전·업데이트 캐시),
+    `web/state.py` (전역 실행 상태 단일 소유자),
+    `web/api_auth.py` (인증 6개), `web/api_snapshots.py`,
+    `web/api_update.py`, `web/api_backup.py`
+  - API 경로 계약 유지 (`tests/test_api_contract.py` 로 검증)
+- 스케줄러 백업 로그 파이프라인 (`core/logging_setup.py`, `logs/backup.log`)
+  - `pythonw.exe` 에는 콘솔이 없어 `print()` 65줄이 전부 버려지던 문제 해결
+- `core/retention.py`: 목록 읽기 실패 상태를 `no_snapshots` → `list_failed` 로 정정
+- `GET /api/backup/logs` + 대시보드 "마지막 스케줄러 백업 로그 보기" 버튼
+- `tests/test_updater.py` 가 배포 서명 키 대신 테스트용 키를 생성하도록 변경
+- `data/profiles.json`·`data/auth_config.json` 추적 해제 (런타임 상태·비밀번호 해시)
+- 레거시 `backup/v2.9.10/` 추적 해제 (개인키 포함)
+
+---
+
 ## [2.13.6] - 2026-10-06
 
 ### 변경
@@ -97,21 +116,39 @@
 
 ---
 
-## 미배포 (main 브랜치)
+## 미배포 (main 브랜치, v2.13.7 이후)
 
 ### 수정
-- **HIGH** `core/replication.py` 의 TOCTOU 경합
-  → 동시 복제 시 8개 워커 중 7개가 `PermissionError` 로 실패하던 문제.
-  CAS 블롭은 내용 주소 기반이므로 "이미 존재 = 동일 내용" 이며, 경합을 benign 으로 흡수
-- 런타임 `NameError` 4건 (`web/app.py` 의 `logger`·`urllib`, `core/driver_backup.py` 의 `sys`,
-  `cli.py` 의 `BlobStorage`) — 정상 경로에서 드러나지 않던 유형
-- 테스트 10건 결함 해결 → **전체 스위트 최초 완주 (169 passed, exit 0)**
+- `web/api_backup.py`·`web/api_update.py` 의 중복 import 를 모듈 상단으로 통합
+  (pyflakes 는 중복을 잡지 못하므로 한쪽만 수정하면 조용히 어긋난다)
+- FastAPI 버전 선언이 `"2.9.22"` 로 굳어 있던 문제 → `VERSION` 파일 참조
+  (`GET /openapi.json` 의 버전이 실제 릴리즈와 일치)
+- `tools/scan_secrets.py`·`tools/rotate_release_key.py` 의 cp1252 크래시
+  (windows-latest 러너의 표준출력은 cp1252라 한국어 출력이 죽었다.
+  stdout 재설정 + CI 에 `PYTHONIOENCODING: utf-8` 명시)
+- CI 게이트의 PowerShell `\` 줄바꿈 문법 오류 → 한 줄 명령으로 수정
 
 ### 추가
-- 오프사이트 복제 파이프라인 (`core/offsite.py`, robocopy 기반)
-- `pytest.ini`, `.github/workflows/ci.yml`, `LICENSE`
-- 회귀 테스트 `tests/test_replication_torace.py` (동시성 검증)
+- **보안 감사** (`docs/SECURITY_20261008.md`): 공개 저장소 이력에서 실제
+  credential 5종 발견 (배포 서명 개인키·마스터 해시 2종·Firebase 키·사내 계정·테스트 키).
+  익명 클론으로 실증 확인. 키 회전 없이 이력 정리만 하면 안심만 생긴다.
+- **비밀 스캐너** (`tools/scan_secrets.py`) + CI `secret-scan` 잡
+  (추적 파일 검사. 이력 전체 검사는 수동 ` --history` 로만 실행한다.
+  기존 유출 31건 때문에 게이트에 넣으면 CI 가 영구히 빨갛게 된다)
+- **다중 공개키 검증** (`core/crypto_sign.verify_bytes_ed25519_any`,
+  `core/updater.get_trusted_public_key_paths`): 전환 기간에 구·신 키 동시 신뢰.
+  키 교체 없이는 이력 정리가 무의미하므로 선행 조건을 먼저 만들었다
+- **키 회전 도구** (`tools/rotate_release_key.py`, dry-run 기본) +
+  회귀 테스트 `tests/test_key_rotation.py` (12건)
+- CI 게이트에 `test_key_rotation.py` 추가. 현재 CI 4잡 전부 통과
 
+### 아직 안 된 것 (사람 조치 필요)
+- 마스터 비밀번호 변경 (대시보드에서 즉시. 유출 해시 무효화)
+- Firebase 키 폐기 (콘솔. 키가 살아있고 유효함 — HTTP 200 확인)
+- 배포 키 재발급 판단 (다중키 지원은 됐으나 기존 설치본 호환성 검토 필요)
+- 이력 정리 (`git filter-repo`. 키 회전 후에야 의미 있음)
+
+[2.13.7]: https://github.com/kks3365550/BackupSystem/releases/tag/v2.13.7
 [2.13.6]: https://github.com/kks3365550/BackupSystem/releases/tag/v2.13.6
 [2.13.5]: https://github.com/kks3365550/BackupSystem/releases/tag/v2.13.5
 [2.13.4]: https://github.com/kks3365550/BackupSystem/releases/tag/v2.13.4
