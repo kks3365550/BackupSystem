@@ -252,24 +252,26 @@ def build_self_extracting_updater(version: str):
         # Automated Zero-Leak Verification
         for name in zf.namelist():
             name_lower = name.lower()
-            if name_lower.endswith('.key') or name_lower.endswith('.pem') or 'private' in name_lower or 'release_ed25519.key' in name_lower:
+            if name_lower.endswith('.key') or name_lower.endswith('.pem') or 'private' in name_lower or 'release_ed25519.key' in name_lower or 'release_ed25519_v2.key' in name_lower:
                 raise RuntimeError(f"FATAL SECURITY VIOLATION: Private key detected in release package: {name}! Build aborted.")
         print(f"      [Security Audit PASSED] Zero private keys found in package ({len(zf.namelist())} files).")
 
     raw_bytes = buf.getvalue()
 
-    # 1. Sign package with Ed25519 private key
-    priv_key_path = os.path.join(BASE_DIR, 'keys', 'release_ed25519.key')
+    # 1. Sign package with Ed25519 private key (Priority: v2 > v1)
+    priv_key_v2_path = os.path.join(BASE_DIR, 'keys', 'release_ed25519_v2.key')
+    priv_key_v1_path = os.path.join(BASE_DIR, 'keys', 'release_ed25519.key')
+    priv_key_path = priv_key_v2_path if os.path.exists(priv_key_v2_path) else priv_key_v1_path
     sig_hex = ""
     if os.path.exists(priv_key_path):
         try:
             from core.crypto_sign import sign_bytes_ed25519
             sig_hex = sign_bytes_ed25519(raw_bytes, priv_key_path)
-            print(f"      Ed25519 Signature generated: {sig_hex[:16]}...{sig_hex[-16:]}")
+            print(f"      Ed25519 Signature generated using {os.path.basename(priv_key_path)}: {sig_hex[:16]}...{sig_hex[-16:]}")
         except Exception as e:
             print(f"      Warning: Ed25519 signing failed: {e}")
     else:
-        print("      Notice: release_ed25519.key not found, signature omitted.")
+        print("      Notice: No Ed25519 private key found (v1/v2), signature omitted.")
 
     # 2. Save release zip and signature in dist/
     dist_dir = os.path.join(BASE_DIR, 'dist')
