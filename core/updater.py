@@ -35,6 +35,51 @@ logger = logging.getLogger("core.updater")
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PUBLIC_KEY_PATH = os.path.join(BASE_DIR, "keys", "release_ed25519.pub")
+PUBLIC_KEY_DIR = os.path.join(BASE_DIR, "keys")
+
+
+def get_trusted_public_key_paths() -> list:
+    """
+    신뢰하는 업데이트 서명 공개키 목록.
+
+    왜 디렉터리 스캔인가:
+        배포 서명 개인키가 이력에 유출됐다 (docs/SECURITY_20261008.md).
+        키를 교체하려면 전환 기간에 구 공개키와 신 공개키를 동시에
+        신뢰해야 한다. 단일 경로만 보면 키를 바꾸는 순간 기존 클라이언트가
+        새 릴리즈를 거부한다.
+
+    반환:
+        존재하는 *.pub 파일의 절대 경로 리스트. 기존 release_ed25519.pub 가
+        있으면 항상 맨 앞에 둔다 (결정적 순서, 하위 호환).
+        파일이 없으면 빈 리스트.
+
+    주의:
+        10KB를 넘는 파일은 건너뛴다 (PEM 공개키는 수백 바이트다).
+        키 내용은 절대 로그에 남기지 않는다. 호출자가 basename 만 기록한다.
+    """
+    try:
+        if not os.path.isdir(PUBLIC_KEY_DIR):
+            return [PUBLIC_KEY_PATH] if os.path.exists(PUBLIC_KEY_PATH) else []
+        import glob as _glob
+        pubs = sorted(_glob.glob(os.path.join(PUBLIC_KEY_DIR, "*.pub")))
+        # 크기 가드 + 절대 경로 정규화
+        cleaned = []
+        for p in pubs:
+            try:
+                if os.path.getsize(p) > 10 * 1024:
+                    continue
+                cleaned.append(os.path.abspath(p))
+            except OSError:
+                continue
+        # 기존 키를 맨 앞으로 (결정적 순서)
+        legacy = os.path.abspath(PUBLIC_KEY_PATH)
+        if legacy in cleaned:
+            cleaned.remove(legacy)
+            cleaned.insert(0, legacy)
+        return cleaned
+    except Exception:
+        # 키 목록을 못 읽으면 빈 리스트로 Fail-Closed. 호출자가 거부한다.
+        return []
 
 
 def parse_version(v_str: str) -> Tuple[int, ...]:
@@ -219,13 +264,20 @@ def verify_update(
     zip_path: str,
     expected_sha256: str,
     expected_signature: str,
-    pub_key_path: Optional[str] = None
+    pub_key_path: Optional[str] = None,
+    trusted_pub_paths: Optional[list] = None,
 ) -> bool:
     """
     1. 파일 존재 및 크기 검사
     2. SHA-256 해시 검증
-    3. Ed25519 전자 서명 검증
+    3. Ed25519 전자 서명 검증 (다중 공개키 지원)
     4. ZIP 파일 내부 악성/개인키 파일 유입 차단 검증
+
+    서명 검증 규칙:
+      - pub_key_path 가 명시되면 그 키 하나로만 검증한다 (테스트 격리용).
+      - 명시되지 않으면 trusted_pub_paths 를 쓰고, 그것도 없으면
+        keys/*.pub 를 자동 탐색한다. 후보 중 하나라도 맞으면 통과.
+      - 후보가 하나도 없거나 전부 실패하면 False (Fail-Closed).
     """
     if not os.path.exists(zip_path):
         logger.error("UPDATE_VERIFY_FAILED reason=file_not_found path=%s", zip_path)
@@ -248,25 +300,44 @@ def verify_update(
         logger.error("UPDATE_VERIFY_FAILED hash_calc_error=%s", str(e))
         return False
 
-    # 2. Ed25519 디지털 서명 검증
+    # 2. Ed25519 디지털 서명 검증 (다중 공개키 지원)
     if expected_signature:
-        if pub_key_path is None:
-            pub_key_path = PUBLIC_KEY_PATH
-
-        if not os.path.exists(pub_key_path):
-            logger.error("UPDATE_SIGNATURE_INVALID reason=public_key_missing path=%s", pub_key_path)
-            return False
-
-        try:
-            from core.crypto_sign import verify_bytes_ed25519
-            is_valid = verify_bytes_ed25519(raw_bytes, expected_signature, pub_key_path)
-            if not is_valid:
-                logger.error("UPDATE_SIGNATURE_INVALID signature=%s", expected_signature[:16])
+        # 명시적 단일 키 지정이 있으면 그 키 하나로만 검증 (테스트 격리).
+        if pub_key_path is not None:
+            if not os.path.exists(pub_key_path):
+                logger.error("UPDATE_SIGNATURE_INVALID reason=public_key_missing path=%s", pub_key_path)
                 return False
-            logger.info("UPDATE_SIGNATURE_VERIFY_OK")
-        except Exception as e:
-            logger.error("UPDATE_SIGNATURE_INVALID error=%s", str(e))
-            return False
+            try:
+                from core.crypto_sign import verify_bytes_ed25519
+                is_valid = verify_bytes_ed25519(raw_bytes, expected_signature, pub_key_path)
+                if not is_valid:
+                    logger.error("UPDATE_SIGNATURE_INVALID signature=%s", expected_signature[:16])
+                    return False
+                logger.info("UPDATE_SIGNATURE_VERIFY_OK")
+            except Exception as e:
+                logger.error("UPDATE_SIGNATURE_INVALID error=%s", str(e))
+                return False
+        else:
+            # 키링 모드: 명시 목록이 있으면 쓰고, 없으면 keys/*.pub 자동 탐색.
+            candidates = list(trusted_pub_paths) if trusted_pub_paths is not None else get_trusted_public_key_paths()
+            if not candidates:
+                logger.error("UPDATE_SIGNATURE_INVALID reason=no_trusted_keys")
+                return False
+            try:
+                from core.crypto_sign import verify_bytes_ed25519_any
+                ok, matched = verify_bytes_ed25519_any(raw_bytes, expected_signature, candidates)
+                if not ok:
+                    logger.error("UPDATE_SIGNATURE_INVALID signature=%s", expected_signature[:16])
+                    return False
+                # 키 내용은 로그에 남기지 않는다. basename 만 기록.
+                try:
+                    label = os.path.basename(candidates[matched]) if isinstance(candidates[matched], str) else "bytes-key-%d" % matched
+                except Exception:
+                    label = "unknown"
+                logger.info("UPDATE_SIGNATURE_VERIFY_OK key=%s", label)
+            except Exception as e:
+                logger.error("UPDATE_SIGNATURE_INVALID error=%s", str(e))
+                return False
 
     # 3. ZIP 파일 내부 구조 및 Zero-Leak 검증
     try:
