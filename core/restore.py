@@ -6,6 +6,9 @@ import concurrent.futures
 from typing import Dict, List, Any, Optional, Callable
 from core.storage import BlobStorage
 from core.snapshot import SnapshotEngine
+from core.logging_setup import get_logger
+
+log = get_logger("core.restore")
 
 class RestoreEngine:
     @classmethod
@@ -290,10 +293,12 @@ class RestoreEngine:
                 data = storage.read_blob_bytes(blob_id)
                 h = hashlib.sha256(data).hexdigest()
                 if h != blob_id:
+                    log.error(f"블롭 해시 불일치 감지 [{rel_path}] (예상: {blob_id}, 실제: {h})")
                     corrupted_blobs.append({"rel_path": rel_path, "blob_id": blob_id})
                 else:
                     verified_count += 1
             except Exception as e:
+                log.error(f"손상된 블롭 감지 [{rel_path}] ({blob_id}): {e}", exc_info=True)
                 corrupted_blobs.append({"rel_path": rel_path, "blob_id": blob_id, "error": str(e)})
 
             if progress_callback and (i % 10 == 0 or i == total_files - 1):

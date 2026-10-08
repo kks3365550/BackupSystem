@@ -18,6 +18,9 @@ from core.storage import (
     lock_file_immutable,
     verify_disk_space_or_fail
 )
+from core.logging_setup import get_logger
+
+log = get_logger("core.replication")
 
 
 class TokenBucketLimiter:
@@ -304,6 +307,7 @@ class ReplicationManager:
                         total_bytes += bytes_copied
                         replicated_count += 1
                     except Exception as e:
+                        log.error(f"오프사이트 블롭 {b_id} 복제 실패: {e}", exc_info=True)
                         errors.append(f"블롭 {b_id} 복제 실패: {str(e)}")
 
                     if progress_callback:

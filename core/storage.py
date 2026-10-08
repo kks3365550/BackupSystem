@@ -19,6 +19,9 @@ class InsufficientDiskSpaceError(Exception):
     pass
 
 from core.worm import lock_file_immutable, unlock_file_writable
+from core.logging_setup import get_logger
+
+log = get_logger("core.storage")
 
 def get_disk_free_gb(path: str) -> float:
     """Returns free disk space in gigabytes for the volume containing path."""
@@ -591,7 +594,8 @@ class BlobStorage:
                                 sha256.update(tail)
                 success = True
                 break
-            except Exception:
+            except Exception as e_engine:
+                log.debug(f"블롭 엔진 압축 해제 실패 시도 ({sha256_hash}): {e_engine}")
                 if not direct_write and os.path.exists(target_dest):
                     try:
                         os.remove(target_dest)
@@ -764,6 +768,7 @@ class BlobStorage:
             return True, None, total_size
 
         except Exception as e:
+            log.error(f"블롭 무결성 검증 예외 ({sha256_hash}): {e}", exc_info=True)
             return False, f"압축 해제 또는 데이터 무결성 오류: {str(e)}", 0
 
     def delete_blob(self, sha256_hash: str) -> bool:
