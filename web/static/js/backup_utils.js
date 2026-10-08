@@ -76,6 +76,28 @@ function closeModal(id) {
     if (modal) modal.classList.add('hidden');
 }
 
+// --- API 오류 메시지 추출 ---
+// 성공이 아닌 응답은 두 가지 형태다:
+//   1) {success: false, error: "..."}        (직접 만든 엔드포인트)
+//   2) {detail: [{type, loc, msg, ...}]}     (FastAPI/Pydantic 검증 오류, HTTP 422)
+// 2번에는 error 필드가 없어서 그대로 두면 '실패' 라는 막연한 문구만 나온다.
+function extractApiError(data) {
+    if (!data) return '';
+    if (typeof data.error === 'string' && data.error) return data.error;
+    if (Array.isArray(data.detail) && data.detail.length) {
+        const first = data.detail[0];
+        const field = Array.isArray(first.loc) ? first.loc[first.loc.length - 1] : '';
+        if (first.type === 'string_too_short') {
+            const need = first.ctx && first.ctx.min_length ? first.ctx.min_length : 8;
+            return (field === 'new_password' ? '새 비밀번호는' : '입력값은') +
+                ' 최소 ' + need + '자리 이상이어야 합니다.';
+        }
+        if (typeof first.msg === 'string' && first.msg) return first.msg;
+    }
+    if (typeof data.detail === 'string' && data.detail) return data.detail;
+    return '';
+}
+
 // --- 스케줄러 백업 로그 보기 ---
 // 작업 스케줄러는 pythonw.exe 로 cli_backup.py 를 실행한다.
 // 콘솔이 없어 표준출력이 버려지므로, 로그는 logs/backup.log 에만 남는다.

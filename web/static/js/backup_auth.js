@@ -201,6 +201,12 @@ async function submitAuthSetup(e) {
         return;
     }
 
+    if (p1.length < 8) {
+        errDiv.innerText = '비밀번호는 최소 8자리 이상이어야 합니다.';
+        errDiv.classList.remove('hidden');
+        return;
+    }
+
     try {
         const res = await fetch('/api/auth/setup', {
             method: 'POST',
@@ -209,7 +215,7 @@ async function submitAuthSetup(e) {
         });
         const data = await res.json();
         if (!res.ok) {
-            errDiv.innerText = data.error || '설정 중 오류가 발생했습니다.';
+            errDiv.innerText = extractApiError(data) || '설정 중 오류가 발생했습니다.';
             errDiv.classList.remove('hidden');
             return;
         }
@@ -278,8 +284,8 @@ async function submitAuthChangePassword(e) {
         return;
     }
 
-    if (newP1.length < 4) {
-        errDiv.innerText = '새 비밀번호는 최소 4자리 이상이어야 합니다.';
+    if (newP1.length < 8) {
+        errDiv.innerText = '새 비밀번호는 최소 8자리 이상이어야 합니다.';
         errDiv.classList.remove('hidden');
         return;
     }
@@ -292,7 +298,9 @@ async function submitAuthChangePassword(e) {
         });
         const data = await res.json();
         if (!res.ok) {
-            errDiv.innerText = data.error || '비밀번호 변경 실패';
+            // 422 검증 오류는 {detail: [...]} 형태라 error 필드가 없다.
+            // 그대로 두면 '비밀번호 변경 실패' 라는 막연한 문구만 나온다.
+            errDiv.innerText = extractApiError(data) || '비밀번호 변경 실패';
             errDiv.classList.remove('hidden');
             return;
         }
