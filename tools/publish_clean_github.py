@@ -172,15 +172,17 @@ def publish_github_release_if_available():
 
     body = (
         f"## 🛡️ BackupSystem {VERSION} Official Release\n\n"
-        f"> **Multi-chunk Ingest Engine, Robocopy Offsite Replication & Fail-Closed Hardening**\n\n"
+        f"> **Inno Setup .exe Installer, Multi-chunk Ingest Engine & Zero-Leak Hardening**\n\n"
         f"### ⚡ 주요 업데이트 내역 (Key Highlights)\n"
-        f"1. **초고속 오프사이트 이중화 복제 파이프라인 (core/offsite.py)**:\n"
-        f"   - 기존 SMB icacls 병목을 전면 폐기하고 멀티스레드 Robocopy 엔진을 통한 고속 증분 복제 구현\n"
-        f"   - 백업 실패 시 복제 자동 스킵, 타겟 오프라인 시 0.5초 사전 헬스체크로 무지연 스킵\n\n"
-        f"2. **보안 및 무결성 강화 (v2.13.x)**:\n"
-        f"   - 매니페스트 손상 시 GC Fail-Closed 차단, 락 격리 및 인증 Fail-Closed 보호\n"
-        f"   - Ed25519 전자 서명 기반 무결성 검증\n"
-        f"   - 카카오 알림 의존성 제거 및 내부 로깅/대시보드 중심 경량화\n"
+        f"1. **Inno Setup 공식 인스톨러(.exe) 배포 및 원클릭 다운로드**:\n"
+        f"   - 릴리즈 에셋에 정식 윈도우 설치 파일(`BackupSystem_Setup_{VERSION}.exe`) 자동 빌드 및 첨부\n"
+        f"   - 웹 대시보드 업데이트 감지 시 인스톨러 직접 다운로드 버튼 제공\n\n"
+        f"2. **보안 및 클라우드 정리 (v2.13.8)**:\n"
+        f"   - **Firebase 완전 폐기**: 콘솔 프로젝트 영구 삭제에 맞춰 100% 로컬 독립 운용 체제 확립\n"
+        f"   - 마스터 비밀번호 PBKDF2 단방향 해시 갱신 및 유출 해시 무효화 완료\n"
+        f"   - Ed25519 전자 서명 기반 무결성 검증\n\n"
+        f"3. **초고속 오프사이트 이중화 복제 파이프라인 (core/offsite.py)**:\n"
+        f"   - 멀티스레드 Robocopy 엔진을 통한 고속 증분 복제 및 0.5초 무지연 헬스체크\n"
     )
 
     body_file = os.path.join(TEMP_DIR, f"github_release_{VERSION}_body.md")
