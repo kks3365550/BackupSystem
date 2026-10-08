@@ -212,5 +212,74 @@ class TestRotateTool(unittest.TestCase):
             shutil.rmtree(tmpkeys, ignore_errors=True)
 
 
+class TestSelfUpdateKeyring(unittest.TestCase):
+    """
+    POST /api/system/self-update 의 키링 배선.
+
+    왜 필요한가:
+        self-update 엔드포인트가 단일 경로
+        (keys/release_ed25519.pub)로 하드코딩돼 있었다.
+        키 교체 전환 기간에 신 키 서명 패키지가 거부된다.
+        core/updater.get_trusted_public_key_paths 로 동기화했고,
+        이 테스트가 그 배선을 고정한다.
+
+    안전 장치:
+        실제 keys/ 는 건드리지 않는다. 키링 함수를 임시 키로 패치한다.
+        프로브 zip 에는 core/web/run.py 가 없어 서명 통과 후 구조 검사에서
+        400으로 멈춘다. 추출은 절대 일어나지 않는다.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="test_selfupdate_")
+        self.old_priv, self.old_pub = _make_keypair(self.tmp, "old")
+        self.new_priv, self.new_pub = _make_keypair(self.tmp, "new")
+
+        zp = os.path.join(self.tmp, "probe.zip")
+        with zipfile.ZipFile(zp, "w") as zf:
+            zf.writestr("README.txt", "no core files here")
+        with open(zp, "rb") as f:
+            self.body = f.read()
+        self.sig_old = sign_bytes_ed25519(self.body, self.old_priv)
+        self.sig_new = sign_bytes_ed25519(self.body, self.new_priv)
+
+        import core.updater as updater_mod
+        self._orig = updater_mod.get_trusted_public_key_paths
+        updater_mod.get_trusted_public_key_paths = lambda: [self.old_pub, self.new_pub]
+        self._updater_mod = updater_mod
+        self.addCleanup(self._restore)
+
+        from starlette.testclient import TestClient
+        from web.app import app
+        self.client = TestClient(app, raise_server_exceptions=False)
+
+    def _restore(self):
+        self._updater_mod.get_trusted_public_key_paths = self._orig
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _post(self, sig):
+        headers = {}
+        if sig is not None:
+            headers["X-Package-Signature"] = sig
+        return self.client.post("/api/system/self-update",
+                                content=self.body, headers=headers)
+
+    def test_old_key_signature_passes_verification(self):
+        # 400 = 서명 통과 후 구조 검사에서 멈춤 (추출 없음)
+        r = self._post(self.sig_old)
+        self.assertEqual(r.status_code, 400, r.text[:300])
+
+    def test_new_key_signature_passes_verification(self):
+        r = self._post(self.sig_new)
+        self.assertEqual(r.status_code, 400, r.text[:300])
+
+    def test_forged_signature_rejected(self):
+        r = self._post("00" * 64)
+        self.assertEqual(r.status_code, 403)
+
+    def test_missing_signature_rejected(self):
+        r = self._post(None)
+        self.assertEqual(r.status_code, 403)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
