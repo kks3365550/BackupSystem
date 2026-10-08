@@ -46,7 +46,9 @@ print(f"[+] Created {zip_name} ({zip_size:,} bytes)")
 
 # 2. Sign release_vX.Y.Z.zip with Ed25519
 from core.crypto_sign import sign_bytes_ed25519
-key_path = os.path.join(BASE_DIR, "keys", "release_ed25519.key")
+key_path = os.path.join(BASE_DIR, "keys", "release_ed25519_v2.key")
+if not os.path.exists(key_path):
+    key_path = os.path.join(BASE_DIR, "keys", "release_ed25519.key")
 sig_path = f"{zip_path}.sig"
 assert os.path.exists(key_path), "Release private key missing!"
 with open(zip_path, "rb") as zf_in:
