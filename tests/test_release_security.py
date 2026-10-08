@@ -72,10 +72,10 @@ class TestReleasePackageSecurity(unittest.TestCase):
                     "CRITICAL LEAK: release_ed25519.key MUST NOT be in release package!"
                 )
 
-            # 5. 필수 포함: release_ed25519.pub 공개키는 존재해야 함
+            # 5. 필수 포함: release_ed25519_v2.pub (활성 공개키)는 존재해야 함
             self.assertIn(
-                "keys/release_ed25519.pub", namelist,
-                "Mandatory public key 'keys/release_ed25519.pub' must be present in package"
+                "keys/release_ed25519_v2.pub", namelist,
+                "Mandatory active public key 'keys/release_ed25519_v2.pub' must be present in package"
             )
 
         print("[Security Audit] PASSED: All private keys strictly excluded, public key verified.")
