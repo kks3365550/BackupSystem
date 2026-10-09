@@ -138,7 +138,7 @@ def export_universal_app_registry(app_name: str, publisher: str = "", dest_dir: 
                 idx += 1
                 cmd = ["reg", "export", full_reg_key, out_file, "/y"]
                 try:
-                    kwargs = {"capture_output": True, "text": True, "timeout": 5}
+                    kwargs = {"capture_output": True, "timeout": 5}
                     if sys.platform.startswith("win"):
                         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
                     res = subprocess.run(cmd, **kwargs)
@@ -165,7 +165,7 @@ def export_universal_app_registry(app_name: str, publisher: str = "", dest_dir: 
             out_file = os.path.join(dest, f"{file_prefix}_{clean_t}_{hive_tag}.reg")
             cmd = ["reg", "export", full_reg_key, out_file, "/y"]
             try:
-                kwargs = {"capture_output": True, "text": True, "timeout": 5}
+                kwargs = {"capture_output": True, "timeout": 5}
                 if sys.platform.startswith("win"):
                     kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
                 res = subprocess.run(cmd, **kwargs)
@@ -182,7 +182,7 @@ def import_registry_file(reg_filepath: str) -> bool:
         return False
     cmd = ["reg", "import", os.path.abspath(reg_filepath)]
     try:
-        kwargs = {"capture_output": True, "text": True, "encoding": "cp949", "errors": "replace", "timeout": 15}
+        kwargs = {"capture_output": True, "timeout": 15}
         if sys.platform.startswith("win"):
             kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         res = subprocess.run(cmd, **kwargs)
