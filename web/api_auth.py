@@ -11,6 +11,7 @@ web/api_auth.py - 인증 API 라우터
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from typing import Optional
 
 from core.auth import (
     get_auth_status, setup_master_password,
@@ -39,16 +40,21 @@ class AuthBypassRequest(BaseModel):
 
 
 
-# ==================== Auth Endpoints ====================
-@router.get("/api/auth/status")
-async def auth_status(request: Request):
-    client_ip = request.client.host if request.client else ""
-    status = get_auth_status(client_ip)
+def _extract_token(request: Request) -> Optional[str]:
     token = request.cookies.get("backup_session")
     if not token:
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:].strip()
+    return token
+
+
+# ==================== Auth Endpoints ====================
+@router.get("/api/auth/status")
+async def auth_status(request: Request):
+    client_ip = request.client.host if request.client else ""
+    status = get_auth_status(client_ip)
+    token = _extract_token(request)
     status["authenticated"] = bool(token and validate_session(token))
     return JSONResponse(content={"success": True, "data": status})
 
@@ -100,11 +106,7 @@ async def auth_login(req: AuthLoginRequest, request: Request):
 
 @router.post("/api/auth/logout")
 async def auth_logout(request: Request):
-    token = request.cookies.get("backup_session")
-    if not token:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:].strip()
+    token = _extract_token(request)
     if token:
         revoke_session(token)
     resp = JSONResponse(content={"success": True, "message": "로그아웃 성공"})
@@ -122,7 +124,13 @@ async def auth_change_password(req: AuthChangePasswordRequest):
         return JSONResponse(status_code=500, content={"success": False, "error": f"변경 중 오류: {str(e)}"})
 
 @router.post("/api/auth/toggle-bypass")
-async def auth_toggle_bypass(req: AuthBypassRequest):
+async def auth_toggle_bypass(req: AuthBypassRequest, request: Request):
+    client_ip = request.client.host if request.client else ""
+    token = _extract_token(request)
+    is_authed = bool(token and validate_session(token))
+    is_localhost = get_auth_status(client_ip).get("is_localhost", False)
+    if not is_authed and not is_localhost:
+        return JSONResponse(status_code=401, content={"success": False, "error": "인증이 필요한 작업입니다."})
     try:
         set_localhost_bypass(req.enabled)
         return JSONResponse(content={"success": True, "message": f"로컬 루프백 자동 우회 설정이 {'활성화' if req.enabled else '비활성화'}되었습니다."})

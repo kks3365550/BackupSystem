@@ -56,8 +56,8 @@ class RetentionManager:
             # 안전 장치: 스냅샷이 1개 이하일 때는 절대 삭제하지 않음
             return {"deleted_snapshots": [], "freed_bytes": 0, "status": "safe_minimum"}
 
-        # 최신순 정렬 (newest first)
-        snapshots.sort(key=lambda s: s.get("created_at", 0), reverse=True)
+        # 최신순 정렬 (newest first, float 안전 변환)
+        snapshots.sort(key=lambda s: float(s.get("created_at", 0) or 0), reverse=True)
 
         deleted_ids = set()
         # 안전 보장: 가장 최신 스냅샷(index 0)은 어떤 경우에도 삭제 대상에서 제외
@@ -75,7 +75,7 @@ class RetentionManager:
         if retention_days and retention_days > 0:
             cutoff_ts = time.time() - (retention_days * 86400)
             for s in snapshots[1:]: # 최신 스냅샷 제외
-                if s.get("created_at", 0) < cutoff_ts:
+                if float(s.get("created_at", 0) or 0) < cutoff_ts:
                     sid = s.get("id")
                     if sid:
                         deleted_ids.add(sid)

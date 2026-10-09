@@ -5,6 +5,7 @@ web/api_snapshots.py
 스냅샷 관리 및 조회 APIRouter 모듈
 """
 import os
+import re
 from typing import Optional, List
 import psutil
 from fastapi import APIRouter, HTTPException
@@ -15,6 +16,12 @@ from web.paths import BASE_DIR
 from web.state import append_task_log
 
 router = APIRouter()
+
+
+def _validate_snapshot_id(snapshot_id: str) -> str:
+    if not snapshot_id or not re.match(r'^[a-zA-Z0-9_\-]+$', snapshot_id):
+        raise HTTPException(status_code=400, detail="유효하지 않은 스냅샷 식별자 형식입니다.")
+    return snapshot_id
 
 
 def _get_all_candidate_repos(repo_dir: Optional[str] = None) -> List[str]:
@@ -89,7 +96,10 @@ def list_snapshots(repo_dir: Optional[str] = None):
     seen_ids = set()
 
     for r in repos:
-        snaps = SnapshotEngine.list_snapshots(r)
+        try:
+            snaps = SnapshotEngine.list_snapshots(r)
+        except Exception:
+            snaps = []
         
         # 1. 스냅샷 ID 수집 및 중복 제거
         repo_snap_ids = []
@@ -132,6 +142,7 @@ def list_snapshots(repo_dir: Optional[str] = None):
 
 @router.get("/api/snapshots/{snapshot_id}")
 def get_snapshot(snapshot_id: str, repo_dir: Optional[str] = None, include_entries: bool = False):
+    snapshot_id = _validate_snapshot_id(snapshot_id)
     r = _find_snapshot_repo(snapshot_id, repo_dir)
     if not r:
         raise HTTPException(status_code=404, detail="Snapshot not found")
@@ -156,6 +167,9 @@ def get_snapshot(snapshot_id: str, repo_dir: Optional[str] = None, include_entri
 
 @router.get("/api/snapshots/{snapshot_id}/browse")
 def browse_snapshot(snapshot_id: str, subpath: str = "", repo_dir: Optional[str] = None):
+    snapshot_id = _validate_snapshot_id(snapshot_id)
+    if ".." in subpath or subpath.startswith("/") or subpath.startswith("\\"):
+        raise HTTPException(status_code=400, detail="유효하지 않은 탐색 경로입니다.")
     r = _find_snapshot_repo(snapshot_id, repo_dir)
     if not r:
         raise HTTPException(status_code=404, detail="Snapshot not found")
@@ -167,6 +181,7 @@ def browse_snapshot(snapshot_id: str, subpath: str = "", repo_dir: Optional[str]
 
 @router.get("/api/snapshots/{snapshot_id}/tree")
 def get_snapshot_tree(snapshot_id: str, repo_dir: Optional[str] = None):
+    snapshot_id = _validate_snapshot_id(snapshot_id)
     r = _find_snapshot_repo(snapshot_id, repo_dir)
     if not r:
         raise HTTPException(status_code=404, detail="Snapshot not found")
@@ -178,6 +193,7 @@ def get_snapshot_tree(snapshot_id: str, repo_dir: Optional[str] = None):
 
 @router.delete("/api/snapshots/{snapshot_id}")
 def delete_snapshot(snapshot_id: str, repo_dir: Optional[str] = None):
+    snapshot_id = _validate_snapshot_id(snapshot_id)
     r = _find_snapshot_repo(snapshot_id, repo_dir)
     if not r:
         raise HTTPException(status_code=404, detail="Snapshot not found")

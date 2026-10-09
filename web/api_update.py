@@ -144,7 +144,7 @@ async def self_update(request: Request = None, custom_body: bytes = None, custom
         "@echo off\r\n"
         "chcp 65001 >nul\r\n"
         "ping 127.0.0.1 -n 2 >nul\r\n"
-        f"tar -xf \"{temp_zip}\" -C \"{BASE_DIR}\"\r\n"
+        f"\"{launch_py}\" -m zipfile -e \"{temp_zip}\" \"{BASE_DIR}\"\r\n"
         f"cd /d \"{BASE_DIR}\"\r\n"
         f"start \"\" \"{launch_py}\" run.py\r\n"
         f"del \"{temp_zip}\" >nul 2>&1\r\n"
@@ -155,7 +155,7 @@ async def self_update(request: Request = None, custom_body: bytes = None, custom
         f.write(bat_content)
 
     def _trigger_update_and_restart():
-        time.sleep(0.8)
+        time.sleep(1.2)
         flags = 0x00000200
         if sys.platform.startswith("win") and hasattr(subprocess, "CREATE_NO_WINDOW"):
             flags |= subprocess.CREATE_NO_WINDOW
@@ -352,7 +352,7 @@ def get_software_update_status(force_check: bool = False):
     """최신 소프트웨어 릴리즈 업데이트 상태 반환 (온라인/오프라인 지원)"""
     now = time.time()
     # Cache for 10 minutes unless force_check is requested
-    if force_check or _cached_update_info["data"] is None or (now - _cached_update_info["checked_at"] > 600):
+    if force_check or _cached_update_info.get("data") is None or (now - _cached_update_info.get("checked_at", 0) > 600):
         try:
             info = check_for_update()
             _cached_update_info["checked_at"] = now
@@ -361,7 +361,7 @@ def get_software_update_status(force_check: bool = False):
             logger.warning("Update check failed: %s", e)
             info = None
     else:
-        info = _cached_update_info["data"]
+        info = _cached_update_info.get("data")
 
     cur_ver = get_current_installed_version()
     if info and info.get("update_available"):
@@ -413,6 +413,9 @@ async def apply_offline_bundle(file: UploadFile = File(...)):
 
     try:
         content = await file.read()
+        if len(content) > 300 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="업로드된 번들 파일이 300MB를 초과합니다.")
+
         from core.updater_v2.bundle import BundleReader
         from core.updater_v2.default_keyring import load_default_keyring
         from core.updater_v2.pipeline import UnifiedUpdatePipeline
@@ -422,6 +425,10 @@ async def apply_offline_bundle(file: UploadFile = File(...)):
 
         acquired = BundleReader.read(content)
         result = pipeline.execute_update(acquired=acquired, skip_process_control=False)
+
+        if not result.success:
+            append_task_log(f"[오프라인 업데이트 실패] {result.message}", level="ERROR")
+            return JSONResponse(status_code=400, content={"success": False, "error": result.message})
 
         append_task_log(f"[오프라인 업데이트] 성공: {result.message}")
         return {

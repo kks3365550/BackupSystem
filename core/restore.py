@@ -217,16 +217,19 @@ class RestoreEngine:
                             done_count = restored_files + skipped_files + len(failed_files)
                             if progress_callback and (done_count % 5 == 0 or done_count == total_files):
                                 pct = round((done_count / max(1, total_files)) * 100, 1)
-                                progress_callback({
-                                    "type": "progress",
-                                    "current_file": rel_path,
-                                    "restored_files": restored_files,
-                                    "skipped_files": skipped_files,
-                                    "failed_files": len(failed_files),
-                                    "total_files": total_files,
-                                    "percent": pct,
-                                    "restored_bytes": restored_bytes
-                                })
+                                try:
+                                    progress_callback({
+                                        "type": "progress",
+                                        "current_file": rel_path,
+                                        "restored_files": restored_files,
+                                        "skipped_files": skipped_files,
+                                        "failed_files": len(failed_files),
+                                        "total_files": total_files,
+                                        "percent": pct,
+                                        "restored_bytes": restored_bytes
+                                    })
+                                except Exception:
+                                    pass
 
         # Fix: Safely import registry files sequentially after all files are restored
         if reg_files_to_import:
@@ -291,7 +294,7 @@ class RestoreEngine:
             blob_id = entry.get("blob_id") or entry.get("sha256")
             rel_path = entry.get("rel_path")
 
-            if not storage.has_blob(blob_id):
+            if not blob_id or not storage.has_blob(blob_id):
                 missing_blobs.append({"rel_path": rel_path, "blob_id": blob_id})
                 continue
 
@@ -309,11 +312,14 @@ class RestoreEngine:
                 corrupted_blobs.append({"rel_path": rel_path, "blob_id": blob_id, "error": str(e)})
 
             if progress_callback and (i % 10 == 0 or i == total_files - 1):
-                progress_callback({
-                    "verified": verified_count,
-                    "total": total_files,
-                    "percent": round(((i + 1) / max(1, total_files)) * 100, 1)
-                })
+                try:
+                    progress_callback({
+                        "verified": verified_count,
+                        "total": total_files,
+                        "percent": round(((i + 1) / max(1, total_files)) * 100, 1)
+                    })
+                except Exception:
+                    pass
 
         is_valid = (len(missing_blobs) == 0 and len(corrupted_blobs) == 0)
         return {

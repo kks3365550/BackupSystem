@@ -157,6 +157,8 @@ class FastCDCAdapter(BaseChunkAdapter):
     ):
         if fastcdc is None:
             raise RuntimeError("fastcdc 패키지가 설치되어 있지 않습니다.")
+        if not (0 < min_size <= avg_size <= max_size):
+            raise ValueError(f"유효하지 않은 FastCDC 청크 크기 규격: min={min_size}, avg={avg_size}, max={max_size}")
         self.min_size = min_size
         self.avg_size = avg_size
         self.max_size = max_size

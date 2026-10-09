@@ -263,13 +263,13 @@ class ProductionGateVerifier:
                 return False
 
             # 저장소 불변성 검증
-            repo_path = r"D:\MyBackup_Repository"
+            repo_path = os.environ.get("BACKUP_REPO_PATH", r"D:\MyBackup_Repository")
             file_count = 0
             if os.path.exists(repo_path):
                 for _, _, files in os.walk(repo_path):
                     file_count += len(files)
 
-            msg = f"OTA v2.9.10 -> v2.9.11 갱신 성공, D:\\MyBackup_Repository {file_count:,}개 파일 불변 확인"
+            msg = f"OTA v2.9.10 -> v2.9.11 갱신 성공, {repo_path} {file_count:,}개 파일 불변 확인"
             self.record_result(4, "실제 OTA 및 저장소 불변성", True, msg)
             return True
 
@@ -303,9 +303,14 @@ class ProductionGateVerifier:
                 kernel32.CreateFileW.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
                 kernel32.CreateFileW.restype = ctypes.c_void_p
                 h = kernel32.CreateFileW(target_f, 0x40000000, 0, None, 3, 0x80, None)
+                # INVALID_HANDLE_VALUE (0xFFFFFFFF) 또는 0(실패) 검사
+                if h is None or h == 0 or h == 0xFFFFFFFF:
+                    return
                 lock_held.set()
-                time.sleep(3.5)
-                kernel32.CloseHandle(h)
+                try:
+                    time.sleep(3.5)
+                finally:
+                    kernel32.CloseHandle(h)
 
             t = threading.Thread(target=_hold_lock, daemon=True)
             t.start()
