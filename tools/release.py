@@ -512,18 +512,9 @@ def restart_local_server():
         return
 
     try:
-        flags = 0
-        if hasattr(subprocess, 'CREATE_NO_WINDOW'):
-            flags |= subprocess.CREATE_NO_WINDOW
-        if hasattr(subprocess, 'DETACHED_PROCESS'):
-            flags |= subprocess.DETACHED_PROCESS
-        subprocess.Popen(
-            ['wscript.exe', vbs_path],
-            cwd=BASE_DIR,
-            creationflags=flags,
-            close_fds=True
-        )
-        print("      start_silent.vbs launched.")
+        ps_cmd = f"Start-Process wscript.exe -ArgumentList '\"{vbs_path}\"' -WorkingDirectory '{BASE_DIR}'"
+        subprocess.run(['powershell', '-NoProfile', '-Command', ps_cmd], capture_output=True, timeout=10)
+        print("      start_silent.vbs launched via detached Start-Process.")
     except Exception as e:
         print(f"      Failed to launch start_silent.vbs: {e}")
         return
