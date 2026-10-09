@@ -11,13 +11,18 @@ import json
 import time
 import hashlib
 import random
+import logging
 from typing import Dict, Any, List, Optional, Tuple
 from core.storage import BlobStorage, HAS_ZSTD
+
+logger = logging.getLogger("core.verify")
 
 # zstd 는 하위 모듈이 on-demand 로 참조하는 가용성 신호다.
 # pyflakes 는 사용으로 보지 못하므로 유지한다.
 if HAS_ZSTD:
     import zstandard as zstd
+else:
+    zstd = None
 
 _HAS_ZSTD_MODULE = zstd  # 가용성 플래그로 외부에서 참조
 
@@ -306,7 +311,7 @@ class IntegrityVerifier:
                     source_root = entry.get("source_root")
                     if source_root and os.path.isdir(source_root) and expected_sha256:
                         candidate_src = os.path.join(source_root, rel_path)
-                        if os.path.isfile(candidate_src):
+                        if os.path.isfile(candidate_src) and os.access(candidate_src, os.R_OK):
                             try:
                                 # 원본 파일 무결성 우선 확인
                                 with open(candidate_src, "rb") as f_src:
@@ -319,9 +324,13 @@ class IntegrityVerifier:
                                     if ok_re:
                                         healed = True
                                         actual_size = re_size
-
-                            except Exception:
-                                pass
+                                        logger.info("손상 블롭 자가 치유(Self-Healing) 성공: %s", blob_id)
+                                    else:
+                                        logger.warning("손상 블롭 자가 치유 실패 (재검증 불합격): %s", blob_id)
+                                else:
+                                    logger.warning("자가 치유 건너뜀 (원본 파일 해시 불일치): %s", candidate_src)
+                            except Exception as heal_err:
+                                logger.error("자가 치유 중 예외 발생 (블롭 ID: %s): %s", blob_id, heal_err)
 
 
                 if healed:
@@ -395,6 +404,7 @@ class IntegrityVerifier:
         }
 
         referenced_blob_ids = set()
+        missing_blob_set = set()
 
         # Phase 1: 스냅샷 매니페스트 검증
         from core.crypto_sign import Ed25519Signer
@@ -435,7 +445,8 @@ class IntegrityVerifier:
                             cid_lower = cid.lower()
                             referenced_blob_ids.add(cid_lower)
                             if not self.storage.has_blob(cid_lower):
-                                if cid_lower not in results["missing_blobs"]:
+                                if cid_lower not in missing_blob_set:
+                                    missing_blob_set.add(cid_lower)
                                     results["missing_blobs"].append(cid_lower)
                     else:
                         b_id = entry.get("blob_id") or entry.get("sha256")
@@ -443,7 +454,8 @@ class IntegrityVerifier:
                             b_id_lower = b_id.lower()
                             referenced_blob_ids.add(b_id_lower)
                             if not self.storage.has_blob(b_id_lower):
-                                if b_id_lower not in results["missing_blobs"]:
+                                if b_id_lower not in missing_blob_set:
+                                    missing_blob_set.add(b_id_lower)
                                     results["missing_blobs"].append(b_id_lower)
 
                 results["valid_snapshots"] += 1

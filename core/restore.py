@@ -90,7 +90,7 @@ class RestoreEngine:
 
         def _restore_one(entry):
             if cancel_event and cancel_event.is_set():
-                return "cancelled", 0
+                return ("cancelled", 0, None, None)
 
             rel_path = entry.get("rel_path")
             blob_id = entry.get("blob_id") or entry.get("sha256")
@@ -98,7 +98,7 @@ class RestoreEngine:
             f_mtime = entry.get("mtime")
 
             if not rel_path or not blob_id:
-                return "skip", 0
+                return ("skip", 0, None, None)
 
             if in_place:
                 src_root = entry.get("source_root")
@@ -109,21 +109,28 @@ class RestoreEngine:
                     norm_base = os.path.normpath(file_target_dir)
                     if norm_base.lower().startswith(remap_from.lower()):
                         file_target_dir = os.path.normpath(current_user_profile + norm_base[len(remap_from):])
-                dest_path = os.path.normpath(os.path.join(file_target_dir, rel_path))
-                f_norm_target = file_target_dir
-                f_norm_prefix = f_norm_target if f_norm_target.endswith(os.sep) else f_norm_target + os.sep
-                dest_lower = dest_path.lower()
-                if not (dest_lower == f_norm_target.lower() or dest_lower.startswith(f_norm_prefix.lower())):
-                    return ("fail", 0, rel_path, "경로 트래버설 차단: 원본 디렉토리 밖으로 복원 시도")
+                dest_path = os.path.abspath(os.path.join(file_target_dir, rel_path))
+                # P0: ZipSlip / Path Traversal 방어 (commonpath 검증)
+                try:
+                    if os.path.commonpath([file_target_dir, dest_path]) != file_target_dir:
+                        log.warning("경로 트래버설 차단 (in_place): %s -> %s", rel_path, dest_path)
+                        return ("fail", 0, rel_path, "경로 트래버설 차단: 원본 디렉토리 밖으로 복원 시도")
+                except ValueError:
+                    log.warning("경로 트래버설 차단 (in_place 드라이브 불일치): %s", rel_path)
+                    return ("fail", 0, rel_path, "경로 트래버설 차단: 드라이브 불일치")
             else:
-                dest_path = os.path.normpath(os.path.join(target_dir, rel_path))
-                dest_lower = dest_path.lower()
-                # Strict case-insensitive path traversal protection with boundary prefix
-                if not (dest_lower == norm_target_lower or dest_lower.startswith(norm_target_prefix_lower)):
-                    return ("fail", 0, rel_path, "경로 트래버설 차단: 대상 디렉토리 밖으로 복원 시도")
+                dest_path = os.path.abspath(os.path.join(target_dir, rel_path))
+                # P0: ZipSlip / Path Traversal 방어 (commonpath 검증)
+                try:
+                    if os.path.commonpath([target_dir, dest_path]) != target_dir:
+                        log.warning("경로 트래버설 차단 (target_dir): %s -> %s", rel_path, dest_path)
+                        return ("fail", 0, rel_path, "경로 트래버설 차단: 대상 디렉토리 밖으로 복원 시도")
+                except ValueError:
+                    log.warning("경로 트래버설 차단 (target_dir 드라이브 불일치): %s", rel_path)
+                    return ("fail", 0, rel_path, "경로 트래버설 차단: 드라이브 불일치")
 
             if os.path.exists(dest_path) and not overwrite:
-                return "skip", 0
+                return ("skip", 0, None, None)
 
             try:
                 chunk_ids = entry.get("chunk_ids")
@@ -146,7 +153,7 @@ class RestoreEngine:
                         pass
 
                 is_reg = dest_path.lower().endswith(".reg")
-                return "ok", f_size, dest_path if is_reg else None
+                return ("ok", f_size, dest_path if is_reg else None, None)
             except Exception as e:
                 return ("fail", 0, rel_path, str(e))
 

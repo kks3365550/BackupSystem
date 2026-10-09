@@ -202,41 +202,73 @@ class ReplicationQueueManager:
                 return True
             else:
                 errors = "; ".join(result.get("errors", ["Replication verification failed"]))
-                self._increment_attempts(task_id)
-                self._update_state(task_id, 'FAILED', error_msg=errors)
+                self._handle_failure(task_id, errors)
                 return False
 
         except Exception as e:
-            self._increment_attempts(task_id)
-            self._update_state(task_id, 'FAILED', error_msg=str(e))
+            self._handle_failure(task_id, str(e))
             return False
 
+    def _handle_failure(self, task_id: int, error_msg: str, max_retries: int = 3):
+        """
+        실패 처리: 지수 백오프를 고려하여 재시도 가능 여부를 원자적으로 업데이트합니다.
+        """
+        now = time.time()
+        with self._lock:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT attempts FROM replication_queue WHERE id=?", (task_id,))
+            row = cursor.fetchone()
+            current_attempts = (row[0] + 1) if row else 1
+
+            if current_attempts >= max_retries:
+                cursor.execute(
+                    "UPDATE replication_queue SET state='FAILED', attempts=?, error_msg=?, updated_at=? WHERE id=?",
+                    (current_attempts, error_msg, now, task_id)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE replication_queue SET state='PENDING', attempts=?, error_msg=?, updated_at=? WHERE id=?",
+                    (current_attempts, error_msg, now, task_id)
+                )
+            conn.commit()
+
     def _fetch_next_task(self) -> Optional[Dict[str, Any]]:
+        now = time.time()
         with self._lock:
             conn = self._get_connection()
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT id, snapshot_id, repo_dir, remote_repo_dir, state
+                SELECT id, snapshot_id, repo_dir, remote_repo_dir, state, attempts, updated_at
                 FROM replication_queue
                 WHERE state IN ('PENDING', 'TRANSFERRING')
                 ORDER BY 
                     CASE WHEN state = 'PENDING' THEN 0 ELSE 1 END,
                     created_at ASC
-                LIMIT 1
+                LIMIT 20
                 """
             )
-            row = cursor.fetchone()
-            if not row:
+            rows = cursor.fetchall()
+            if not rows:
                 return None
 
-            return {
-                "id": row[0],
-                "snapshot_id": row[1],
-                "repo_dir": row[2],
-                "remote_repo_dir": row[3],
-                "state": row[4]
-            }
+            for row in rows:
+                attempts = row[5] or 0
+                updated_at = row[6] or 0
+                # 재시도 이력이 있는 작업은 2^attempts 초 지수 백오프 경과 후에만 재시도
+                backoff_seconds = (2 ** attempts) if attempts > 0 else 0
+                if attempts > 0 and (now - updated_at) < backoff_seconds:
+                    continue  # 아직 백오프 쿨다운 중인 태스크 건너뜀
+
+                return {
+                    "id": row[0],
+                    "snapshot_id": row[1],
+                    "repo_dir": row[2],
+                    "remote_repo_dir": row[3],
+                    "state": row[4]
+                }
+            return None
 
     def resume_all_interrupted(self) -> int:
         """

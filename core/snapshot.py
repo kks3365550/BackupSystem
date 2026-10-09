@@ -161,7 +161,7 @@ class SnapshotEngine:
                         progress_callback({
                             "type": "scanning",
                             "current_file": f"파일 탐색 중... ({total_count_report:,}개 발견: {os.path.basename(curr_dir)})",
-                            "processed_files": 0,
+                            "processed_files": total_count_report,
                             "total_files": total_count_report,
                             "percent": 0,
                             "new_files": 0,
@@ -851,20 +851,19 @@ class SnapshotEngine:
             try:
                 from core.metadata_db import MetadataDB
                 MetadataDB(repo_dir).delete_snapshot_record(snapshot_id)
-            except Exception:
-                pass
+            except Exception as e_db:
+                log.error("스냅샷 DB 레코드 삭제 실패 (스냅샷 ID: %s): %s", snapshot_id, e_db)
             if prune_orphaned_blobs:
                 try:
                     cls.prune_storage(repo_dir)
-                except Exception:
-                    pass
+                except Exception as e_prune:
+                    log.error("스냅샷 삭제 후 가비지 컬렉션(prune_storage) 실패: %s", e_prune)
             # Invalidate snapshot metadata cache (P2: Fail-Safe Eviction)
             try:
                 from core.snapshot_cache import get_snapshot_cache
                 get_snapshot_cache().evict(repo_dir)
             except Exception as e_evict:
-                import logging
-                logging.getLogger("BackupSystem").warning(f"Failed to evict snapshot cache on delete for '{repo_dir}': {e_evict}", exc_info=True)
+                log.warning("Failed to evict snapshot cache on delete for '%s': %s", repo_dir, e_evict, exc_info=True)
         return deleted
 
     @classmethod
