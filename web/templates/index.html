@@ -817,6 +817,81 @@
         </div>
     </div>
 
+    <!-- MODAL 1.5: First-Run Onboarding Wizard Modal -->
+    <div id="onboarding-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-blue-500/40 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in">
+            <div class="p-5 bg-gradient-to-r from-blue-950/80 to-slate-900 border-b border-slate-800 flex justify-between items-center">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-blue-600/30 border border-blue-500/50 flex items-center justify-center text-blue-400 font-bold">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-blue-400"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-sm text-slate-100">첫 실행 스마트 백업 마법사</h3>
+                        <p class="text-[11px] text-blue-300/80">3단계로 주요 데이터를 안전하게 보호하세요</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('onboarding-modal')" class="text-slate-400 hover:text-slate-200">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-4 text-xs">
+                <!-- Step 1: Backup Sources -->
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1.5 flex items-center gap-1.5">
+                        <span class="w-4 h-4 rounded-full bg-blue-600 text-[10px] text-white flex items-center justify-center font-bold">1</span>
+                        <span>백업 대상 폴더 (추천 자동 선택)</span>
+                    </label>
+                    <div class="space-y-1.5 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
+                        <label class="flex items-center gap-2 cursor-pointer hover:text-blue-300 text-slate-300">
+                            <input type="checkbox" id="onboard-src-desktop" checked class="rounded border-slate-700 text-blue-600 focus:ring-0">
+                            <i data-lucide="monitor" class="w-3.5 h-3.5 text-blue-400"></i>
+                            <span>바탕화면 (Desktop) 폴더</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer hover:text-blue-300 text-slate-300">
+                            <input type="checkbox" id="onboard-src-documents" checked class="rounded border-slate-700 text-blue-600 focus:ring-0">
+                            <i data-lucide="file-text" class="w-3.5 h-3.5 text-blue-400"></i>
+                            <span>내 문서 (Documents) 폴더</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Step 2: Storage Location -->
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1.5 flex items-center gap-1.5">
+                        <span class="w-4 h-4 rounded-full bg-blue-600 text-[10px] text-white flex items-center justify-center font-bold">2</span>
+                        <span>백업 저장소 위치 (D:\ 권장)</span>
+                    </label>
+                    <input type="text" id="onboard-repo-dir" value="D:\MyBackup_Repository" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 text-xs font-mono focus:border-blue-500 focus:outline-none">
+                    <p class="text-[10px] text-slate-400 mt-1">D드라이브가 없으면 자동으로 안전한 사용자 경로를 사용합니다.</p>
+                </div>
+
+                <!-- Step 3: Schedule -->
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1.5 flex items-center gap-1.5">
+                        <span class="w-4 h-4 rounded-full bg-blue-600 text-[10px] text-white flex items-center justify-center font-bold">3</span>
+                        <span>자동 백업 일정</span>
+                    </label>
+                    <select id="onboard-schedule-time" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 text-xs focus:border-blue-500 focus:outline-none">
+                        <option value="09:00" selected>매일 오전 09:00 자동 백업 (권장)</option>
+                        <option value="18:00">매일 오후 18:00 (퇴근 전 자동 백업)</option>
+                        <option value="manual">수동 백업 (사용자가 직접 시작할 때만)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 bg-slate-950/80 border-t border-slate-800 flex justify-end gap-2 text-xs">
+                <button type="button" onclick="closeModal('onboarding-modal')" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium">
+                    나중에 설정
+                </button>
+                <button type="button" onclick="completeOnboardingWizard()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-lg shadow-blue-900/30">
+                    <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
+                    <span>스마트 설정 완료</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL 2: Restore Modal -->
     <div id="restore-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">

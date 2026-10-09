@@ -3,7 +3,7 @@
 ; =========================================================================
 
 #define MyAppName "백업시스템"
-#define MyAppVersion "2.13.23"
+#define MyAppVersion "2.13.24"
 #define MyAppPublisher "삼영데리카후레쉬"
 #define MyAppURL "http://127.0.0.1:8765"
 #define MyAppExeName "BackupSystem.exe"
@@ -24,6 +24,7 @@ OutputDir=..\dist
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
+LicenseFile=..\docs\EULA.txt
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog commandline
 ArchitecturesInstallIn64BitMode=x64compatible

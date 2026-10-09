@@ -45,12 +45,59 @@ async function loadDashboard() {
 
         renderDashboardStats();
         renderRecentSnapshots();
-        renderSystemDrives();
+        renderSystemDrives();
+        checkOnboardingWizard();
     } catch (err) {
         console.error('Failed to load dashboard:', err);
     }
 }
 
+function checkOnboardingWizard() {
+    const done = localStorage.getItem('onboarding_completed');
+    if (!done && (!state.profiles || state.profiles.length === 0)) {
+        setTimeout(() => openModal('onboarding-modal'), 600);
+    }
+}
+
+async function completeOnboardingWizard() {
+    try {
+        const desktopChecked = document.getElementById('onboard-src-desktop')?.checked;
+        const documentsChecked = document.getElementById('onboard-src-documents')?.checked;
+        const repoDir = document.getElementById('onboard-repo-dir')?.value?.trim() || 'D:\\MyBackup_Repository';
+        const sched = document.getElementById('onboard-schedule-time')?.value || '09:00';
+
+        const sources = [];
+        if (desktopChecked) sources.push('Desktop');
+        if (documentsChecked) sources.push('Documents');
+
+        const newProfile = {
+            name: "내 PC 스마트 백업 프로필",
+            sources: sources.length > 0 ? sources : ["Desktop"],
+            repo_dir: repoDir,
+            schedule_type: (sched === 'manual') ? 'manual' : 'daily',
+            schedule_value: (sched === 'manual') ? '' : sched,
+            auto_backup_enabled: (sched !== 'manual'),
+            retention_count: 30,
+            retention_days: 60,
+            compression_level: 6,
+            min_free_disk_gb: 10,
+            enable_ransomware_protection: true
+        };
+
+        await fetchAPI('/api/profiles', {
+            method: 'POST',
+            body: JSON.stringify(newProfile)
+        });
+
+        localStorage.setItem('onboarding_completed', 'true');
+        closeModal('onboarding-modal');
+        alert('🎉 스마트 백업 설정이 완료되었습니다!\n이제 정해진 시간에 자동으로 안전하게 백업됩니다.');
+        await loadDashboard();
+    } catch (err) {
+        alert('온보딩 설정 저장 실패: ' + err.message);
+    }
+}
+
 function renderDashboardStats() {
     const stats = state.storageStats || {};
     document.getElementById('stat-total-snaps').innerText = stats.total_snapshots || '0';
