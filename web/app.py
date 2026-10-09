@@ -380,7 +380,11 @@ def stop_system_image():
 @app.post("/api/system/shutdown")
 def shutdown_system():
     def _kill():
-        time.sleep(0.4)
+        try:
+            scheduler.stop()
+        except Exception:
+            pass
+        time.sleep(1.0)
         os._exit(0)
     threading.Thread(target=_kill, daemon=True).start()
     return {"success": True, "message": "백업 시스템 서비스가 완전히 종료됩니다."}
@@ -422,18 +426,17 @@ def get_alerts_summary():
         if status != "critical":
             status = "warning"
 
-    # 2. Check Active Repository Disk Space
-    active_repo = None
+    # 2. Check All Repository Disk Spaces
     disk_info = {"total_gb": 0.0, "free_gb": 0.0, "free_percent": 100.0}
     try:
         profiles = ConfigManager.get_profiles()
-        if profiles:
-            active_repo = profiles[0].get("repo_dir")
-            if active_repo and os.path.exists(active_repo):
-                drive = os.path.splitdrive(active_repo)[0]
-                if not drive:
-                    drive = os.path.splitdrive(os.path.abspath(active_repo))[0]
-                if drive:
+        checked_drives = set()
+        for p in profiles:
+            repo_cand = p.get("repo_dir")
+            if repo_cand and os.path.exists(repo_cand):
+                drive = os.path.splitdrive(os.path.abspath(repo_cand))[0]
+                if drive and drive not in checked_drives:
+                    checked_drives.add(drive)
                     total, used, free = shutil.disk_usage(drive)
                     total_gb = round(total / (1024 ** 3), 1)
                     free_gb = round(free / (1024 ** 3), 1)

@@ -176,7 +176,7 @@ def run_cli_backup(profile_id: str = None):
         _run_offsite_replication(repo_dir, profile)
 
         _say("=== 백업 프로세스 정상 종료 (메모리 완전 회수) ===")
-        sys.exit(0)
+        return 0
 
     except Exception as e:
         log.error("백업 실행 실패: %s", e, exc_info=True)
@@ -188,10 +188,10 @@ def run_cli_backup(profile_id: str = None):
         except Exception as e_save:
             # 실패 상태 기록까지 실패하면 다음 확인이 불가능해진다
             log.error("실패 상태 저장 실패: %s", e_save, exc_info=True)
-        sys.exit(1)
+        return 1
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="백업 매니저 원샷 CLI 실행기")
     parser.add_argument("--profile", "-p", help="실행할 프로필 ID", default=None)
     args = parser.parse_args()
-    run_cli_backup(args.profile)
+    sys.exit(run_cli_backup(args.profile))

@@ -4,7 +4,10 @@ import json
 import sqlite3
 import threading
 import contextlib
+import logging
 from typing import Dict, List, Any, Tuple
+
+logger = logging.getLogger("core.metadata_db")
 
 class MetadataDB:
     _lock = threading.Lock()
@@ -139,8 +142,8 @@ class MetadataDB:
             if needs_rebuild and os.path.exists(self.snapshots_dir):
                 self.sync_snapshots()
                 self.rebuild_blobs_summary()
-        except Exception:
-            pass
+        except Exception as e_init:
+            logger.error("MetadataDB _init_db 초기화 실패: %s", e_init, exc_info=True)
 
     def record_new_blob(self, stored_size: int, count: int = 1):
         """Atomically increments blob count and stored bytes in cache.
@@ -357,6 +360,7 @@ class MetadataDB:
         total_blobs = 0
         stored_bytes = 0
 
+        needs_rebuild = False
         try:
             with self._get_connection() as conn:
                 row = conn.execute("SELECT total_blobs, stored_bytes, last_updated FROM blobs_summary WHERE id = 1;").fetchone()
@@ -364,8 +368,11 @@ class MetadataDB:
                     total_blobs = row["total_blobs"]
                     stored_bytes = row["stored_bytes"]
                 else:
-                    total_blobs, stored_bytes = self.rebuild_blobs_summary()
+                    needs_rebuild = True
         except Exception:
+            needs_rebuild = True
+
+        if needs_rebuild:
             total_blobs, stored_bytes = self.rebuild_blobs_summary()
 
         snapshots = self.sync_snapshots()

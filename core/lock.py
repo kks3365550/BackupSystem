@@ -189,21 +189,23 @@ class BackupLock:
             return
 
         with _reentrant_gate:
-            if getattr(self, "_is_reentrant", False):
-                key = _lock_key(self.repo_dir)
-                depth = _active_locks.get(key, 1) - 1
-                if depth > 0:
-                    _active_locks[key] = depth
-                else:
-                    _active_locks.pop(key, None)
+            key = _lock_key(self.repo_dir)
+            depth = _active_locks.get(key, 0)
+            
+            # 1. depth > 1: 재진입 중이므로 카운터만 감소하고 즉시 반환 (파일 락 유지)
+            if depth > 1:
+                _active_locks[key] = depth - 1
                 self._is_locked = False
                 self._is_reentrant = False
                 return
+            
+            # 2. depth <= 1: 최종 해제. 키를 pop하고 실제 파일 락 해제 로직을 진행
             else:
-                # 자기 스레드의 엔트리만 제거한다.
-                # 다른 스레드의 재진입 깊이를 함께 지우면 상호배제가 깨진다.
-                _active_locks.pop(_lock_key(self.repo_dir), None)
+                _active_locks.pop(key, None)
+                self._is_locked = False
+                self._is_reentrant = False
 
+        # 실제 파일 락 해제 및 리소스 정리 (depth <= 1일 때만 실행됨)
         if self.fd is not None:
             try:
                 if HAS_MSVCRT:
@@ -223,8 +225,6 @@ class BackupLock:
                     os.remove(self.lock_path)
             except Exception:
                 pass
-
-        self._is_locked = False
 
     def __enter__(self):
         self.acquire()

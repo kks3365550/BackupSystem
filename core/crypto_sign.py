@@ -165,7 +165,7 @@ class Ed25519Signer:
 
     def verify_manifest(self, manifest: Dict[str, Any]) -> bool:
         if not HAS_CRYPTOGRAPHY:
-            return True
+            return False
         self.ensure_key_pair()
         public_key = self._public_key
         signature_hex = manifest.get("ed25519_signature")
@@ -189,9 +189,9 @@ def verify_manifest_signature_ed25519(
     manifest: Dict[str, Any], 
     pub_key_path_or_bytes: Union[str, bytes]
 ) -> bool:
-    """독립적인 Ed25519 서명 검증 함수."""
+    """독립적인 Ed25519 서명 검증 함수 (Fail-Closed 보안 표준)."""
     if not HAS_CRYPTOGRAPHY:
-        return True
+        return False
     try:
         if isinstance(pub_key_path_or_bytes, str):
             with open(pub_key_path_or_bytes, 'rb') as f:

@@ -63,6 +63,9 @@ class WORMManager:
                 logger.debug(f"icacls reported failure for {target_path}: {output.strip()}")
                 return False
             return True
+        except subprocess.TimeoutExpired:
+            logger.warning(f"icacls timed out after 15s on {target_path}")
+            return False
         except FileNotFoundError:
             logger.debug("icacls executable not found. Skipping NTFS ACL.")
             return False
@@ -79,24 +82,25 @@ class WORMManager:
         if not os.path.exists(filepath):
             return False
 
-        success = False
+        chmod_ok = False
 
         # 1. POSIX / DOS Read-Only attribute
         try:
             current_mode = os.stat(filepath).st_mode
             new_mode = current_mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH
             os.chmod(filepath, new_mode)
-            success = True
+            chmod_ok = True
         except Exception as e:
             logger.debug(f"chmod readonly failed on {filepath}: {e}")
 
         # 2. Windows NTFS ACL Deny (DE,WD,AD)
         if self._is_windows and use_ntfs_acl:
             acl_ok = self._run_icacls(filepath, ["/deny", f"{SID_EVERYONE}:(DE,WD,AD)"])
-            if acl_ok:
-                success = True
+            if not acl_ok:
+                logger.warning(f"NTFS ACL WORM 적용 실패 (chmod만 적용됨): {filepath}")
+            return acl_ok and chmod_ok
 
-        return success
+        return chmod_ok
 
     def unprotect_file(self, filepath: str, authorized: bool = False) -> bool:
         """

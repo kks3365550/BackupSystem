@@ -271,13 +271,6 @@ class CryptoAtRestEngine:
 
             # 원자적 치환
             if os.path.exists(blob_path):
-                # 다른 스레드가 먼저 완료한 경우 임시 파일만 정리
-                try:
-                    import stat
-                    os.chmod(tmp_path, stat.S_IWRITE)
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
                 return blob_path, False
 
             try:
@@ -286,15 +279,9 @@ class CryptoAtRestEngine:
             except (FileExistsError, PermissionError, OSError):
                 # 다른 워커가 찰나의 순간에 먼저 저장 및 WORM 잠금을 완료한 경우
                 if os.path.exists(blob_path):
-                    try:
-                        import stat
-                        os.chmod(tmp_path, stat.S_IWRITE)
-                        os.remove(tmp_path)
-                    except Exception:
-                        pass
                     return blob_path, False
                 raise
-        except Exception:
+        finally:
             if os.path.exists(tmp_path):
                 try:
                     import stat
@@ -302,7 +289,6 @@ class CryptoAtRestEngine:
                     os.remove(tmp_path)
                 except Exception:
                     pass
-            raise
 
     def export_key_backup(self, backup_file_path: str, passphrase_hint: str = ""):
         """키 분실 방지를 위한 오프라인 키 백업 파일 생성 (Chaos 22 대응용)"""
