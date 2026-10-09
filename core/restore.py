@@ -293,23 +293,55 @@ class RestoreEngine:
         for i, entry in enumerate(entries):
             blob_id = entry.get("blob_id") or entry.get("sha256")
             rel_path = entry.get("rel_path")
+            chunk_ids = entry.get("chunk_ids")
 
-            if not blob_id or not storage.has_blob(blob_id):
-                missing_blobs.append({"rel_path": rel_path, "blob_id": blob_id})
-                continue
+            # 대용량 파일 분할 청크 검증 로직
+            if chunk_ids and isinstance(chunk_ids, list):
+                # 1. 모든 청크의 존재 여부 확인
+                missing_chunks = [cid for cid in chunk_ids if not storage.has_blob(cid)]
+                if missing_chunks:
+                    missing_blobs.append({
+                        "rel_path": rel_path,
+                        "blob_id": blob_id,
+                        "missing_chunks": missing_chunks
+                    })
+                    continue
 
-            try:
-                # Read and decompress to verify SHA-256 hash (Fix #3: removed dead 'if False:' block)
-                data = storage.read_blob_bytes(blob_id)
-                h = hashlib.sha256(data).hexdigest()
-                if h != blob_id:
-                    log.error(f"블롭 해시 불일치 감지 [{rel_path}] (예상: {blob_id}, 실제: {h})")
-                    corrupted_blobs.append({"rel_path": rel_path, "blob_id": blob_id})
-                else:
-                    verified_count += 1
-            except Exception as e:
-                log.error(f"손상된 블롭 감지 [{rel_path}] ({blob_id}): {e}", exc_info=True)
-                corrupted_blobs.append({"rel_path": rel_path, "blob_id": blob_id, "error": str(e)})
+                # 2. 청크별 SHA-256 무결성 검증
+                try:
+                    is_corrupted = False
+                    for cid in chunk_ids:
+                        data = storage.read_blob_bytes(cid)
+                        h = hashlib.sha256(data).hexdigest()
+                        if h != cid:
+                            log.error(f"청크 해시 불일치 감지 [{rel_path}] (청크: {cid}, 예상: {cid}, 실제: {h})")
+                            is_corrupted = True
+                            break
+                    if is_corrupted:
+                        corrupted_blobs.append({"rel_path": rel_path, "blob_id": blob_id, "type": "chunk_hash_mismatch"})
+                    else:
+                        verified_count += 1
+                except Exception as e:
+                    log.error(f"청크 검증 중 오류 발생 [{rel_path}]: {e}", exc_info=True)
+                    corrupted_blobs.append({"rel_path": rel_path, "blob_id": blob_id, "error": str(e)})
+            else:
+                # 기존 단일 블롭 검증 로직
+                if not blob_id or not storage.has_blob(blob_id):
+                    missing_blobs.append({"rel_path": rel_path, "blob_id": blob_id})
+                    continue
+
+                try:
+                    # Read and decompress to verify SHA-256 hash (Fix #3: removed dead 'if False:' block)
+                    data = storage.read_blob_bytes(blob_id)
+                    h = hashlib.sha256(data).hexdigest()
+                    if h != blob_id:
+                        log.error(f"블롭 해시 불일치 감지 [{rel_path}] (예상: {blob_id}, 실제: {h})")
+                        corrupted_blobs.append({"rel_path": rel_path, "blob_id": blob_id})
+                    else:
+                        verified_count += 1
+                except Exception as e:
+                    log.error(f"손상된 블롭 감지 [{rel_path}] ({blob_id}): {e}", exc_info=True)
+                    corrupted_blobs.append({"rel_path": rel_path, "blob_id": blob_id, "error": str(e)})
 
             if progress_callback and (i % 10 == 0 or i == total_files - 1):
                 try:
