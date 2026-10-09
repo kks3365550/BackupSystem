@@ -107,7 +107,11 @@ class VSSContext:
             self.warnings.append("VSS는 Windows 환경에서만 지원됩니다.")
             return self
 
-        self._setup()
+        try:
+            self._setup()
+        except Exception:
+            self.cleanup()
+            raise
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

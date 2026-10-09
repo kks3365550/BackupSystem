@@ -279,6 +279,7 @@ def _background_custom_backup_task(params: Dict[str, Any]):
         append_task_log("사용자에 의해 백업 작업이 취소되었습니다.", level="WARNING")
         with task_lock:
             current_task["error"] = "Cancelled by user"
+            current_task["result"] = None
     except Exception as e:
         if isinstance(e, BackupAlreadyRunningError):
             append_task_log(f"선택 백업 거부: {str(e)}", level="WARNING")
@@ -294,6 +295,7 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             append_task_log(traceback.format_exc(), level="ERROR")
         with task_lock:
             current_task["error"] = str(e)
+            current_task["result"] = None
     finally:
         with task_lock:
             current_task["running"] = False
@@ -422,6 +424,7 @@ def _background_backup_task(params: Dict[str, Any]):
         append_task_log("사용자에 의해 백업 작업이 취소되었습니다.", level="WARNING")
         with task_lock:
             current_task["error"] = "Cancelled by user"
+            current_task["result"] = None
     except Exception as e:
         if isinstance(e, BackupAlreadyRunningError):
             append_task_log(f"백업 거부: {str(e)}", level="WARNING")
@@ -437,6 +440,7 @@ def _background_backup_task(params: Dict[str, Any]):
             append_task_log(traceback.format_exc(), level="ERROR")
         with task_lock:
             current_task["error"] = str(e)
+            current_task["result"] = None
             if profile_id and profile:
                 profile["last_status"] = "failed"
                 ConfigManager.save_profile(profile)
@@ -593,10 +597,12 @@ def _background_restore_task(params: Dict[str, Any]):
         append_task_log("복원 작업이 사용자에 의해 취소되었습니다.", level="WARNING")
         with task_lock:
             current_task["error"] = "Cancelled by user"
+            current_task["result"] = None
     except Exception as e:
         append_task_log(f"복원 중 오류 발생: {str(e)}", level="ERROR")
         with task_lock:
             current_task["error"] = str(e)
+            current_task["result"] = None
     finally:
         with task_lock:
             current_task["running"] = False

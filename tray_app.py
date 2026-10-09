@@ -396,21 +396,24 @@ class BackupTrayApp:
         threading.Thread(target=_call, daemon=True).start()
 
     def exit_app(self):
-        try:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            stop_bat = os.path.join(base_dir, "stop_backup_system.bat")
-            if os.path.exists(stop_bat):
-                subprocess.run(
-                    ["cmd.exe", "/c", stop_bat],
-                    cwd=base_dir,
-                    creationflags=0x08000000,
-                    timeout=10
-                )
-        except Exception:
-            pass
-
         self.running = False
         user32.PostMessageW(self.hwnd, WM_CLOSE, 0, 0)
+
+        def _cleanup():
+            try:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                stop_bat = os.path.join(base_dir, "stop_backup_system.bat")
+                if os.path.exists(stop_bat):
+                    subprocess.run(
+                        ["cmd.exe", "/c", stop_bat],
+                        cwd=base_dir,
+                        creationflags=0x08000000,
+                        timeout=10
+                    )
+            except Exception:
+                pass
+
+        threading.Thread(target=_cleanup, daemon=False).start()
 
     def _monitor_server_status(self):
         """백그라운드에서 백업 진행/완료 상태를 모니터링하여 토스트 알림 발송"""
