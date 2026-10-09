@@ -62,6 +62,7 @@ class RunCustomSelectionBackupRequest(BaseModel):
 
 
 def _background_custom_backup_task(params: Dict[str, Any]):
+    reg_backup_dir = None
     try:
         include_drivers = params.get("include_drivers", True)
         selected_projects = params.get("selected_projects", [])
@@ -297,6 +298,12 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             current_task["error"] = str(e)
             current_task["result"] = None
     finally:
+        if reg_backup_dir and os.path.exists(reg_backup_dir):
+            try:
+                import shutil
+                shutil.rmtree(reg_backup_dir, ignore_errors=True)
+            except Exception:
+                pass
         with task_lock:
             current_task["running"] = False
 

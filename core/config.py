@@ -58,13 +58,33 @@ class ConfigManager:
                 res.update(data)
                 return res
         except Exception:
+            # 파싱 실패 시: 손상된 파일을 .bak으로 보존하여 데이터 유실 방지
+            try:
+                import shutil
+                shutil.copy2(SETTINGS_FILE, SETTINGS_FILE + ".bak")
+            except Exception:
+                pass
             return dict(DEFAULT_SETTINGS)
 
     @classmethod
     def save_settings(cls, settings: Dict[str, Any]):
         cls._ensure_dir()
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(settings, f, indent=2, ensure_ascii=False)
+        # 원자적 쓰기: temp 파일 → os.replace()로 교체 (중간 실패 시 기존 파일 보존)
+        tmp_path = SETTINGS_FILE + ".tmp"
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(settings, f, indent=2, ensure_ascii=False)
+            if os.path.exists(SETTINGS_FILE):
+                os.replace(tmp_path, SETTINGS_FILE)
+            else:
+                os.rename(tmp_path, SETTINGS_FILE)
+        except Exception:
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
+            raise
 
     @classmethod
     def get_profiles(cls) -> List[Dict[str, Any]]:

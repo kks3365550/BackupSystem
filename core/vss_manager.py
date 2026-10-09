@@ -13,9 +13,13 @@ import sys
 import ctypes
 import logging
 import subprocess
+import threading
 from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger("BackupSystem.VSS")
+
+# Windows VSS 서비스 충돌 방지를 위한 모듈 레벨 락
+_vss_lock = threading.Lock()
 
 
 class VSSRequiredError(Exception):
@@ -139,18 +143,19 @@ class VSSContext:
             logger.info(msg)
             return
 
-        creation_failures = []
-        for drv in sorted(unique_drives):
-            try:
-                sc = self._create_shadow(drv)
-                if sc:
-                    self.shadows[drv] = sc
-                    logger.info("VSS 섀도 복사본 생성 완료: %s -> %s (ID: %s)", drv, sc.device_path, sc.shadow_id)
-            except Exception as e:
-                msg = f"{drv} 볼륨 VSS 스냅샷 생성 실패: {e}"
-                self.warnings.append(msg)
-                logger.warning(msg)
-                creation_failures.append(drv)
+        with _vss_lock:
+            creation_failures = []
+            for drv in sorted(unique_drives):
+                try:
+                    sc = self._create_shadow(drv)
+                    if sc:
+                        self.shadows[drv] = sc
+                        logger.info("VSS 섀도 복사본 생성 완료: %s -> %s (ID: %s)", drv, sc.device_path, sc.shadow_id)
+                except Exception as e:
+                    msg = f"{drv} 볼륨 VSS 스냅샷 생성 실패: {e}"
+                    self.warnings.append(msg)
+                    logger.warning(msg)
+                    creation_failures.append(drv)
 
         # strict 모드 검사: 하나라도 실패하거나 섀도가 비어있으면 즉시 실패 처리
         if self.strict:
@@ -235,22 +240,23 @@ class VSSContext:
 
     def cleanup(self):
         """생성된 모든 섀도 복사본을 100% 누수 없이 해제."""
-        if self._cleanup_done:
-            return
-        self._cleanup_done = True
+        with _vss_lock:
+            if self._cleanup_done:
+                return
+            self._cleanup_done = True
 
-        for drv, sc in list(self.shadows.items()):
-            try:
-                success = self._delete_shadow(sc.shadow_id)
-                if success:
-                    logger.info("VSS 섀도 복사본 해제 완료: %s (ID: %s)", drv, sc.shadow_id)
-                else:
-                    logger.warning("VSS 섀도 복사본 해제 실패: %s (ID: %s)", drv, sc.shadow_id)
-            except Exception as e:
-                logger.error("VSS 클린업 예외 (%s): %s", drv, e)
+            for drv, sc in list(self.shadows.items()):
+                try:
+                    success = self._delete_shadow(sc.shadow_id)
+                    if success:
+                        logger.info("VSS 섀도 복사본 해제 완료: %s (ID: %s)", drv, sc.shadow_id)
+                    else:
+                        logger.warning("VSS 섀도 복사본 해제 실패: %s (ID: %s)", drv, sc.shadow_id)
+                except Exception as e:
+                    logger.error("VSS 클린업 예외 (%s): %s", drv, e)
 
-        self.shadows.clear()
-        self.vss_active = False
+            self.shadows.clear()
+            self.vss_active = False
 
     def get_shadow_path(self, original_path: str) -> str:
         """원본 파일 경로를 섀도 복사본 장치 경로로 매핑."""

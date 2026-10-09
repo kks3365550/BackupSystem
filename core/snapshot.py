@@ -95,7 +95,6 @@ class SnapshotEngine:
                     if cancel_event and cancel_event.is_set():
                         with cond:
                             stop_workers = True
-                            cond.notify_all()
                         return
 
                     sub_dirs = []
@@ -112,15 +111,15 @@ class SnapshotEngine:
                                         # Junction or Symlink directory: do not recurse to avoid loops
                                         # Safe path check: ensure src_root is a true parent directory
                                         try:
-                                            common = os.path.commonpath([src_root, entry.path])
-                                            is_under_src = (common == src_root)
+                                             common = os.path.commonpath([src_root, entry.path])
+                                             is_under_src = (common == src_root)
                                         except ValueError:
-                                            is_under_src = False
+                                             is_under_src = False
                                         
                                         if is_under_src:
-                                            rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')
+                                             rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')
                                         else:
-                                            rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')
+                                             rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')
                                         st = entry.stat()
                                         found_files.append((entry.path, src_root, rel_path, 0, st.st_mtime))
                                     else:
@@ -131,15 +130,15 @@ class SnapshotEngine:
                                         st = entry.stat()
                                         # Safe path check: ensure src_root is a true parent directory
                                         try:
-                                            common = os.path.commonpath([src_root, entry.path])
-                                            is_under_src = (common == src_root)
+                                             common = os.path.commonpath([src_root, entry.path])
+                                             is_under_src = (common == src_root)
                                         except ValueError:
-                                            is_under_src = False
+                                             is_under_src = False
                                         
                                         if is_under_src:
-                                            rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')
+                                             rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')
                                         else:
-                                            rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')
+                                             rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')
                                         found_files.append((entry.path, src_root, rel_path, st.st_size, st.st_mtime))
                             except (PermissionError, OSError):
                                 continue
@@ -151,8 +150,6 @@ class SnapshotEngine:
                             dir_queue.put((sd, src_root))
                         all_files.extend(found_files)
                         total_found = len(all_files)
-                        active_tasks -= 1
-                        cond.notify_all()
                         if progress_callback and (total_found % 500 == 0 or total_found == 1):
                             report_progress = True
                             total_count_report = total_found
@@ -169,7 +166,7 @@ class SnapshotEngine:
                             "unmodified_files": 0,
                             "transferred_bytes": 0
                         })
-                except (PermissionError, OSError):
+                finally:
                     with cond:
                         active_tasks -= 1
                         cond.notify_all()
