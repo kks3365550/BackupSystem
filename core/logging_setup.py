@@ -45,56 +45,68 @@ BACKUP_LOG = os.path.join(LOG_DIR, "backup.log")
 _MAX_BYTES = 5 * 1024 * 1024   # 5MB
 _BACKUP_COUNT = 1              # 이전 파일 1개만 보관
 
+# 모듈 레벨 싱글톤 핸들러 및 구성 플래그
 _CONFIGURED = False
+_HANDLER = None
+
+
+def _get_shared_handler() -> logging.Handler:
+    """
+    공유 RotatingFileHandler를 생성하거나 반환한다.
+    _CONFIGURED가 False로 리셋되면 이전 핸들러를 닫고 새로 생성한다 (테스트 격리 지원).
+    """
+    global _HANDLER, _CONFIGURED
+    if _HANDLER is None or not _CONFIGURED:
+        if _HANDLER is not None:
+            try:
+                _HANDLER.close()
+            except Exception:
+                pass
+            _HANDLER = None
+
+        try:
+            os.makedirs(LOG_DIR, exist_ok=True)
+        except OSError:
+            # 로그 디스크를 만들 수 없으면 표준출력 기본 설정으로 대체
+            logging.basicConfig(
+                level=logging.INFO,
+                format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            )
+            _CONFIGURED = True
+            return None
+
+        _HANDLER = logging.handlers.RotatingFileHandler(
+            BACKUP_LOG,
+            maxBytes=_MAX_BYTES,
+            backupCount=_BACKUP_COUNT,
+            encoding="utf-8",
+        )
+        _HANDLER.setFormatter(
+            logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+        )
+        _CONFIGURED = True
+
+    return _HANDLER
 
 
 def setup_file_logging(name: str = "backup", level: int = logging.INFO) -> logging.Logger:
     """
     logs/backup.log 로 쓰는 로거를 구성한다.
-
-    여러 번 호출해도 파일 핸들러가 중복 생성되지 않는다.
-    (스케줄러가 같은 프로필을 연속 실행할 때 로그가 2줄씩 중복되는 것을 방지)
+    요청된 로거에 공유 핸들러를 부착하여 모든 모듈 로거가 파일에 정상 기록되도록 한다.
     """
-    global _CONFIGURED
-
     logger = logging.getLogger(name)
-
-    if _CONFIGURED:
-        return logger
-
-    try:
-        os.makedirs(LOG_DIR, exist_ok=True)
-    except OSError:
-        # 로그 디스크를 만들 수 없어도 백업 자체는 계속되어야 한다.
-        # 표준출력으로라도 내보내고, 파일 로깅은 포기한다.
-        logging.basicConfig(
-            level=level,
-            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        )
-        _CONFIGURED = True
-        return logger
-
-    handler = logging.handlers.RotatingFileHandler(
-        BACKUP_LOG,
-        maxBytes=_MAX_BYTES,
-        backupCount=_BACKUP_COUNT,
-        encoding="utf-8",
-    )
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    )
-
-    logger.addHandler(handler)
     logger.setLevel(level)
-    # 다른 곳에서 루트 로거를 INFO 로 올려도 이 로거의 레벨을 바꾸지 않는다.
     logger.propagate = False
 
-    _CONFIGURED = True
+    handler = _get_shared_handler()
+    if handler and handler not in logger.handlers:
+        logger.addHandler(handler)
+
     return logger
 
 
 def get_logger(name: str = "backup", level: int = logging.INFO) -> logging.Logger:
-    """모듈 로거를 얻는다. 최초 호출 시 파일 핸들러가 구성된다."""
+    """모듈 로거를 얻는다. 요청된 로거에 공유 파일 핸들러가 부착된다."""
     return setup_file_logging(name, level)
 
 
