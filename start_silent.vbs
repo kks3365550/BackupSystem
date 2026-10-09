@@ -26,4 +26,4 @@ Else
     pyExe = "python"
 End If
 
-WshShell.Run pyExe & " """ & currentDir & "\run.py"" --silent", 0, False
+WshShell.Run pyExe & " run.py --silent", 0, False
