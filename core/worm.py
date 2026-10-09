@@ -155,9 +155,13 @@ class WORMManager:
 
         if self._is_windows:
             success = True
-            for root, dirs, files in os.walk(dirpath):
-                if not self._run_icacls(root, ["/remove:d", SID_EVERYONE]):
-                    success = False
+            try:
+                for root, dirs, files in os.walk(dirpath):
+                    if not self._run_icacls(root, ["/remove:d", SID_EVERYONE]):
+                        success = False
+            except (PermissionError, OSError) as e:
+                logger.warning(f"Error during unprotect_directory walk on {dirpath}: {e}")
+                success = False
             return success
         return True
 
@@ -171,24 +175,30 @@ class WORMManager:
 
         snapshots_dir = os.path.join(repo_dir, "snapshots")
         if os.path.exists(snapshots_dir):
-            for fname in os.listdir(snapshots_dir):
-                if fname.endswith(".json"):
-                    fpath = os.path.join(snapshots_dir, fname)
-                    if self.protect_file(fpath, use_ntfs_acl=True):
-                        protected_snapshots += 1
+            try:
+                for fname in os.listdir(snapshots_dir):
+                    if fname.endswith(".json"):
+                        fpath = os.path.join(snapshots_dir, fname)
+                        if self.protect_file(fpath, use_ntfs_acl=True):
+                            protected_snapshots += 1
+            except (PermissionError, OSError) as e:
+                logger.warning(f"Error listing snapshots directory {snapshots_dir}: {e}")
 
         blobs_dir = os.path.join(repo_dir, "blobs")
         if os.path.exists(blobs_dir):
             if protect_dirs:
                 self.protect_directory(blobs_dir)
-            for root, dirs, files in os.walk(blobs_dir):
-                if protect_dirs and root != blobs_dir:
-                    self.protect_directory(root)
-                for f in files:
-                    if f.endswith(".blob"):
-                        fpath = os.path.join(root, f)
-                        if self.protect_file(fpath, use_ntfs_acl=False):
-                            protected_blobs += 1
+            try:
+                for root, dirs, files in os.walk(blobs_dir):
+                    if protect_dirs and root != blobs_dir:
+                        self.protect_directory(root)
+                    for f in files:
+                        if f.endswith(".blob"):
+                            fpath = os.path.join(root, f)
+                            if self.protect_file(fpath, use_ntfs_acl=False):
+                                protected_blobs += 1
+            except (PermissionError, OSError) as e:
+                logger.warning(f"Error walking blobs directory {blobs_dir}: {e}")
 
         return {
             "protected_snapshots": protected_snapshots,
