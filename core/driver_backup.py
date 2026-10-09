@@ -23,23 +23,18 @@ def export_windows_drivers(dest_dir: str, force: bool = False) -> Dict[str, Any]
         except Exception:
             pass
 
-    # Quick check if directory already contains exported drivers
+    # Quick check if directory already contains exported drivers (recursive)
     existing_inf_count = 0
     total_size = 0
     try:
-        with os.scandir(dest_dir) as it:
-            for entry in it:
-                if entry.is_dir():
-                    # Check first subfolder for .inf
-                    try:
-                        for sub_f in os.listdir(entry.path):
-                            if sub_f.lower().endswith(".inf"):
-                                existing_inf_count += 1
-                                break
-                    except OSError:
-                        pass
-                elif entry.name.lower().endswith(".inf"):
+        for root, dirs, files in os.walk(dest_dir):
+            for file in files:
+                if file.lower().endswith(".inf"):
                     existing_inf_count += 1
+                try:
+                    total_size += os.path.getsize(os.path.join(root, file))
+                except OSError:
+                    pass
     except OSError:
         pass
 
@@ -104,6 +99,11 @@ def install_windows_drivers(drivers_dir: str) -> Dict[str, Any]:
     and updates all matching devices using pnputil.
     """
     drivers_dir = os.path.abspath(drivers_dir)
+    if not os.path.isdir(drivers_dir):
+        return {
+            "success": False,
+            "error": f"Drivers directory not found: {drivers_dir}"
+        }
     pattern = os.path.join(drivers_dir, "*.inf")
     cmd = ["pnputil", "/add-driver", pattern, "/subdirs", "/install"]
     try:

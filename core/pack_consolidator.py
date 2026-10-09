@@ -100,10 +100,11 @@ class PackConsolidator:
         pack_path = self.packs_dir / f"{pack_id}.pack"
         idx_path = self.packs_dir / f"{pack_id}.idx"
 
-        writer = PackContainerWriter(pack_path, idx_path)
+        writer = None
         packed_blobs = []
 
         try:
+            writer = PackContainerWriter(pack_path, idx_path)
             # Stage 1: Read raw uncompressed/decompressed data and write into Pack
             for sha256, fpath, fsize in candidates:
                 try:
@@ -159,7 +160,11 @@ class PackConsolidator:
 
         except Exception as e:
             # Fail-closed rollback: wipe incomplete pack and keep originals 100% untouched
-            writer.close()
+            if writer:
+                try:
+                    writer.close()
+                except Exception:
+                    pass
             if pack_path.exists():
                 try:
                     pack_path.unlink()

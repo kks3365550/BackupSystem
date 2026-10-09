@@ -54,10 +54,14 @@ class CompositeStorageFacade:
 
     def reload_packs(self):
         """Scans packs_dir and builds unified in-memory lookup map."""
-        self.pack_readers.clear()
-        self.pack_index_map.clear()
+        # 1. Build new maps in temporary dictionaries to avoid race conditions
+        new_pack_readers: Dict[str, PackContainerReader] = {}
+        new_pack_index_map: Dict[str, str] = {}
 
         if not self.packs_dir.exists():
+            # Atomic swap even if empty to ensure consistency
+            self.pack_readers = new_pack_readers
+            self.pack_index_map = new_pack_index_map
             return
 
         for idx_file in self.packs_dir.glob("*.idx"):
@@ -68,19 +72,23 @@ class CompositeStorageFacade:
             pack_id = idx_file.stem
             try:
                 reader = PackContainerReader(pack_file, idx_file)
-                self.pack_readers[pack_id] = reader
+                new_pack_readers[pack_id] = reader
                 for chunk_hash in reader.index.keys():
-                    self.pack_index_map[chunk_hash.lower()] = pack_id
+                    new_pack_index_map[chunk_hash.lower()] = pack_id
             except (PackConsistencyError, PackFormatError):
                 # Auto recovery attempt
                 try:
                     PackRecoveryEngine.rebuild_index_from_pack(pack_file, idx_file)
                     reader = PackContainerReader(pack_file, idx_file)
-                    self.pack_readers[pack_id] = reader
+                    new_pack_readers[pack_id] = reader
                     for chunk_hash in reader.index.keys():
-                        self.pack_index_map[chunk_hash.lower()] = pack_id
+                        new_pack_index_map[chunk_hash.lower()] = pack_id
                 except Exception:
                     continue
+
+        # 2. Atomic Swap: Replace references only after full scan is complete
+        self.pack_readers = new_pack_readers
+        self.pack_index_map = new_pack_index_map
 
     def has_blob(self, blob_id: str) -> bool:
         """
