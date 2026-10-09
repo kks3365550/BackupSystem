@@ -26,10 +26,20 @@ log = get_logger("core.storage")
 def get_disk_free_gb(path: str) -> float:
     """Returns free disk space in gigabytes for the volume containing path."""
     try:
-        total, used, free = shutil.disk_usage(path)
+        # If path does not exist, traverse up to find the nearest existing parent directory
+        # to ensure accurate disk usage measurement for the target volume.
+        check_path = path
+        while not os.path.exists(check_path):
+            parent = os.path.dirname(check_path)
+            if parent == check_path:  # Reached root
+                break
+            check_path = parent
+        
+        total, used, free = shutil.disk_usage(check_path)
         return round(free / (1024 ** 3), 2)
     except Exception:
-        return 999.0
+        # Fail-Closed: Return 0.0 to trigger InsufficientDiskSpaceError and prevent unsafe operations
+        return 0.0
 
 def verify_disk_space_or_fail(path: str, min_free_gb: float = 10.0) -> float:
     """

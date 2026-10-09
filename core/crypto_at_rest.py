@@ -15,6 +15,7 @@ v2.7.0 Sprint 3: CAS Dedup 100% 보존, Envelope Key Architecture, v0/v1 하위 
 """
 
 import os
+import time
 import json
 import secrets
 import hashlib
@@ -295,7 +296,7 @@ class CryptoAtRestEngine:
         os.makedirs(os.path.dirname(os.path.abspath(backup_file_path)), exist_ok=True)
         backup_data = {
             "version": 1,
-            "created_at": os.path.getmtime(backup_file_path) if os.path.exists(backup_file_path) else None,
+            "created_at": time.time(),
             "kdf_metadata": self.kdf_metadata,
             "raw_storage_key_hex": self.storage_key.hex(),
             "hint": passphrase_hint
