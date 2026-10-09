@@ -91,8 +91,8 @@ class RetentionManager:
             try:
                 if SnapshotEngine.delete_snapshot(self.repo_dir, sid, prune_orphaned_blobs=False, authorized=authorized):
                     actually_deleted.append(sid)
-            except Exception:
-                pass
+            except Exception as e_del:
+                log.error("만료 스냅샷 삭제 실패 (repo=%s, snapshot_id=%s): %s", self.repo_dir, sid, e_del, exc_info=True)
 
         # 고아 블롭 가비지 컬렉션 (GC)
         gc_result = {"deleted_blobs": 0, "freed_bytes": 0}
