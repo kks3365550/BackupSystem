@@ -1,23 +1,15 @@
 import os
 import sys
 import time
+import threading
 from typing import List, Dict, Any, Optional
 
 _cached_apps = None
 _cached_apps_time = 0
 _CACHE_TTL = 300.0  # 5 minutes cache
+_scanner_lock = threading.Lock()
 
-def get_installed_applications(force_refresh: bool = False) -> List[Dict[str, Any]]:
-    """
-    Scans Windows Registry to detect genuine installed software applications.
-    Pre-indexes candidate directories to avoid thousands of slow disk stat calls.
-    Caches results in memory for instant (< 1ms) subsequent responses.
-    """
-    global _cached_apps, _cached_apps_time
-
-    now = time.time()
-    if not force_refresh and _cached_apps is not None and (now - _cached_apps_time) < _CACHE_TTL:
-        return _cached_apps
+def _scan_installed_applications_impl() -> List[Dict[str, Any]]:
 
     apps = []
     seen_names = set()
@@ -139,9 +131,28 @@ def get_installed_applications(force_refresh: bool = False) -> List[Dict[str, An
                 pass
 
     apps.sort(key=lambda x: (0 if x["has_location"] else 1, x["name"].lower()))
-    _cached_apps = apps
-    _cached_apps_time = time.time()
     return apps
+
+def get_installed_applications(force_refresh: bool = False) -> List[Dict[str, Any]]:
+    """
+    Scans Windows Registry to detect genuine installed software applications.
+    Caches results in memory with thread-safe double-checked locking (< 1ms).
+    """
+    global _cached_apps, _cached_apps_time
+
+    now = time.time()
+    if not force_refresh and _cached_apps is not None and (now - _cached_apps_time) < _CACHE_TTL:
+        return _cached_apps
+
+    with _scanner_lock:
+        now = time.time()
+        if not force_refresh and _cached_apps is not None and (now - _cached_apps_time) < _CACHE_TTL:
+            return _cached_apps
+
+        apps = _scan_installed_applications_impl()
+        _cached_apps = apps
+        _cached_apps_time = time.time()
+        return apps
 
 def get_project_items(base_path: Optional[str] = None) -> List[Dict[str, Any]]:
     """

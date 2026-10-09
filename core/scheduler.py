@@ -266,55 +266,58 @@ class BackupScheduler:
             if self.audit_thread and self.audit_thread.is_alive():
                 return  # 이미 감사 스레드가 구동 중
 
-        repo_dirs = set()
-        for p in profiles:
-            r = p.get("repo_dir")
-            if r and os.path.isdir(r):
-                repo_dirs.add(os.path.abspath(r))
+            repo_dirs = set()
+            for p in profiles:
+                r = p.get("repo_dir")
+                if r and os.path.isdir(r):
+                    repo_dirs.add(os.path.abspath(r))
 
-        if not repo_dirs:
-            return
-
-        state = self._load_audit_state()
-        now = time.time()
-        now_dt = datetime.datetime.now()
-        is_night_window = (2 <= now_dt.hour < 5)  # 새벽 02:00 ~ 05:00
-
-        for r in repo_dirs:
-            r_key = r.lower()
-            r_state = state.setdefault(r_key, {"last_weekly": 0.0, "last_monthly": 0.0})
-
-            # Tier 2: 주간 검사 (7일 = 604,800초)
-            if (now - r_state.get("last_weekly", 0.0)) >= 604800:
-                r_state["last_weekly"] = now
-                self._save_audit_state(state)
-                self.audit_thread = threading.Thread(
-                    target=self._run_tier2_weekly_audit,
-                    args=(r,),
-                    daemon=True,
-                    name=f"Tier2Audit-{os.path.basename(r)}"
-                )
-                self.audit_thread.start()
+            if not repo_dirs:
                 return
 
-            # Tier 3: 월간 심야 Bit-Rot 검사 (30일 = 2,592,000초 & 심야 시간대)
-            if (now - r_state.get("last_monthly", 0.0)) >= 2592000 and is_night_window:
-                r_state["last_monthly"] = now
-                self._save_audit_state(state)
-                self.audit_thread = threading.Thread(
-                    target=self._run_tier3_monthly_audit,
-                    args=(r,),
-                    daemon=True,
-                    name=f"Tier3Audit-{os.path.basename(r)}"
-                )
-                self.audit_thread.start()
-                return
+            state = self._load_audit_state()
+            now = time.time()
+            now_dt = datetime.datetime.now()
+            is_night_window = (2 <= now_dt.hour < 5)  # 새벽 02:00 ~ 05:00
+
+            for r in repo_dirs:
+                r_key = r.lower()
+                r_state = state.setdefault(r_key, {"last_weekly": 0.0, "last_monthly": 0.0})
+
+                # Tier 2: 주간 검사 (7일 = 604,800초)
+                if (now - r_state.get("last_weekly", 0.0)) >= 604800:
+                    r_state["last_weekly"] = now
+                    self._save_audit_state(state)
+                    self.audit_thread = threading.Thread(
+                        target=self._run_tier2_weekly_audit,
+                        args=(r,),
+                        daemon=True,
+                        name=f"Tier2Audit-{os.path.basename(r)}"
+                    )
+                    self.audit_thread.start()
+                    return
+
+                # Tier 3: 월간 심야 Bit-Rot 검사 (30일 = 2,592,000초 & 심야 시간대)
+                if (now - r_state.get("last_monthly", 0.0)) >= 2592000 and is_night_window:
+                    r_state["last_monthly"] = now
+                    self._save_audit_state(state)
+                    self.audit_thread = threading.Thread(
+                        target=self._run_tier3_monthly_audit,
+                        args=(r,),
+                        daemon=True,
+                        name=f"Tier3Audit-{os.path.basename(r)}"
+                    )
+                    self.audit_thread.start()
+                    return
 
     def _run_loop(self):
         while not self.stop_event.is_set():
             try:
                 profiles = ConfigManager.get_profiles()
                 for prof in profiles:
+                    prof_id = prof.get("id")
+                    if prof_id and self.active_jobs.get(prof_id, {}).get("running"):
+                        continue
                     if self._should_run_profile(prof):
                         # Run in worker thread
                         worker = threading.Thread(

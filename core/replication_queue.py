@@ -397,10 +397,15 @@ class ReplicationQueueManager:
         with self._lock:
             if self._conn:
                 try:
-                    self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
-                    self._conn.close()
-                except Exception:
-                    pass
+                    try:
+                        self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+                    except Exception:
+                        pass
+                finally:
+                    try:
+                        self._conn.close()
+                    except Exception:
+                        pass
                 self._conn = None
 
     def __enter__(self):

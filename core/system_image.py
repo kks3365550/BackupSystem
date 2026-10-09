@@ -199,6 +199,12 @@ class SystemImageManager:
                 cls.append_log(f"시스템 이미지 백업 중 오류 발생: {str(e)}", level="ERROR")
             finally:
                 with cls._lock:
+                    if cls._process and cls._process.poll() is None:
+                        try:
+                            cls._process.terminate()
+                            cls._process.wait(timeout=5)
+                        except Exception:
+                            pass
                     cls._is_running = False
                     cls._process = None
 
@@ -217,6 +223,11 @@ class SystemImageManager:
             with cls._lock:
                 if cls._process:
                     cls._process.terminate()
+                    try:
+                        cls._process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        cls._process.kill()
+                        cls._process.wait()
                 cls._is_running = False
             cls.append_log("백업 작업이 중단되었습니다.", level="WARNING")
             return {"success": True, "message": "백업 작업 중단 요청 완료"}
