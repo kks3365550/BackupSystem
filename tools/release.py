@@ -505,19 +505,35 @@ def restart_local_server():
     import time
     time.sleep(1)
 
-    # 2. Restart via start_silent.vbs
-    vbs_path = os.path.join(BASE_DIR, 'start_silent.vbs')
-    if not os.path.exists(vbs_path):
-        print(f"      start_silent.vbs not found at {vbs_path}. Restart skipped.")
-        return
+    # 2. Restart server (Priority: pythonw.exe direct launch > start_silent.vbs fallback)
+    venv_pyw = os.path.join(BASE_DIR, '.venv', 'Scripts', 'pythonw.exe')
+    hermes_pyw = os.path.expandvars(r"%USERPROFILE%\AppData\Local\hermes\hermes-agent\venv\Scripts\pythonw.exe")
+    pyw_path = venv_pyw if os.path.exists(venv_pyw) else (hermes_pyw if os.path.exists(hermes_pyw) else 'pythonw.exe')
 
+    launched = False
+    # Attempt 1: Direct pythonw.exe launch via PowerShell (Robust against VBS quote parsing issues)
     try:
-        ps_cmd = f"Start-Process wscript.exe -ArgumentList '\"{vbs_path}\"' -WorkingDirectory '{BASE_DIR}'"
+        ps_cmd = f"Start-Process -FilePath '{pyw_path}' -ArgumentList 'run.py --silent' -WorkingDirectory '{BASE_DIR}'"
         subprocess.run(['powershell', '-NoProfile', '-Command', ps_cmd], capture_output=True, timeout=10)
-        print("      start_silent.vbs launched via detached Start-Process.")
+        launched = True
+        print("      pythonw.exe launched directly via Start-Process.")
     except Exception as e:
-        print(f"      Failed to launch start_silent.vbs: {e}")
-        return
+        print(f"      Direct pythonw launch failed: {e}. Falling back to VBS...")
+
+    # Attempt 2: Fallback to start_silent.vbs if pythonw failed
+    if not launched:
+        vbs_path = os.path.join(BASE_DIR, 'start_silent.vbs')
+        if os.path.exists(vbs_path):
+            try:
+                ps_cmd = f"Start-Process wscript.exe -ArgumentList '\"{vbs_path}\"' -WorkingDirectory '{BASE_DIR}'"
+                subprocess.run(['powershell', '-NoProfile', '-Command', ps_cmd], capture_output=True, timeout=10)
+                print("      start_silent.vbs launched via detached Start-Process (Fallback).")
+            except Exception as e:
+                print(f"      Failed to launch start_silent.vbs: {e}")
+                return
+        else:
+            print("      No pythonw.exe or start_silent.vbs found. Restart skipped.")
+            return
 
     # 3. Wait up to 20s for port 8765 to open
     import socket
