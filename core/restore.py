@@ -41,10 +41,6 @@ class RestoreEngine:
                 raise ValueError("target_dir is required when in_place=False")
             target_dir = os.path.abspath(target_dir)
             os.makedirs(target_dir, exist_ok=True)
-            norm_target = target_dir
-            norm_target_prefix = norm_target if norm_target.endswith(os.sep) else norm_target + os.sep
-            norm_target_lower = norm_target.lower()
-            norm_target_prefix_lower = norm_target_prefix.lower()
 
         entries = snapshot.get("entries", [])
         to_restore = []

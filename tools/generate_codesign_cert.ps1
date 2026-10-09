@@ -9,7 +9,7 @@
 param(
     [string]$CertName = "BackupSystem Code Signing CA",
     [string]$CertPath = "$PSScriptRoot\..\certs\BackupSystem_CodeSign.pfx",
-    [string]$Password = "BackupSystem2026!"
+    [string]$Password = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -38,6 +38,10 @@ Write-Host "      - 지문(Thumbprint): $($cert.Thumbprint)" -ForegroundColor Gr
 
 # 3. PFX 파일로 내보내기
 Write-Host "[2/3] 인증서 파일(.pfx) 내보내기 중..." -ForegroundColor Yellow
+if (-not $Password) {
+    $Password = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 16 | ForEach-Object {[char]$_})
+    Write-Host "      - 자동 생성된 PFX 보호 비밀번호: $Password" -ForegroundColor Yellow
+}
 $securePassword = ConvertTo-SecureString -String $Password -Force -AsPlainText
 Export-PfxCertificate -Cert $cert -FilePath $CertPath -Password $securePassword | Out-Null
 Write-Host "      - 저장 위치: $CertPath" -ForegroundColor Green
