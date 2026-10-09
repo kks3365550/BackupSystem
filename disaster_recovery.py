@@ -301,7 +301,16 @@ def audit_repository(repo_dir: str) -> Dict[str, Any]:
         try:
             with open(path, "rb") as fin:
                 header = fin.read(4)
+
             is_zstd = (header == b"\x28\xb5\x2f\xfd")
+            is_enc = (header == b"ENC\x01")
+
+            # 암호화 블롭(ENC\x01)은 zlib/zstd decompress 대상이 아니므로 오분류 방지
+            if is_enc:
+                file_size = os.path.getsize(path)
+                if file_size < 32:
+                    return path, False, "암호화 블롭 구조 손상 (최소 크기 미달)"
+                return path, True, ""
 
             with open(path, "rb") as fin:
                 if is_zstd:
