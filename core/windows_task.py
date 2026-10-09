@@ -34,16 +34,16 @@ def _run_schtasks_cmd(cmd_list: list, timeout: int = 15) -> tuple[int, str, str]
         out_bytes = proc.stdout or b""
         err_bytes = proc.stderr or b""
 
-        # Try cp949 then utf-8 with error replacement
+        # Try utf-8 first, fallback to cp949 with error replacement
         try:
-            out_str = out_bytes.decode("cp949")
+            out_str = out_bytes.decode("utf-8")
         except UnicodeDecodeError:
-            out_str = out_bytes.decode("utf-8", errors="replace")
+            out_str = out_bytes.decode("cp949", errors="replace")
 
         try:
-            err_str = err_bytes.decode("cp949")
+            err_str = err_bytes.decode("utf-8")
         except UnicodeDecodeError:
-            err_str = err_bytes.decode("utf-8", errors="replace")
+            err_str = err_bytes.decode("cp949", errors="replace")
 
         return proc.returncode, out_str.strip(), err_str.strip()
     except Exception as e:
@@ -127,7 +127,7 @@ def get_windows_scheduled_task_status() -> Dict[str, Any]:
         return {
             "registered": True,
             "task_name": TASK_NAME,
-            "status": info.get("작업 상태", info.get("Status", "등록됨")),
+            "status": info.get("상태", info.get("작업 상태", info.get("Status", "등록됨"))),
             "next_run": info.get("다음 실행 시간", info.get("Next Run Time", "-")),
             "last_run": info.get("마지막 실행 시간", info.get("Last Run Time", "-")),
             "last_result": info.get("마지막 결과", info.get("Last Result", "-")),
