@@ -76,6 +76,9 @@
                 </div>
             </div>
 
+            <button onclick="openOnboardingWizard(true)" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition border border-slate-700/80 flex items-center gap-1.5" title="초기 백업 설정 마법사 열기">
+                <i data-lucide="wand-2" class="w-3.5 h-3.5 text-blue-400"></i> 온보딩 마법사
+            </button>
             <button onclick="runGarbageCollection()" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition border border-slate-700/80 flex items-center gap-2">
                 <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i> 저장소 정리
             </button>
@@ -857,12 +860,16 @@
 
                 <!-- Step 2: Storage Location -->
                 <div>
-                    <label class="block text-slate-300 font-semibold mb-1.5 flex items-center gap-1.5">
-                        <span class="w-4 h-4 rounded-full bg-blue-600 text-[10px] text-white flex items-center justify-center font-bold">2</span>
-                        <span>백업 저장소 위치 (D:\ 권장)</span>
-                    </label>
-                    <input type="text" id="onboard-repo-dir" value="D:\MyBackup_Repository" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 text-xs font-mono focus:border-blue-500 focus:outline-none">
-                    <p class="text-[10px] text-slate-400 mt-1">D드라이브가 없으면 자동으로 안전한 사용자 경로를 사용합니다.</p>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-slate-300 font-semibold flex items-center gap-1.5">
+                            <span class="w-4 h-4 rounded-full bg-blue-600 text-[10px] text-white flex items-center justify-center font-bold">2</span>
+                            <span>백업 저장소 위치</span>
+                        </label>
+                        <span id="onboard-drive-badge" class="text-[10px] text-blue-400 bg-blue-950/70 border border-blue-800/60 px-2 py-0.5 rounded-full font-mono">드라이브 탐색 중...</span>
+                    </div>
+                    <input type="text" id="onboard-repo-dir" value="D:\BackupRepository" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 text-xs font-mono focus:border-blue-500 focus:outline-none">
+                    <div id="onboard-drive-chips" class="flex flex-wrap gap-1.5 mt-2"></div>
+                    <p class="text-[10px] text-slate-400 mt-1">시스템에서 여유 공간이 충분한 최적의 드라이브를 자동으로 추천합니다.</p>
                 </div>
 
                 <!-- Step 3: Schedule -->

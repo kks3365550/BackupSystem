@@ -52,10 +52,66 @@ async function loadDashboard() {
     }
 }
 
+function openOnboardingWizard(force = false) {
+    initOnboardingDrives();
+    openModal('onboarding-modal');
+}
+
+function initOnboardingDrives() {
+    const drives = state.systemInfo?.drives || [];
+    const chipsContainer = document.getElementById('onboard-drive-chips');
+    const badgeEl = document.getElementById('onboard-drive-badge');
+    const repoInput = document.getElementById('onboard-repo-dir');
+
+    if (!drives.length) {
+        if (badgeEl) badgeEl.innerText = '기본 경로';
+        return;
+    }
+
+    let recommended = null;
+    const nonCDrives = drives.filter(d => !d.device.toUpperCase().startsWith('C:'));
+    if (nonCDrives.length > 0) {
+        nonCDrives.sort((a, b) => b.free - a.free);
+        recommended = nonCDrives[0];
+    } else {
+        recommended = drives[0];
+    }
+
+    const driveLetter = recommended.device.replace(/\\$/, '');
+    const recPath = `${driveLetter}\\BackupRepository`;
+
+    if (badgeEl) {
+        badgeEl.innerText = `추천: ${driveLetter} (${formatBytes(recommended.free)} 여유)`;
+    }
+    if (repoInput && (!repoInput.value || repoInput.value.includes('MyBackup_Repository') || repoInput.value === 'D:\\BackupRepository')) {
+        repoInput.value = recPath;
+    }
+
+    if (chipsContainer) {
+        chipsContainer.innerHTML = drives.map(d => {
+            const letter = d.device.replace(/\\$/, '');
+            const targetPath = `${letter}\\BackupRepository`;
+            const isRec = (d.device === recommended.device);
+            return `
+                <button type="button" onclick="document.getElementById('onboard-repo-dir').value='${targetPath}'" 
+                    class="px-2.5 py-1 rounded-lg border text-[11px] font-mono flex items-center gap-1 transition ${
+                        isRec 
+                        ? 'bg-blue-950/80 border-blue-600 text-blue-300 font-bold hover:bg-blue-900/80' 
+                        : 'bg-slate-900/80 border-slate-700 text-slate-300 hover:border-slate-500'
+                    }">
+                    <span>${letter}</span>
+                    <span class="text-[10px] text-slate-400">(${formatBytes(d.free)})</span>
+                    ${isRec ? '<span class="text-[9px] bg-blue-600 text-white px-1 rounded ml-0.5">추천</span>' : ''}
+                </button>
+            `;
+        }).join('');
+    }
+}
+
 function checkOnboardingWizard() {
     const done = localStorage.getItem('onboarding_completed');
     if (!done && (!state.profiles || state.profiles.length === 0)) {
-        setTimeout(() => openModal('onboarding-modal'), 600);
+        setTimeout(() => openOnboardingWizard(false), 600);
     }
 }
 
@@ -63,7 +119,7 @@ async function completeOnboardingWizard() {
     try {
         const desktopChecked = document.getElementById('onboard-src-desktop')?.checked;
         const documentsChecked = document.getElementById('onboard-src-documents')?.checked;
-        const repoDir = document.getElementById('onboard-repo-dir')?.value?.trim() || 'D:\\MyBackup_Repository';
+        const repoDir = document.getElementById('onboard-repo-dir')?.value?.trim() || 'C:\\BackupRepository';
         const sched = document.getElementById('onboard-schedule-time')?.value || '09:00';
 
         const sources = [];
