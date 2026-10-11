@@ -135,6 +135,86 @@ async function showScheduledBackupLogs() {
     }
 }
 
+// --- 진단 로그 원클릭 복사 유틸리티 (Silent Failure 방지 체계) ---
+async function copyToClipboardSafe(text) {
+    if (!text || !text.trim()) {
+        alert('복사할 로그 내용이 없습니다.');
+        return false;
+    }
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch (_) {}
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    let success = false;
+    try {
+        success = document.execCommand('copy');
+    } catch (_) {}
+    document.body.removeChild(textArea);
+    return success;
+}
+
+async function copyDiagnosticLogs(btnElement) {
+    const termBox = document.getElementById('terminal-log-box');
+    let logText = "";
+    if (termBox) {
+        logText = termBox.innerText || termBox.textContent || "";
+    }
+
+    if (!logText || logText.includes("엔진 준비 완료")) {
+        try {
+            const d = await fetchAPI('/api/backup/logs?limit=100');
+            if (d && d.lines && d.lines.length) {
+                logText = d.lines.join('\n');
+            }
+        } catch (_) {}
+    }
+
+    if (!logText || !logText.trim()) {
+        alert('복사할 진단 로그가 없습니다.');
+        return;
+    }
+
+    const copied = await copyToClipboardSafe(logText);
+    if (copied) {
+        if (btnElement) {
+            const originalHTML = btnElement.innerHTML;
+            btnElement.innerHTML = `<span class="text-emerald-400 font-bold">✅ 복사 완료!</span>`;
+            setTimeout(() => { btnElement.innerHTML = originalHTML; }, 2000);
+        } else {
+            alert('📋 진단 로그가 클립보드에 복사되었습니다.\n문제 분석을 위해 바로 붙여넣기(Ctrl+V)하세요.');
+        }
+    }
+}
+
+async function copyModalLogs(btnElement) {
+    const body = document.getElementById('backup-log-body');
+    const logText = body ? (body.innerText || body.textContent || "") : "";
+    if (!logText || !logText.trim()) {
+        alert('복사할 로그가 없습니다.');
+        return;
+    }
+    const copied = await copyToClipboardSafe(logText);
+    if (copied) {
+        if (btnElement) {
+            const originalHTML = btnElement.innerHTML;
+            btnElement.innerHTML = `<span class="text-emerald-400 font-bold">✅ 복사 완료!</span>`;
+            setTimeout(() => { btnElement.innerHTML = originalHTML; }, 2000);
+        } else {
+            alert('📋 로그 내용이 클립보드에 복사되었습니다.');
+        }
+    }
+}
+
 // --- 글로벌 경보 배너 시스템 (Red Alert System) ---
 let _bannerDismissedUntil = 0;
 

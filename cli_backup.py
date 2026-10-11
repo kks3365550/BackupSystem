@@ -182,6 +182,11 @@ def run_cli_backup(profile_id: str = None):
         log.error("백업 실행 실패: %s", e, exc_info=True)
         _error(f"[ERROR] 백업 실행 실패: {e}")
         try:
+            from core.windows_toast import notify_backup_failed
+            notify_backup_failed(profile_name, str(e))
+        except Exception:
+            pass
+        try:
             profile["last_status"] = "failed"
             profile["last_error"] = str(e)[:300]
             ConfigManager.save_profile(profile)

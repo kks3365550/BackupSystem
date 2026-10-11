@@ -50,6 +50,11 @@ def verify_disk_space_or_fail(path: str, min_free_gb: float = 10.0) -> float:
     """
     free_gb = get_disk_free_gb(path)
     if free_gb < min_free_gb:
+        try:
+            from core.windows_toast import notify_disk_space_warning
+            notify_disk_space_warning(free_gb, min_free_gb, path)
+        except Exception:
+            pass
         raise InsufficientDiskSpaceError(
             f"저장소 여유 공간 부족 (현재: {free_gb:.2f}GB < 최소 안전 여유량: {min_free_gb:.2f}GB). "
             f"기존 백업 체인을 안전하게 보존하기 위해 백업 작업을 즉시 거부/중단(Fail-Closed)합니다."

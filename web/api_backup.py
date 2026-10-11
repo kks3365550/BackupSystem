@@ -294,6 +294,12 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             import traceback
             append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
             append_task_log(traceback.format_exc(), level="ERROR")
+        if not isinstance(e, BackupAlreadyRunningError):
+            try:
+                from core.windows_toast import notify_backup_failed
+                notify_backup_failed(profile_name, str(e))
+            except Exception:
+                pass
         with task_lock:
             current_task["error"] = str(e)
             current_task["result"] = None
@@ -445,6 +451,12 @@ def _background_backup_task(params: Dict[str, Any]):
             import traceback
             append_task_log(f"백업 중 오류 발생: {str(e)}", level="ERROR")
             append_task_log(traceback.format_exc(), level="ERROR")
+        if not isinstance(e, BackupAlreadyRunningError):
+            try:
+                from core.windows_toast import notify_backup_failed
+                notify_backup_failed(profile_name, str(e))
+            except Exception:
+                pass
         with task_lock:
             current_task["error"] = str(e)
             current_task["result"] = None

@@ -519,7 +519,13 @@
                             <span class="font-semibold text-slate-300 flex items-center gap-1.5">
                                 <i data-lucide="terminal" class="w-4 h-4 text-blue-400"></i> 작업 실행 로그
                             </span>
-                            <span class="text-[11px]">최근 30건 실시간 스트리밍</span>
+                            <div class="flex items-center gap-2">
+                                <button onclick="copyDiagnosticLogs(this)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-semibold border border-slate-700 transition flex items-center gap-1.5 shadow-sm">
+                                    <i data-lucide="clipboard-copy" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                    <span>진단 로그 복사</span>
+                                </button>
+                                <span class="text-[11px]">최근 30건 실시간 스트리밍</span>
+                            </div>
                         </div>
                         <div id="terminal-log-box" class="terminal-box h-72 rounded-xl p-4 overflow-y-auto text-xs leading-relaxed space-y-1">
                             <div class="text-slate-500">엔진 준비 완료. 작업이 시작되면 실시간 로그가 여기에 출력됩니다.</div>
@@ -618,9 +624,15 @@
                                 <i data-lucide="scroll-text" class="w-5 h-5 text-amber-400"></i>
                                 <span class="text-sm font-bold text-white">스케줄러 백업 로그</span>
                             </div>
-                            <button onclick="closeModal('backup-log-modal')" class="text-slate-400 hover:text-white">
-                                <i data-lucide="x" class="w-5 h-5"></i>
-                            </button>
+                            <div class="flex items-center gap-2.5">
+                                <button onclick="copyModalLogs(this)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5 shadow-sm">
+                                    <i data-lucide="clipboard-copy" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                    <span>로그 복사</span>
+                                </button>
+                                <button onclick="closeModal('backup-log-modal')" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+                                    <i data-lucide="x" class="w-5 h-5"></i>
+                                </button>
+                            </div>
                         </div>
                         <div id="backup-log-meta" class="px-4 py-2 text-[11px] text-slate-400 font-mono border-b border-slate-800 shrink-0"></div>
                         <pre id="backup-log-body" class="flex-1 overflow-auto p-4 text-[11px] font-mono text-slate-300 whitespace-pre-wrap leading-relaxed"></pre>
