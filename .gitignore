@@ -43,6 +43,7 @@ keys/*private*
 
 # Test sandboxes & temporary test repositories
 test_sandbox/
+sandbox/
 tests/test_repo/
 tests/test_repo2/
 scratch/test_backup_repo/

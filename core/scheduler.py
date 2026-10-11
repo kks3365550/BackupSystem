@@ -164,6 +164,20 @@ class BackupScheduler:
             if pruned:
                 self._log(profile_name, f"보관 주기 만료 스냅샷 {len(pruned)}개 정리 완료.")
 
+            # 3-2-1 오프사이트 원격 복제 자동 실행
+            try:
+                offsite_cfg = ConfigManager.get_offsite_config()
+                if offsite_cfg.get("enabled") and offsite_cfg.get("auto_sync") and offsite_cfg.get("remote_path"):
+                    self._log(profile_name, f"[3-2-1 오프사이트] 원격 저장소({offsite_cfg['remote_path']})로 동기화 시작...")
+                    from core.offsite import replicate_offsite
+                    off_res = replicate_offsite(repo_dir, offsite_cfg["remote_path"])
+                    if off_res.get("success"):
+                        self._log(profile_name, f"[3-2-1 오프사이트] 동기화 성공: 복사 {off_res.get('files_copied', 0)}개 / 전체 {off_res.get('files_total', 0)}개 ({off_res.get('duration_sec', 0.0):.1f}초)")
+                    elif not off_res.get("skipped"):
+                        self._log(profile_name, f"[3-2-1 오프사이트] 동기화 실패: {off_res.get('reason', '원인 불명')}", level="WARN")
+            except Exception as e_off:
+                self._log(profile_name, f"[3-2-1 오프사이트] 동기화 오류: {e_off}", level="WARN")
+
         except Exception as e:
             self._log(profile_name, f"백업 중 오류 발생: {str(e)}", level="ERROR")
             profile["last_status"] = "failed"

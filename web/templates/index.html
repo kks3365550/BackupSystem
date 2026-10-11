@@ -654,6 +654,64 @@
                     </div>
                 </div>
 
+                <!-- 3-2-1 Offsite Remote Replication Card -->
+                <div class="p-5 bg-gradient-to-r from-cyan-950/40 via-slate-900/60 to-blue-950/40 rounded-2xl border border-cyan-800/40 space-y-4 shadow-lg">
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-bold text-white flex items-center gap-2">
+                                    <i data-lucide="globe" class="w-4 h-4 text-cyan-400"></i> 3-2-1 오프사이트 원격 복제 (재해 복구 DR)
+                                </span>
+                                <span id="offsite-status-badge" class="text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                                    확인 중...
+                                </span>
+                            </div>
+                            <p class="text-xs text-slate-300">
+                                로컬 저장소(D:)에 1차 백업 완료 시, Tailscale 네트워크 PC(<strong class="text-cyan-400">100.90.20.59</strong> 데스크탑) 또는 NAS로 <strong class="text-emerald-400">초고속 멀티스레드(robocopy /MT:32)</strong> 자동 동기화하여 3-2-1 백업을 완성합니다.
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button onclick="triggerOffsiteSyncFromUI()" class="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition shadow-md flex items-center gap-1.5">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 지금 즉시 원격 복제
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-slate-800/80 items-end">
+                        <div class="md:col-span-6 space-y-1">
+                            <label class="block text-[11px] font-semibold text-slate-300">원격 대상 저장소 경로 (UNC 네트워크 공유 또는 드라이브)</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="offsite-remote-path" placeholder="예: \\100.90.20.59\BackupShare 또는 Z:\RemoteBackup" class="flex-1 bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+                                <button onclick="openDirectoryPicker('offsite-remote-path')" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-medium shrink-0">폴더 선택</button>
+                            </div>
+                        </div>
+
+                        <div class="md:col-span-3 space-y-2">
+                            <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                                <input type="checkbox" id="offsite-enabled" class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0">
+                                <span class="font-semibold">3-2-1 복제 활성화</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-400">
+                                <input type="checkbox" id="offsite-auto-sync" class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0">
+                                <span>로컬 백업 완료 후 자동 동기화</span>
+                            </label>
+                        </div>
+
+                        <div class="md:col-span-3 flex items-center justify-end gap-2">
+                            <button onclick="testOffsiteFromUI()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-800/60 rounded-xl text-xs font-medium transition flex items-center gap-1">
+                                <i data-lucide="network" class="w-3.5 h-3.5"></i> 연결 테스트
+                            </button>
+                            <button onclick="saveOffsiteConfigFromUI()" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-md flex items-center gap-1">
+                                <i data-lucide="save" class="w-3.5 h-3.5"></i> 설정 저장
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="offsite-detail-info" class="text-[11px] text-slate-400 font-mono hidden pt-1">
+                        <!-- Injected by JS -->
+                    </div>
+                </div>
+
                 <div id="profiles-list-container" class="grid grid-cols-1 gap-4">
                     <!-- Injected by JS -->
                 </div>

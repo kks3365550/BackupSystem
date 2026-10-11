@@ -255,6 +255,20 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             f"소요: {summary.get('duration_seconds')}초"
         )
 
+        # 3-2-1 오프사이트 원격 복제 자동 실행
+        try:
+            offsite_cfg = ConfigManager.get_offsite_config()
+            if offsite_cfg.get("enabled") and offsite_cfg.get("auto_sync") and offsite_cfg.get("remote_path"):
+                append_task_log(f"[3-2-1 오프사이트] 원격 저장소({offsite_cfg['remote_path']})로 동기화 시작...")
+                from core.offsite import replicate_offsite
+                off_res = replicate_offsite(repo_dir, offsite_cfg["remote_path"])
+                if off_res.get("success"):
+                    append_task_log(f"[3-2-1 오프사이트] 동기화 성공: 복사 {off_res.get('files_copied', 0)}개 / 전체 {off_res.get('files_total', 0)}개 ({off_res.get('duration_sec', 0.0):.1f}초)")
+                elif not off_res.get("skipped"):
+                    append_task_log(f"[3-2-1 오프사이트] 동기화 실패: {off_res.get('reason', '원인 불명')}", level="WARNING")
+        except Exception as e_off:
+            append_task_log(f"[3-2-1 오프사이트] 동기화 오류: {e_off}", level="WARNING")
+
         manifest_summary = {
             "id": manifest.get("id"),
             "created_at": manifest.get("created_at"),
@@ -414,6 +428,20 @@ def _background_backup_task(params: Dict[str, Any]):
         )
         if pruned:
             append_task_log(f"오래된 백업 스냅샷 {len(pruned)}개를 보관 정책에 따라 자동 정리했습니다.")
+
+        # 3-2-1 오프사이트 원격 복제 자동 실행
+        try:
+            offsite_cfg = ConfigManager.get_offsite_config()
+            if offsite_cfg.get("enabled") and offsite_cfg.get("auto_sync") and offsite_cfg.get("remote_path"):
+                append_task_log(f"[3-2-1 오프사이트] 원격 저장소({offsite_cfg['remote_path']})로 동기화 시작...")
+                from core.offsite import replicate_offsite
+                off_res = replicate_offsite(repo_dir, offsite_cfg["remote_path"])
+                if off_res.get("success"):
+                    append_task_log(f"[3-2-1 오프사이트] 동기화 성공: 복사 {off_res.get('files_copied', 0)}개 / 전체 {off_res.get('files_total', 0)}개 ({off_res.get('duration_sec', 0.0):.1f}초)")
+                elif not off_res.get("skipped"):
+                    append_task_log(f"[3-2-1 오프사이트] 동기화 실패: {off_res.get('reason', '원인 불명')}", level="WARNING")
+        except Exception as e_off:
+            append_task_log(f"[3-2-1 오프사이트] 동기화 오류: {e_off}", level="WARNING")
 
         manifest_summary = {
             "id": manifest.get("id"),

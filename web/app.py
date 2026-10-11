@@ -376,6 +376,145 @@ def get_system_image_logs():
 def stop_system_image():
     return SystemImageManager.stop_backup()
 
+# --- 3-2-1 Offsite Remote Replication API ---
+class OffsiteSaveRequest(BaseModel):
+    enabled: bool = False
+    remote_path: Optional[str] = ""
+    auto_sync: bool = True
+
+class OffsiteTestRequest(BaseModel):
+    remote_path: Optional[str] = None
+
+class OffsiteSyncRequest(BaseModel):
+    remote_path: Optional[str] = None
+    source_repo_dir: Optional[str] = None
+
+def _check_remote_path(remote_path: Optional[str]):
+    path = (remote_path or "").strip()
+    if not path:
+        return {
+            "reachable": False,
+            "exists": False,
+            "total_gb": 0.0,
+            "used_gb": 0.0,
+            "free_gb": 0.0,
+            "free_percent": 0.0,
+            "error": "원격 저장소 경로가 설정되지 않았습니다."
+        }
+    try:
+        if not os.path.exists(path):
+            try:
+                os.makedirs(path, exist_ok=True)
+            except Exception as e_mkdir:
+                return {
+                    "reachable": False,
+                    "exists": False,
+                    "total_gb": 0.0,
+                    "used_gb": 0.0,
+                    "free_gb": 0.0,
+                    "free_percent": 0.0,
+                    "error": f"원격 경로에 접근/생성할 수 없습니다: {e_mkdir}"
+                }
+        total, used, free = shutil.disk_usage(path)
+        total_gb = round(total / (1024 ** 3), 1)
+        used_gb = round(used / (1024 ** 3), 1)
+        free_gb = round(free / (1024 ** 3), 1)
+        free_pct = round((free / total) * 100, 1) if total > 0 else 0.0
+        return {
+            "reachable": True,
+            "exists": True,
+            "total_gb": total_gb,
+            "used_gb": used_gb,
+            "free_gb": free_gb,
+            "free_percent": free_pct,
+            "error": None
+        }
+    except Exception as e:
+        return {
+            "reachable": False,
+            "exists": False,
+            "total_gb": 0.0,
+            "used_gb": 0.0,
+            "free_gb": 0.0,
+            "free_percent": 0.0,
+            "error": str(e)
+        }
+
+@app.get("/api/offsite")
+def get_offsite_status():
+    cfg = ConfigManager.get_offsite_config()
+    remote = cfg.get("remote_path", "")
+    status = _check_remote_path(remote)
+    return {
+        "success": True,
+        "enabled": cfg.get("enabled", False),
+        "remote_path": remote,
+        "auto_sync": cfg.get("auto_sync", True),
+        "status": status
+    }
+
+@app.post("/api/offsite")
+def save_offsite_settings(req: OffsiteSaveRequest):
+    saved = ConfigManager.save_offsite_config({
+        "enabled": req.enabled,
+        "remote_path": req.remote_path,
+        "auto_sync": req.auto_sync
+    })
+    append_task_log(f"[3-2-1 설정] 오프사이트 원격 복제 설정 저장: 활성={saved['enabled']}, 경로={saved['remote_path']}, 자동동기화={saved['auto_sync']}")
+    return {"success": True, "data": saved}
+
+@app.post("/api/offsite/test")
+def test_offsite_connection(req: OffsiteTestRequest):
+    target = req.remote_path
+    if not target:
+        target = ConfigManager.get_offsite_config().get("remote_path", "")
+    status = _check_remote_path(target)
+    return {
+        "success": bool(status.get("reachable")),
+        "remote_path": target,
+        "status": status
+    }
+
+@app.post("/api/offsite/sync")
+def trigger_manual_offsite_sync(req: OffsiteSyncRequest):
+    cfg = ConfigManager.get_offsite_config()
+    remote = (req.remote_path or cfg.get("remote_path", "")).strip()
+    if not remote:
+        raise HTTPException(status_code=400, detail="오프사이트 원격 경로가 지정되지 않았습니다.")
+
+    source_repo = req.source_repo_dir
+    if not source_repo:
+        cands = _get_all_candidate_repos()
+        for cand in cands:
+            if os.path.exists(os.path.join(cand, "snapshots")):
+                source_repo = cand
+                break
+        if not source_repo and cands:
+            source_repo = cands[0]
+    if not source_repo or not os.path.isdir(source_repo):
+        raise HTTPException(status_code=400, detail="로컬 백업 저장소(Source Repo)를 찾을 수 없습니다.")
+
+    def _async_sync():
+        try:
+            append_task_log(f"[3-2-1 오프사이트] 수동 동기화 시작: {source_repo} -> {remote}")
+            from core.offsite import OffsiteReplicator
+            replicator = OffsiteReplicator(source_repo, remote)
+            res = replicator.replicate()
+            if res.get("success"):
+                append_task_log(f"[3-2-1 오프사이트] 동기화 성공: 복사 {res.get('files_copied', 0)}개 / 전체 {res.get('files_total', 0)}개 ({res.get('duration_sec', 0.0):.1f}초)")
+            else:
+                append_task_log(f"[3-2-1 오프사이트] 동기화 실패: {res.get('reason', '알 수 없음')}", level="WARNING")
+        except Exception as e_sync:
+            append_task_log(f"[3-2-1 오프사이트] 동기화 중 오류: {e_sync}", level="ERROR")
+
+    threading.Thread(target=_async_sync, daemon=True).start()
+    return {
+        "success": True,
+        "message": f"오프사이트 복제가 백그라운드에서 시작되었습니다. ({source_repo} -> {remote})",
+        "source_repo": source_repo,
+        "remote_path": remote
+    }
+
 # --- System Shutdown API ---
 @app.post("/api/system/shutdown")
 def shutdown_system():

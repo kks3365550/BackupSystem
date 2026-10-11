@@ -37,7 +37,10 @@ DEFAULT_SETTINGS = {
     "dark_mode": True,
     "log_level": "INFO",
     "min_free_disk_gb": 10,
-    "enable_ransomware_protection": True
+    "enable_ransomware_protection": True,
+    "offsite_enabled": False,
+    "offsite_remote_path": "",
+    "offsite_auto_sync": True
 }
 
 class ConfigManager:
@@ -85,6 +88,27 @@ class ConfigManager:
             except Exception:
                 pass
             raise
+
+    @classmethod
+    def get_offsite_config(cls) -> Dict[str, Any]:
+        settings = cls.get_settings()
+        return {
+            "enabled": bool(settings.get("offsite_enabled", False)),
+            "remote_path": str(settings.get("offsite_remote_path", "") or "").strip(),
+            "auto_sync": bool(settings.get("offsite_auto_sync", True)),
+        }
+
+    @classmethod
+    def save_offsite_config(cls, offsite_data: Dict[str, Any]) -> Dict[str, Any]:
+        settings = cls.get_settings()
+        if "enabled" in offsite_data:
+            settings["offsite_enabled"] = bool(offsite_data["enabled"])
+        if "remote_path" in offsite_data:
+            settings["offsite_remote_path"] = str(offsite_data["remote_path"] or "").strip()
+        if "auto_sync" in offsite_data:
+            settings["offsite_auto_sync"] = bool(offsite_data["auto_sync"])
+        cls.save_settings(settings)
+        return cls.get_offsite_config()
 
     @classmethod
     def get_profiles(cls) -> List[Dict[str, Any]]:
