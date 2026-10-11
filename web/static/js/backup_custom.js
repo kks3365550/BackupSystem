@@ -330,6 +330,64 @@ async function startCustomSelectionBackup() {
     }
 }
 
+// --- Pre-flight Space Estimator ---
+async function estimateCustomBackupSpace(btnEl) {
+    const selectedApps = Array.from(state.selectedAppPaths || []);
+    const selectedProjects = Array.from(state.selectedProjectPaths || []);
+    const customFolders = state.customFolders || [];
+    const allSources = [...selectedApps, ...selectedProjects, ...customFolders];
+
+    const repoDir = document.getElementById('custom-repo-dir') ? document.getElementById('custom-repo-dir').value.trim() : "";
+    const resultBox = document.getElementById('estimate-result-box');
+
+    if (!allSources.length) {
+        alert('용량을 예측할 백업 대상(프로그램, 프로젝트, 폴더)을 최소 1개 이상 선택해 주세요.');
+        return;
+    }
+
+    if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.innerHTML = `<span class="text-cyan-400">⏳ 대상 폴더 용량 고속 스캔 중...</span>`;
+    }
+
+    try {
+        const res = await fetchAPI('/api/backup/estimate', {
+            method: 'POST',
+            body: JSON.stringify({
+                sources: allSources,
+                repo_dir: repoDir || null
+            })
+        });
+
+        if (resultBox && res) {
+            resultBox.classList.remove('hidden');
+            const isOk = res.is_sufficient;
+            resultBox.innerHTML = `
+                <div class="flex items-center justify-between font-semibold">
+                    <span class="text-slate-300">예상 원본 크기:</span>
+                    <span class="text-cyan-400 font-mono">${formatBytes(res.total_bytes)} (${res.scanned_files.toLocaleString()}개 파일)</span>
+                </div>
+                <div class="flex items-center justify-between font-semibold">
+                    <span class="text-slate-300">저장소 여유 공간:</span>
+                    <span class="font-mono ${isOk ? 'text-emerald-400' : 'text-red-400'}">${res.repo_free_gb} GB</span>
+                </div>
+                <div class="pt-1 mt-1 border-t border-slate-800 flex items-center justify-between font-bold">
+                    <span class="text-slate-400">사전 안전 진단:</span>
+                    <span class="${isOk ? 'text-emerald-400' : 'text-red-400'}">${isOk ? '✅ 백업 안전 (공간 충분)' : '⚠️ 저장소 공간 부족 경고'}</span>
+                </div>
+            `;
+        }
+    } catch (err) {
+        alert('용량 예측 오류: ' + (err.message || err));
+    } finally {
+        if (btnEl) {
+            btnEl.disabled = false;
+            btnEl.innerHTML = `<i data-lucide="scale" class="w-3.5 h-3.5 text-cyan-400"></i><span>📊 백업 전 용량 사전 예측 (Pre-flight Check)</span>`;
+            if (window.lucide) window.lucide.createIcons();
+        }
+    }
+}
+
 // --- Windows System Image (Bare-Metal) Logic ---
 let sysImageLogTimer = null;
 

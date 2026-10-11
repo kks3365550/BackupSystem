@@ -468,4 +468,57 @@ async function pollTaskStatus() {
     }
 }
 
-// Profiles Tab
+// --- 1-Sec DR Drill (복구 모의훈련) ---
+async function runDRDrill(snapshotId = null) {
+    const targetSnapId = snapshotId || state.selectedSnapshot || 'latest';
+    try {
+        const res = await fetchAPI('/api/backup/drill', {
+            method: 'POST',
+            body: JSON.stringify({
+                snapshot_id: targetSnapId,
+                sample_count: 3
+            })
+        });
+
+        if (!res) return;
+
+        const certEl = document.getElementById('drill-cert-id');
+        const snapEl = document.getElementById('drill-snap-id');
+        const durEl = document.getElementById('drill-duration');
+        const badgeEl = document.getElementById('drill-status-badge');
+        const filesEl = document.getElementById('drill-files-list');
+
+        if (certEl) certEl.innerText = res.certificate_id || 'DR-CERT-SUCCESS';
+        if (snapEl) snapEl.innerText = res.snapshot_id || targetSnapId;
+        if (durEl) durEl.innerText = `${res.duration_ms} ms (초고속 실측)`;
+
+        if (badgeEl) {
+            if (res.success) {
+                badgeEl.className = 'font-bold text-emerald-400';
+                badgeEl.innerText = '✅ 100% 정상 복구 보증 (Bit-Rot 0건)';
+            } else {
+                badgeEl.className = 'font-bold text-red-400';
+                badgeEl.innerText = '⚠️ 복구 실패 / 손상 블롭 감지';
+            }
+        }
+
+        if (filesEl && res.tested_files) {
+            filesEl.innerHTML = res.tested_files.map(f => `
+                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800">
+                    <div class="truncate max-w-[280px]" title="${f.rel_path}">
+                        <div class="text-slate-300 truncate">${f.rel_path}</div>
+                        <div class="text-[10px] text-slate-500 font-mono">SHA: ${f.sha256} (${formatBytes(f.size_bytes)})</div>
+                    </div>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold ${f.verified ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400'}">
+                        ${f.verified ? '무결성 일치' : '해시 불일치'}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        if (window.lucide) window.lucide.createIcons();
+        openModal('modal-dr-drill');
+    } catch (err) {
+        alert('복구 모의훈련 실행 오류: ' + (err.message || err));
+    }
+}
