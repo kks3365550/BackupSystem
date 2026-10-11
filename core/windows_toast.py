@@ -19,7 +19,6 @@ import base64
 import logging
 import subprocess
 import threading
-from typing import Optional
 
 logger = logging.getLogger("core.windows_toast")
 
