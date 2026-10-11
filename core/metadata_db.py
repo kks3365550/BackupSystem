@@ -73,7 +73,7 @@ class MetadataDB:
                     if os.path.exists(extra_file):
                         try:
                             os.remove(extra_file)
-                        except OSError:
+                        except (PermissionError, OSError):
                             pass
                 if os.path.exists(self.db_path):
                     os.replace(self.db_path, corrupt_backup)
@@ -295,18 +295,30 @@ class MetadataDB:
 
     def update_snapshot_verification(self, snapshot_id: str, is_verified: bool, error_count: int = 0):
         """Updates verification status for a specific snapshot in SQLite."""
-        try:
-            with self._lock, self._get_connection() as conn:
-                conn.execute("""
-                    UPDATE snapshots_meta
-                    SET is_verified = ?,
-                        verify_timestamp = ?,
-                        verify_error_count = ?
-                    WHERE id = ?;
-                """, (1 if is_verified else 0, time.time(), error_count, snapshot_id))
-                conn.commit()
-        except Exception:
-            pass
+        max_retries = 2
+        attempt = 0
+        while True:
+            try:
+                with self._lock, self._get_connection() as conn:
+                    conn.execute("""
+                        UPDATE snapshots_meta
+                        SET is_verified = ?,
+                            verify_timestamp = ?,
+                            verify_error_count = ?
+                        WHERE id = ?;
+                    """, (1 if is_verified else 0, time.time(), error_count, snapshot_id))
+                    conn.commit()
+                return
+            except sqlite3.OperationalError as e:
+                if "locked" in str(e).lower() and attempt < max_retries:
+                    attempt += 1
+                    time.sleep(0.1)
+                    continue
+                logger.error("MetadataDB update_snapshot_verification failed: %s", e, exc_info=True)
+                raise
+            except Exception as e:
+                logger.error("MetadataDB update_snapshot_verification failed: %s", e, exc_info=True)
+                raise
 
     def list_snapshots(self) -> List[Dict[str, Any]]:
         """Returns snapshot metadata summaries in under 1ms."""

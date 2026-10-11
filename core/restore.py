@@ -139,7 +139,7 @@ class RestoreEngine:
                         verify_hash=verify_hash
                     )
                 else:
-                    storage.extract_blob_to_file(blob_id, dest_path, verify_hash=verify_hash)
+                    storage.extract_blob_to_file(blob_id, dest_path, verify_hash=verify_hash, direct_write=False)
 
                 # Restore original modified time if present
                 if f_mtime:

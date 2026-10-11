@@ -199,7 +199,7 @@ class TestPhase5TrustAnchorFailClosed(unittest.TestCase):
         with open(pub_path, "wb") as f:
             f.write(attacker_pub_pem)
 
-        # 기대 지문(삼영데리카후레쉬 공식 지문)과 대조 검증
+        # 기대 지문(kks3365550 공식 지문)과 대조 검증
         with self.assertRaises(TrustAnchorError) as ctx:
             load_default_keyring(
                 base_dir=self.test_root,

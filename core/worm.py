@@ -113,23 +113,26 @@ class WORMManager:
         if not os.path.exists(filepath):
             return False
 
-        success = False
+        acl_ok = True
+        chmod_ok = False
 
         # 1. Remove NTFS Deny ACL
         if self._is_windows:
-            if self._run_icacls(filepath, ["/remove:d", SID_EVERYONE]):
-                success = True
+            acl_ok = self._run_icacls(filepath, ["/remove:d", SID_EVERYONE])
 
         # 2. Restore Write attribute
         try:
             current_mode = os.stat(filepath).st_mode
             new_mode = current_mode | stat.S_IWUSR
             os.chmod(filepath, new_mode)
-            success = True
+            chmod_ok = True
         except Exception as e:
             logger.debug(f"chmod writeable failed on {filepath}: {e}")
 
-        return success
+        if self._is_windows:
+            return acl_ok and chmod_ok
+
+        return chmod_ok
 
     def protect_directory(self, dirpath: str) -> bool:
         """

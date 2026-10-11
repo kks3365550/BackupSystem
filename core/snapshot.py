@@ -861,6 +861,10 @@ class SnapshotEngine:
                 get_snapshot_cache().evict(repo_dir)
             except Exception as e_evict:
                 log.warning("Failed to evict snapshot cache on delete for '%s': %s", repo_dir, e_evict, exc_info=True)
+
+            # Invalidate in-memory browse cache for deleted snapshot_id
+            with cls._BROWSE_CACHE_LOCK:
+                cls._BROWSE_CACHE.pop(snapshot_id, None)
         return deleted
 
     @classmethod

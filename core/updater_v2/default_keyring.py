@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_KEY_ID = "release_2026_default"
 
-# 삼영데리카후레쉬 공식 배포 Root Key 지문 (SHA-256 of keys/release_ed25519.pub)
+# kks3365550 공식 배포 Root Key 지문 (SHA-256 of keys/release_ed25519.pub)
 EXPECTED_ROOT_KEY_SHA256 = "5b4796560c4feca1a0d85f96dcf0bd9ee23bf595da9ac917e4876291bd73eb30"
 
 
