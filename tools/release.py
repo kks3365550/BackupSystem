@@ -127,16 +127,21 @@ def compile_inno_setup_installer(version: str):
 
     dist_dir = os.path.join(BASE_DIR, 'dist')
     os.makedirs(dist_dir, exist_ok=True)
-    expected_exe = os.path.join(dist_dir, f"BackupSystem_Setup_v{version}.exe")
+    expected_exe = os.path.join(dist_dir, f"Kova_Setup_v{version}.exe")
+    legacy_exe = os.path.join(dist_dir, f"BackupSystem_Setup_v{version}.exe")
 
     try:
         cmd = [iscc_bin, f"/DMyAppVersion={version}", ISS_FILE]
-        res = subprocess.run(cmd, capture_output=True, text=True, errors='replace', cwd=BASE_DIR)
-        if res.returncode == 0 and os.path.exists(expected_exe):
-            print(f"      [OK] Inno Setup installer compiled: {expected_exe} ({os.path.getsize(expected_exe):,} bytes)")
-            return expected_exe
+        res = subprocess.run(cmd, capture_output=True, cwd=BASE_DIR)
+        stdout = res.stdout.decode('utf-8', errors='replace')
+        stderr = res.stderr.decode('utf-8', errors='replace')
+        target_exe = expected_exe if os.path.exists(expected_exe) else legacy_exe
+
+        if res.returncode == 0 and os.path.exists(target_exe):
+            print(f"      [OK] Inno Setup installer compiled: {target_exe} ({os.path.getsize(target_exe):,} bytes)")
+            return target_exe
         else:
-            print(f"      Warning: ISCC compilation failed (code {res.returncode}):\n{res.stderr}\n{res.stdout}")
+            print(f"      Warning: ISCC compilation failed (code {res.returncode}):\n{stderr}\n{stdout}")
     except Exception as e:
         print(f"      Warning: Inno Setup compilation error: {e}")
     return None
