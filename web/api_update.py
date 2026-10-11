@@ -301,7 +301,9 @@ async def sync_remote_release(request: Request):
     except Exception:
         body_json = {}
 
-    master_url = body_json.get("master_url", "http://100.72.224.71:8765").rstrip("/")
+    master_url = body_json.get("master_url", "").rstrip("/")
+    if not master_url:
+        raise HTTPException(status_code=400, detail="master_url이 지정되지 않았습니다.")
 
     # 1. Fetch package from master server
     try:

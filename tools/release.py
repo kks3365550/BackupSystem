@@ -12,11 +12,7 @@ import base64
 import zipfile
 import argparse
 import subprocess
-import urllib.request
-import json
-import hashlib
 import shutil
-import datetime
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if BASE_DIR not in sys.path:
@@ -386,99 +382,6 @@ def build_self_extracting_updater(version: str):
     print(f"      Created: {out_bat} ({os.path.getsize(out_bat):,} bytes)")
     return out_bat, sig_hex, raw_bytes
 
-def remote_deploy_if_online(remote_ip: str, bat_path: str, sig_hex: str = "", raw_bytes: bytes = None, version: str = ""):
-    ts_kwargs = {'capture_output': True, 'timeout': 5}
-    if sys.platform.startswith('win') and hasattr(subprocess, 'CREATE_NO_WINDOW'):
-        ts_kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
-
-    try:
-        ping_res = subprocess.run(['tailscale', 'ping', '-c', '1', remote_ip], text=True, **ts_kwargs)
-        if ping_res.returncode == 0 and 'pong' in ping_res.stdout:
-            print(f"      Remote host {remote_ip} is ONLINE (Tailscale)!")
-
-            # 1. Try Tailscale SSH automated deployment if available
-            ssh_deployed = False
-            dist_zip = os.path.join(BASE_DIR, 'dist', f'release_v{version}.zip') if version else None
-            if dist_zip and os.path.exists(dist_zip):
-                try:
-                    ssh_check = subprocess.run(
-                        ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=3', remote_ip, 'echo SSH_OK'],
-                        text=True, **ts_kwargs
-                    )
-                    if ssh_check.returncode == 0 and 'SSH_OK' in ssh_check.stdout:
-                        print(f"      Remote host {remote_ip} supports Tailscale SSH! Deploying v{version}...")
-                        remote_tmp = f"C:/Users/kksjmj/AppData/Local/Temp/release_v{version}.zip"
-                        scp_res = subprocess.run(
-                            ['scp', dist_zip, f"{remote_ip}:{remote_tmp}"],
-                            **ts_kwargs
-                        )
-                        if scp_res.returncode == 0:
-                            # Safely terminate ONLY the backup system on port 8765 without touching Qwen or other python jobs
-                            remote_ps = (
-                                "$p8765 = Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue; "
-                                "if ($p8765) { foreach ($c in $p8765) { "
-                                "  $p = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue; "
-                                "  if ($p) { "
-                                "    $cmd = (Get-CimInstance Win32_Process -Filter \"ProcessId = $($p.Id)\").CommandLine; "
-                                "    if ($cmd -like '*백업시스템*' -or $cmd -like '*run.py*') { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } "
-                                "  } "
-                                "} }; "
-                                "Start-Sleep -Seconds 1; "
-                                "$tgt = 'F:\\백업시스템_설치용'; "
-                                "if (-not (Test-Path $tgt)) { $tgt = 'D:\\백업시스템_설치용' }; "
-                                "if (-not (Test-Path $tgt)) { New-Item -ItemType Directory -Path $tgt -Force | Out-Null }; "
-                                f"Expand-Archive -LiteralPath '{remote_tmp}' -DestinationPath $tgt -Force; "
-                                f"Remove-Item '{remote_tmp}' -Force -ErrorAction SilentlyContinue; "
-                                "$pyw = Join-Path $tgt '.venv\\Scripts\\pythonw.exe'; "
-                                "if (-not (Test-Path $pyw)) { $pyw = 'pythonw.exe' }; "
-                                "$runPy = Join-Path $tgt 'run.py'; "
-                                "([wmiclass]'Win32_Process').Create(\"$pyw $runPy\", $tgt, $null) | Out-Null; "
-                                "Start-Sleep -Seconds 2; "
-                                "Get-Content (Join-Path $tgt 'VERSION') -ErrorAction SilentlyContinue"
-                            )
-                            b64_ps = base64.b64encode(remote_ps.encode('utf-16le')).decode('ascii')
-                            exec_res = subprocess.run(
-                                ['ssh', remote_ip, 'powershell', '-NoProfile', '-EncodedCommand', b64_ps],
-                                text=True, **ts_kwargs
-                            )
-                            if exec_res.returncode == 0:
-                                print(f"      [OK] Remote {remote_ip} automatically updated & restarted to v{version} via Tailscale SSH!")
-                                ssh_deployed = True
-                except Exception as e_ssh:
-                    print(f"      Notice: Remote SSH deploy attempt skipped ({e_ssh})")
-
-            if not ssh_deployed:
-                # 2. Try HTTP self-update API first if raw_bytes and sig_hex are available
-                updated_via_api = False
-                if raw_bytes and sig_hex:
-                    try:
-                        update_url = f"http://{remote_ip}:8765/api/system/self-update"
-                        req = urllib.request.Request(
-                            update_url,
-                            data=raw_bytes,
-                            headers={
-                                'Content-Type': 'application/octet-stream',
-                                'X-Package-Signature': sig_hex
-                            },
-                            method='POST'
-                        )
-                        with urllib.request.urlopen(req, timeout=5) as resp:
-                            if resp.status == 200:
-                                print(f"      [OK] Remote {remote_ip} updated instantly via signed Self-Update API!")
-                                updated_via_api = True
-                    except Exception as e_api:
-                        print(f"      Notice: Remote HTTP update skipped ({e_api}), falling back to Taildrop.")
-
-                if not updated_via_api:
-                    print(f"      Dispatching standalone updater to {remote_ip} via Taildrop...")
-                    cp_kwargs = dict(ts_kwargs)
-                    cp_kwargs['timeout'] = 15
-                    subprocess.run(['tailscale', 'file', 'cp', bat_path, f"{remote_ip}:"], **cp_kwargs)
-                    print("      Taildrop dispatch complete!")
-        else:
-            print(f"      Remote host {remote_ip} is offline or unreachable via Tailscale. Remote deploy skipped.")
-    except Exception as e:
-        print(f"      Remote check skipped: {e}")
 
 def restart_local_server():
     """로컬 백업 서버(pythonw run.py)를 Kill 후 start_silent.vbs로 재시작하고, 포트 8765가 열릴 때까지 확인."""
@@ -502,7 +405,6 @@ def restart_local_server():
     except Exception as e:
         print(f"      Stop warning (may be OK if nothing was running): {e}")
 
-    import time
     time.sleep(1)
 
     # 2. Restart server (Priority: pythonw.exe direct launch > start_silent.vbs fallback)
@@ -557,8 +459,6 @@ def main():
     parser.add_argument('--bump', choices=['patch', 'minor', 'major', 'none'], default='patch', help="Version bump type")
     parser.add_argument('--version', type=str, default=None, help="Explicit target version to set (bypasses --bump)")
     parser.add_argument('-m', '--message', type=str, default="Automated engine build and bugfix release", help="Commit and changelog message")
-    parser.add_argument('--remote-ip', type=str, default="100.90.20.59", help="Tailscale remote desktop IP")
-    parser.add_argument('--skip-remote', action="store_true", help="Skip remote deployment")
     parser.add_argument('--skip-restart', action="store_true", help="Skip local server restart after release")
     args = parser.parse_args()
 
@@ -581,9 +481,6 @@ def main():
     installer_exe = compile_inno_setup_installer(new_ver)
     sync_install_directories(installer_exe)
     bat_path, sig_hex, raw_bytes = build_self_extracting_updater(new_ver)
-
-    if not args.skip_remote:
-        remote_deploy_if_online(args.remote_ip, bat_path, sig_hex, raw_bytes, version=new_ver)
 
     if not args.skip_restart:
         restart_local_server()
