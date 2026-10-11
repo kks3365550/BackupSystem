@@ -1,7 +1,7 @@
 # Kova: Enterprise Zero-Cloud Hybrid Backup & 3-Tier Disaster Recovery Engine
 > **Local Backup. Instant Recovery.**
 
-[![Version](https://img.shields.io/badge/version-v2.13.33-blue.svg?style=flat-square)](https://github.com/kks3365550/BackupSystem/releases)
+[![Version](https://img.shields.io/badge/version-v2.13.34-blue.svg?style=flat-square)](https://github.com/kks3365550/BackupSystem/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20%7C%20Server-0078D6.svg?style=flat-square&logo=windows)](https://microsoft.com/windows)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB.svg?style=flat-square&logo=python)](https://www.python.org/)
 [![Architecture](https://img.shields.io/badge/architecture-x86__64-informational.svg?style=flat-square)](#architecture-overview)
@@ -40,11 +40,12 @@ An enterprise-grade, deterministic Windows backup orchestration and disaster rec
 
 ## Executive Summary
 
-Standard enterprise backup tools often introduce external cloud dependencies, complex license servers, or severe performance overhead during file enumeration. **BackupSystem** was engineered to solve these challenges in mission-critical industrial and enterprise environments:
+Standard enterprise backup tools often introduce external cloud dependencies, complex license servers, or severe performance overhead during file enumeration. **Kova** was engineered to solve these challenges in mission-critical industrial and enterprise environments:
 
 - **100% On-Premises & Air-Gapped**: Zero telemetry or cloud dependencies; all snapshots reside on local repositories or private network-attached storage.
 - **Enterprise Windows Compliance**: Full native integration with Windows VSS (`vssadmin`), Bare-Metal Recovery (`wbadmin`), Task Scheduler (`Register-ScheduledTask`), and Windows Credential/UAC isolation.
-- **Microsecond Precision & Storage Efficiency**: Block-level chunking and SHA-256 deduplication reduce repository footprint by 60–85% across daily incremental snapshots.
+- **Microsecond Precision & Storage Efficiency**: Block-level chunking, Zstandard compression, and SHA-256 deduplication reduce repository footprint by 60–85% across daily incremental snapshots.
+- **1-Second Disaster Recovery Drill & Pre-flight Estimator**: Instant verification of backup restoreability with cryptographic certificates and pre-backup disk overflow prevention.
 
 ---
 
@@ -61,7 +62,7 @@ Standard enterprise backup tools often introduce external cloud dependencies, co
                                              │ HTTP REST / SSE     │ Native RPC
                                              ▼                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    BackupSystem Host Runtime (Non-Elevated)                 │
+│                       Kova Host Runtime (Non-Elevated)                      │
 │                                                                             │
 │  ┌───────────────────────┐  ┌───────────────────────┐  ┌─────────────────┐  │
 │  │ SnapshotMetadataCache │  │  Profile & Auth Guard │  │  OTA Engine     │  │
@@ -97,11 +98,11 @@ Every ingested file is processed through a deterministic streaming hash pipeline
 
 ### 2. Zero-Lock Live Backups via Volume Shadow Copy (VSS)
 Enterprise workloads inevitably maintain exclusive write locks on production databases, PST files, and active system logs.
-- BackupSystem delegates live snapshot requests to the Windows Volume Shadow Copy Service subsystem.
+- Kova delegates live snapshot requests to the Windows Volume Shadow Copy Service subsystem.
 - Captures point-in-time volume snapshots (`\\?\GLOBALROOT\Device\HarddiskVolumeShadowCopy*`), allowing 100% read consistency without interrupting running host services or database engines.
 
 ### 3. 3-Tier Disaster Recovery Architecture
-Disasters vary from accidental file deletion to total hardware incineration. BackupSystem enforces a tiered recovery matrix:
+Disasters vary from accidental file deletion to total hardware incineration. Kova enforces a tiered recovery matrix:
 
 | Recovery Tier | Scenario | Recovery Mechanism | Typical RTO |
 | :--- | :--- | :--- | :--- |
@@ -110,8 +111,8 @@ Disasters vary from accidental file deletion to total hardware incineration. Bac
 | **Tier 3: Standalone Emergency DR** | Total application corruption or environment isolation | Self-contained zero-dependency Python script (`tools/disaster_recovery.py`) capable of parsing raw blobs without the server running | **Immediate** |
 
 ### 4. Non-Elevated Least-Privilege Runtime & Hardened ACL
-Prior to version `v2.10.4`, running background services in `C:\Program Files` frequently encountered `WinError 5 (Access is Denied)` unless granted full administrative privileges. BackupSystem resolves this through precise Windows Discretionary Access Control Lists (DACL):
-- **Binaries & Core (`C:\Program Files\백업시스템`)**: Read-and-Execute only for standard `Users`; modifications restricted strictly to `Administrators` and `SYSTEM`.
+Prior to version `v2.10.4`, running background services in `C:\Program Files` frequently encountered `WinError 5 (Access is Denied)` unless granted full administrative privileges. Kova resolves this through precise Windows Discretionary Access Control Lists (DACL):
+- **Binaries & Core (`C:\Program Files\Kova`)**: Read-and-Execute only for standard `Users`; modifications restricted strictly to `Administrators` and `SYSTEM`.
 - **Mutable State (`{app}\data` & `{app}\logs`)**: Explicit `Users: Modify` inheritance configured directly at the Inno Setup filesystem layer:
   ```iss
   [Dirs]
@@ -122,7 +123,7 @@ Prior to version `v2.10.4`, running background services in `C:\Program Files` fr
 
 ### 5. Sub-15ms Invalidation-Driven Metadata Caching
 In repositories containing over 220,000 files and deep directory hierarchies, naive recursive scanning causes severe disk I/O bottlenecks and high UI latency.
-- BackupSystem features an in-memory `SnapshotMetadataCache` with timestamp- and size-driven invalidation.
+- Kova features an in-memory `SnapshotMetadataCache` with timestamp- and size-driven invalidation.
 - Warm-cache manifest resolution benchmarks at **~11ms** across 220,000+ indexed files, delivering instant response times across the Web Dashboard.
 
 ### 6. Ghost/Silent Background Automation (Zero Window Flickering)
@@ -203,11 +204,17 @@ Version `v2.10.6+` implements advanced installer lifecycle hooks to eliminate Wi
 - **Runtimes**: Python 3.10+ (included in standard enterprise installer package).
 - **Privileges**: Standard user permissions for daily operation; Administrator elevation required only during initial installer setup.
 
-### Enterprise Installer Deployment
-1. Download the latest `BackupSystem_Setup_vX.Y.Z.exe` from [GitHub Releases](https://github.com/kks3365550/BackupSystem/releases).
+### Enterprise & Windows winget Deployment
+#### Option 1: Microsoft winget (Recommended)
+```cmd
+winget install kks3365550.BackupSystem
+```
+
+#### Option 2: Standalone Inno Setup Installer
+1. Download the latest `Kova_Setup_vX.Y.Z.exe` from [GitHub Releases](https://github.com/kks3365550/BackupSystem/releases).
 2. Execute the installer with standard administrator rights:
    ```cmd
-   BackupSystem_Setup_v2.13.30.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+   Kova_Setup_v2.13.34.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
    ```
 3. The installer automatically configures:
    - File permission inheritance (`Users: Modify` for `data/` and `logs/`).
@@ -222,7 +229,7 @@ When running the installer on Windows 10/11 for the first time, Microsoft Defend
   2. Click **Run anyway (실행)** to proceed with the verified installation.
 - **Binary Integrity Verification**: Always verify the cryptographic SHA-256 hash published in the official GitHub Release:
   ```powershell
-  Get-FileHash .\BackupSystem_Setup_v2.13.30.exe -Algorithm SHA256
+  Get-FileHash .\Kova_Setup_v2.13.34.exe -Algorithm SHA256
   ```
   Expected SHA-256: `46e11bd31847455f6f9f6ad7502679e70ad1149e97ecffd322a3eb0590d1a562`
 - **VirusTotal Clean Certification**: All releases are verified 100% clean (0 detections) across 60+ antivirus engines. Check the SHA-256 hash directly on [VirusTotal](https://www.virustotal.com).
