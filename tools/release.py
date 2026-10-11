@@ -388,6 +388,68 @@ def build_self_extracting_updater(version: str):
     return out_bat, sig_hex, raw_bytes
 
 
+def publish_remote_release(version: str, message: str, installer_exe: str = None):
+    """
+    원격 GitHub 저장소 동기화 및 GitHub Releases 자동 배포:
+    1. git push origin HEAD
+    2. git push origin v{version}
+    3. gh CLI를 통해 Kova_Setup_v{version}.exe 인스톨러 및 릴리즈 아티팩트 자동 업로드
+    """
+    print("[5/6] Publishing remote release & GitHub Release assets...")
+    try:
+        subprocess.run(['git', 'push', 'origin', 'HEAD'], cwd=BASE_DIR, check=True)
+        subprocess.run(['git', 'push', 'origin', f'v{version}'], cwd=BASE_DIR, check=True)
+        print(f"      [OK] git push origin HEAD and tag v{version} completed.")
+    except Exception as e:
+        print(f"      Warning: git push failed: {e}")
+
+    # Check gh CLI
+    gh_bin = shutil.which('gh')
+    if not gh_bin:
+        gh_candidates = [
+            os.path.expandvars(r"%LOCALAPPDATA%\Programs\GitHub CLI\gh.exe"),
+            r"C:\Program Files\GitHub CLI\gh.exe",
+            r"C:\Program Files (x86)\GitHub CLI\gh.exe",
+        ]
+        gh_bin = next((p for p in gh_candidates if os.path.exists(p)), None)
+
+    if not gh_bin:
+        print("      Notice: gh CLI not found. GitHub Release upload skipped.")
+        return
+
+    tag_name = f"v{version}"
+    title = f"Kova v{version}"
+    body = message or f"Automated release v{version}"
+
+    upload_files = []
+    if installer_exe and os.path.exists(installer_exe):
+        upload_files.append(installer_exe)
+    dist_dir = os.path.join(BASE_DIR, 'dist')
+    zip_path = os.path.join(dist_dir, f"release_v{version}.zip")
+    if os.path.exists(zip_path):
+        upload_files.append(zip_path)
+    if os.path.exists(zip_path + ".sig"):
+        upload_files.append(zip_path + ".sig")
+
+    try:
+        check_proc = subprocess.run([gh_bin, 'release', 'view', tag_name], cwd=BASE_DIR, capture_output=True)
+        if check_proc.returncode == 0:
+            if upload_files:
+                upload_cmd = [gh_bin, 'release', 'upload', tag_name] + upload_files + ['--clobber']
+                subprocess.run(upload_cmd, cwd=BASE_DIR, check=True)
+                print(f"      [OK] GitHub Release assets updated for {tag_name}")
+        else:
+            create_cmd = [
+                gh_bin, 'release', 'create', tag_name,
+                '--title', title,
+                '--notes', body
+            ] + upload_files
+            subprocess.run(create_cmd, cwd=BASE_DIR, check=True)
+            print(f"      [OK] GitHub Release created with installer: {tag_name}")
+    except Exception as e:
+        print(f"      Warning: GitHub Release upload failed: {e}")
+
+
 def restart_local_server():
     """로컬 백업 서버(pythonw run.py)를 Kill 후 start_silent.vbs로 재시작하고, 포트 8765가 열릴 때까지 확인."""
     print("[4/4] Restarting local backup server...")
@@ -465,6 +527,7 @@ def main():
     parser.add_argument('--version', type=str, default=None, help="Explicit target version to set (bypasses --bump)")
     parser.add_argument('-m', '--message', type=str, default="Automated engine build and bugfix release", help="Commit and changelog message")
     parser.add_argument('--skip-restart', action="store_true", help="Skip local server restart after release")
+    parser.add_argument('--skip-remote', action="store_true", help="Skip remote git push and GitHub Release upload")
     args = parser.parse_args()
 
     print("=" * 60)
@@ -486,6 +549,9 @@ def main():
     installer_exe = compile_inno_setup_installer(new_ver)
     sync_install_directories(installer_exe)
     bat_path, sig_hex, raw_bytes = build_self_extracting_updater(new_ver)
+
+    if not args.skip_remote:
+        publish_remote_release(new_ver, args.message, installer_exe)
 
     if not args.skip_restart:
         restart_local_server()
