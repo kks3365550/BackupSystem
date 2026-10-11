@@ -1,7 +1,7 @@
 # Kova: Enterprise Zero-Cloud Hybrid Backup & 3-Tier Disaster Recovery Engine
 > **Local Backup. Instant Recovery.**
 
-[![Version](https://img.shields.io/badge/version-v2.13.34-blue.svg?style=flat-square)](https://github.com/kks3365550/BackupSystem/releases)
+[![Version](https://img.shields.io/badge/version-v2.13.34-blue.svg?style=flat-square)](https://github.com/kks3365550/Kova/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20%7C%20Server-0078D6.svg?style=flat-square&logo=windows)](https://microsoft.com/windows)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB.svg?style=flat-square&logo=python)](https://www.python.org/)
 [![Architecture](https://img.shields.io/badge/architecture-x86__64-informational.svg?style=flat-square)](#architecture-overview)
@@ -211,7 +211,7 @@ winget install kks3365550.BackupSystem
 ```
 
 #### Option 2: Standalone Inno Setup Installer
-1. Download the latest `Kova_Setup_vX.Y.Z.exe` from [GitHub Releases](https://github.com/kks3365550/BackupSystem/releases).
+1. Download the latest `Kova_Setup_vX.Y.Z.exe` from [GitHub Releases](https://github.com/kks3365550/Kova/releases).
 2. Execute the installer with standard administrator rights:
    ```cmd
    Kova_Setup_v2.13.34.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
@@ -239,8 +239,8 @@ For portable environments or source installations:
 
 ```powershell
 # 1. Clone repository
-git clone https://github.com/kks3365550/BackupSystem.git
-cd BackupSystem
+git clone https://github.com/kks3365550/Kova.git
+cd Kova
 
 # 2. Install production dependencies
 pip install -r requirements.txt
@@ -351,4 +351,4 @@ python tools/verify_integrity.py --binary .\BackupSystem_Setup_v2.13.6.exe
 
 Distributed under an **Enterprise Proprietary License**. Unauthorized distribution, reverse engineering, or cloud hosting is prohibited.
 
-For technical inquiries, bug reports, and deployment audits, please open an issue in the official [GitHub Issue Tracker](https://github.com/kks3365550/BackupSystem/issues).
+For technical inquiries, bug reports, and deployment audits, please open an issue in the official [GitHub Issue Tracker](https://github.com/kks3365550/Kova/issues).
