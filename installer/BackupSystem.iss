@@ -1,12 +1,12 @@
 ; =========================================================================
-; 백업시스템 (BackupSystem) Inno Setup 6+ 인스톨러 빌드 스크립트 (v2.9.11)
+; Kova (Local Backup & Disaster Recovery) Inno Setup 6+ 인스톨러 빌드 스크립트
 ; =========================================================================
 
-#define MyAppName "백업시스템"
-#define MyAppVersion "2.13.33"
+#define MyAppName "Kova"
+#define MyAppVersion "2.13.34"
 #define MyAppPublisher "kks3365550"
 #define MyAppURL "http://127.0.0.1:8765"
-#define MyAppExeName "BackupSystem.exe"
+#define MyAppExeName "Kova.exe"
 
 [Setup]
 AppId={{E8A42F38-9B7C-4C2E-8E1A-98C32B7D501F}
@@ -19,7 +19,7 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-OutputBaseFilename=BackupSystem_Setup_v{#MyAppVersion}
+OutputBaseFilename=Kova_Setup_v{#MyAppVersion}
 OutputDir=..\dist
 Compression=lzma2/ultra64
 SolidCompression=yes

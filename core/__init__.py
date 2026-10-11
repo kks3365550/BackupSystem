@@ -1,4 +1,6 @@
 """
 System & Server Incremental Backup & Snapshot Core Engine
 """
-__version__ = "2.13.33"
+__title__ = "Kova"
+__description__ = "Local Backup. Instant Recovery."
+__version__ = "2.13.34"

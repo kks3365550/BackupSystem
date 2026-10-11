@@ -1,13 +1,14 @@
-# BackupSystem: Enterprise Zero-Cloud Hybrid Backup & 3-Tier Disaster Recovery Engine
+# Kova: Enterprise Zero-Cloud Hybrid Backup & 3-Tier Disaster Recovery Engine
+> **Local Backup. Instant Recovery.**
 
-[![Version](https://img.shields.io/badge/version-v2.13.6-blue.svg?style=flat-square)](https://github.com/kks3365550/BackupSystem/releases)
+[![Version](https://img.shields.io/badge/version-v2.13.33-blue.svg?style=flat-square)](https://github.com/kks3365550/BackupSystem/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20%7C%20Server-0078D6.svg?style=flat-square&logo=windows)](https://microsoft.com/windows)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB.svg?style=flat-square&logo=python)](https://www.python.org/)
 [![Architecture](https://img.shields.io/badge/architecture-x86__64-informational.svg?style=flat-square)](#architecture-overview)
 [![License](https://img.shields.io/badge/license-Enterprise%20Proprietary-red.svg?style=flat-square)](#license)
 [![Zero Cloud Dependency](https://img.shields.io/badge/dependency-Zero--Cloud%20Air--Gapped-success.svg?style=flat-square)](#deterministic-content-addressed-storage-cas)
 
-An enterprise-grade, deterministic Windows backup orchestration and disaster recovery system designed for air-gapped, zero-cloud, and compliance-sensitive environments. **BackupSystem** combines immutable Content-Addressed Storage (CAS), multi-chunk ingestion, high-speed offsite replication (SMB/NAS), non-intrusive Volume Shadow Copy Service (VSS) live captures, Windows Bare-Metal Recovery (BMR), and cryptographically verified self-updating pipelines.
+An enterprise-grade, deterministic Windows backup orchestration and disaster recovery system designed for air-gapped, zero-cloud, and compliance-sensitive environments. **Kova** combines immutable Content-Addressed Storage (CAS), multi-chunk ingestion, high-speed offsite replication (SMB/NAS), non-intrusive Volume Shadow Copy Service (VSS) live captures, Windows Bare-Metal Recovery (BMR), and cryptographically verified self-updating pipelines.
 
 ---
 
