@@ -340,7 +340,7 @@ function dismissRemoteReleaseBanner() {
 }
 
 function triggerRemoteReleaseSync() {
-    window.open('https://github.com/kks3365550/BackupSystem/releases/latest', '_blank');
+    window.open('https://github.com/kks3365550/Kova/releases/latest', '_blank');
 }
 
 function downloadInstaller() {

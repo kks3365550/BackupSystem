@@ -259,7 +259,7 @@ def check_remote_release():
                     "update_available": True,
                     "current_version": cur_ver,
                     "remote_version": f"v{latest_v}",
-                    "remote_url": "https://github.com/kks3365550/BackupSystem/releases/latest",
+                    "remote_url": "https://github.com/kks3365550/Kova/releases/latest",
                     "package_size": 0,
                     "signature": info.get("signature", ""),
                     "changelog": info.get("changelog", ""),
@@ -274,7 +274,7 @@ def check_remote_release():
                     "update_available": False,
                     "current_version": cur_ver,
                     "remote_version": f"v{cur_ver}",
-                    "remote_url": "https://github.com/kks3365550/BackupSystem/releases/latest",
+                    "remote_url": "https://github.com/kks3365550/Kova/releases/latest",
                     "installer_download_url": "/api/system/download-installer"
                 }
             }
@@ -329,7 +329,7 @@ def download_installer():
     """
     import glob
     dist_dir = os.path.join(BASE_DIR, "dist")
-    exe_pattern = os.path.join(dist_dir, "BackupSystem_Setup_v*.exe")
+    exe_pattern = os.path.join(dist_dir, "*Setup_v*.exe")
 
     exe_files = glob.glob(exe_pattern)
     if exe_files:
@@ -345,7 +345,7 @@ def download_installer():
     if info and info.get("installer_download_url"):
         return RedirectResponse(info["installer_download_url"], status_code=307)
 
-    return RedirectResponse("https://github.com/kks3365550/BackupSystem/releases/latest", status_code=307)
+    return RedirectResponse("https://github.com/kks3365550/Kova/releases/latest", status_code=307)
 
 
 # ==================== Software Auto-Update API ====================
