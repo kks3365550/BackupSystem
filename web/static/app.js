@@ -439,7 +439,8 @@ function renderDashboardSnapshotChart() {
         const sum = s.summary || {};
         const b = sum.total_bytes || 0;
         const f = sum.total_files || 0;
-        const heightPct = Math.max(18, Math.min(95, Math.round((b / maxBytes) * 92)));
+        // 최대 높이 68%로 제한하여 상단 라벨이 컨테이너 천장에 닿아 잘리지 않도록 안전 여백 확보
+        const heightPct = Math.max(28, Math.min(68, Math.round((b / maxBytes) * 65)));
         
         let dateLabel = '';
         try {
@@ -457,22 +458,42 @@ function renderDashboardSnapshotChart() {
             dateLabel = `#${idx+1}`;
         }
 
-        const tooltip = `[스냅샷 #${idx+1}]\nID: ${s.id}\n일시: ${dateLabel}\n용량: ${formatBytes(b)}\n파일 수: ${f.toLocaleString()}개\n프로필: ${s.profile_name || '기본'}`;
+        const tooltip = `[스냅샷 #${idx+1}]\nID: ${s.id}\n일시: ${dateLabel}\n용량: ${formatBytes(b)}\n파일 수: ${f.toLocaleString()}개\n프로필: ${s.profile_name || '기본 백업'}`;
 
         return `
-            <div class="flex-1 flex flex-col justify-end items-center h-full group relative cursor-pointer" title="${tooltip}" onclick="inspectSnapshot('${s.id}')">
-                <div class="text-[9px] font-mono text-zinc-400 group-hover:text-white transition mb-1 opacity-0 group-hover:opacity-100 whitespace-nowrap absolute -top-4 pointer-events-none z-10 bg-zinc-900 px-1 rounded border border-zinc-700">
+            <div class="w-20 shrink-0 flex flex-col justify-end items-center h-full group relative cursor-pointer" title="${tooltip}" onclick="inspectSnapshot('${s.id}')">
+                <!-- 상단 용량 배지 (항시 선명 표시 & 잘림 방지) -->
+                <div class="text-[10px] font-mono font-bold text-zinc-200 whitespace-nowrap absolute -top-7 left-1/2 -translate-x-1/2 bg-zinc-900/90 px-1.5 py-0.5 rounded border border-zinc-700/80 shadow-md pointer-events-none group-hover:border-blue-400 group-hover:text-white transition">
                     ${formatBytes(b)}
                 </div>
-                <div class="w-full ${isLatest ? 'bg-gradient-to-t from-blue-600 via-cyan-500 to-emerald-400 shadow-md shadow-emerald-500/20' : 'bg-blue-600/50 group-hover:bg-blue-500'} rounded-t-sm transition-all duration-300 relative" style="height: ${heightPct}%">
+                
+                <!-- 기둥 막대 (슬림 바 & 부드러운 그라데이션) -->
+                <div class="w-full ${isLatest ? 'bg-gradient-to-t from-blue-600 via-cyan-500 to-emerald-400 shadow-md shadow-emerald-500/25 border-t border-emerald-300' : 'bg-gradient-to-t from-blue-700 to-blue-500 group-hover:from-blue-600 group-hover:to-cyan-400'} rounded-t-lg transition-all duration-300 relative" style="height: ${heightPct}%">
                     ${isLatest ? '<span class="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-emerald-300 rounded-full animate-ping"></span>' : ''}
                 </div>
-                <div class="text-[8px] font-mono text-zinc-500 group-hover:text-zinc-300 transition mt-1 truncate max-w-full text-center">
+                
+                <!-- 하단 시간 라벨 -->
+                <div class="text-[10px] font-mono text-zinc-400 group-hover:text-zinc-200 transition mt-2 text-center font-medium">
                     ${dateLabel.split(' ')[1] || dateLabel}
                 </div>
             </div>
         `;
     }).join('');
+
+    // 다음 백업 예약/대기 슬롯 (시각적 균형감 제공)
+    const nextSlotHtml = `
+        <div class="w-20 shrink-0 flex flex-col justify-end items-center h-full opacity-35 hover:opacity-80 transition cursor-pointer group" onclick="triggerQuickBackup()" title="클릭하여 지금 즉시 새 백업 생성">
+            <div class="text-[9px] font-mono text-zinc-400 -top-7 absolute whitespace-nowrap opacity-0 group-hover:opacity-100 transition">
+                + 백업 시작
+            </div>
+            <div class="w-full border-2 border-dashed border-zinc-700 group-hover:border-blue-500 rounded-t-lg flex flex-col items-center justify-center text-zinc-500 group-hover:text-blue-400 transition" style="height: 30%">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            </div>
+            <div class="text-[10px] font-mono text-zinc-500 group-hover:text-zinc-300 mt-2 transition">
+                Next
+            </div>
+        </div>
+    `;
 
     container.innerHTML = `
         <div class="absolute inset-0 grid grid-rows-3 pointer-events-none opacity-20">
@@ -481,7 +502,10 @@ function renderDashboardSnapshotChart() {
             <div></div>
         </div>
         ${barsHtml}
+        ${nextSlotHtml}
     `;
+
+    lucide.createIcons();
 
     if (dateLabels && chartSnaps.length > 0) {
         const first = chartSnaps[0];
