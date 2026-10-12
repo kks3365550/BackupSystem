@@ -8,11 +8,11 @@ function switchTab(tabId) {
     state.activeTab = tabId;
     document.querySelectorAll('.tab-btn').forEach(btn => {
         if (btn.dataset.tab === tabId) {
-            btn.classList.add('bg-blue-600', 'text-white');
-            btn.classList.remove('text-slate-400', 'hover:bg-slate-800');
+            btn.classList.add('bg-white/10', 'text-white', 'shadow-sm');
+            btn.classList.remove('text-zinc-400', 'hover:text-zinc-200', 'hover:bg-white/5', 'bg-blue-600');
         } else {
-            btn.classList.remove('bg-blue-600', 'text-white');
-            btn.classList.add('text-slate-400', 'hover:bg-slate-800');
+            btn.classList.remove('bg-white/10', 'text-white', 'shadow-sm', 'bg-blue-600');
+            btn.classList.add('text-zinc-400', 'hover:text-zinc-200', 'hover:bg-white/5');
         }
     });
 
@@ -24,7 +24,6 @@ function switchTab(tabId) {
     if (tabId === 'profiles') loadProfiles();
     if (tabId === 'dashboard') loadDashboard();
     if (tabId === 'custom') loadCustomSelectionData();
-    if (tabId === 'system-image') loadSystemImageStatus();
 }
 
 // API Calls
@@ -336,15 +335,15 @@ function renderSystemDrives() {
     if (!container || !state.systemInfo) return;
 
     container.innerHTML = state.systemInfo.drives.map(d => `
-        <div class="p-3 bg-slate-800/80 rounded-xl border border-slate-700/60 flex flex-col gap-2">
+        <div class="p-3 bg-zinc-950/80 rounded-xl border border-zinc-800/90 flex flex-col gap-2">
             <div class="flex justify-between items-center text-xs">
-                <span class="font-bold text-slate-200">${d.device} (${d.mountpoint})</span>
-                <span class="text-slate-400">${d.percent}% 사용 중</span>
+                <span class="font-bold text-zinc-200 font-mono">${d.device} (${d.mountpoint})</span>
+                <span class="text-zinc-400 font-mono text-[11px]">${d.percent}% 사용 중</span>
             </div>
-            <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden">
-                <div class="bg-gradient-to-r from-blue-500 to-indigo-500 h-2 rounded-full" style="width: ${Math.min(100, d.percent)}%"></div>
+            <div class="w-full bg-zinc-900 rounded-full h-1.5 overflow-hidden border border-zinc-850">
+                <div class="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full" style="width: ${Math.min(100, d.percent)}%"></div>
             </div>
-            <div class="flex justify-between text-[11px] text-slate-400">
+            <div class="flex justify-between text-[11px] text-zinc-400 font-mono">
                 <span>사용: ${formatBytes(d.used)}</span>
                 <span>여유: ${formatBytes(d.free)}</span>
             </div>
@@ -374,19 +373,21 @@ function renderRecentSnapshots() {
         const sizeText = formatBytes(sum.total_bytes);
 
         return `
-            <div class="px-4 py-3 bg-slate-900/60 hover:bg-slate-800/60 rounded-xl border border-slate-800 flex items-center justify-between transition text-xs">
+            <div class="px-4 py-3 bg-zinc-950/70 hover:bg-zinc-900/70 rounded-xl border border-zinc-800/80 hover:border-zinc-700/80 flex items-center justify-between transition text-xs group">
                 <div class="flex items-center gap-3">
-                    <span class="font-mono text-slate-300 font-medium">${formattedDate}</span>
-                    <span class="text-slate-500">•</span>
-                    <span class="text-slate-400 font-medium">${s.profile_name || '기본 백업'} (${typeLabel})</span>
-                    <span class="text-slate-500">•</span>
-                    <span class="font-mono text-slate-300 font-semibold">${sizeText}</span>
+                    <span class="w-2 h-2 rounded-full ${isFull ? 'bg-blue-400 shadow-sm shadow-blue-500/50' : 'bg-emerald-400 shadow-sm shadow-emerald-500/50'}"></span>
+                    <span class="font-mono text-zinc-300 font-medium">${formattedDate}</span>
+                    <span class="text-zinc-600">•</span>
+                    <span class="text-zinc-300 font-medium">${s.profile_name || '기본 백업'}</span>
+                    <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700/60">${typeLabel}</span>
+                    <span class="text-zinc-600">•</span>
+                    <span class="font-mono text-zinc-100 font-semibold">${sizeText}</span>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button onclick="openRestoreModal('${s.id}')" class="px-3 py-1 bg-slate-800 hover:bg-blue-600 text-slate-200 hover:text-white rounded-lg text-xs font-semibold transition border border-slate-700/80 hover:border-blue-500 flex items-center gap-1">
+                    <button onclick="openRestoreModal('${s.id}')" class="px-3 py-1 bg-zinc-800 hover:bg-blue-600 text-zinc-200 hover:text-white rounded-lg text-xs font-semibold transition border border-zinc-700/80 hover:border-blue-500 flex items-center gap-1 shadow-sm">
                         <i data-lucide="rotate-ccw" class="w-3 h-3"></i> 복원
                     </button>
-                    <button onclick="inspectSnapshot('${s.id}')" class="px-2.5 py-1 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-medium transition border border-slate-700/60">
+                    <button onclick="inspectSnapshot('${s.id}')" class="px-2.5 py-1 bg-zinc-800/60 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded-lg text-xs font-medium transition border border-zinc-800">
                         탐색
                     </button>
                 </div>
