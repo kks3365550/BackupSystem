@@ -324,26 +324,56 @@ async def sync_remote_release(request: Request):
 @router.get("/api/system/download-installer")
 def download_installer():
     """
-    dist/ 내의 BackupSystem_Setup_v*.exe 파일을 제공하거나,
-    GitHub 릴리즈 인스톨러 다운로드 URL(또는 latest)로 리다이렉트합니다.
+    dist/ 또는 로컬 배포 폴더 내의 최신 *Setup*.exe 파일을 직접 제공하거나,
+    GitHub 릴리즈 인스톨러 바이너리 다운로드 URL(browser_download_url)로 직접 리다이렉트합니다.
     """
     import glob
-    dist_dir = os.path.join(BASE_DIR, "dist")
-    exe_pattern = os.path.join(dist_dir, "*Setup_v*.exe")
+    import json
+    
+    # 1. 로컬 배포본 / 빌드본 탐색 (dist 및 D:\백업시스템_설치용)
+    search_dirs = [
+        os.path.join(BASE_DIR, "dist"),
+        r"D:\백업시스템_설치용",
+        r"D:\MyBackup_Repository"
+    ]
+    for d in search_dirs:
+        if os.path.exists(d):
+            exe_files = glob.glob(os.path.join(d, "*Setup*.exe"))
+            if exe_files:
+                latest_exe = max(exe_files, key=os.path.getmtime)
+                return FileResponse(
+                    latest_exe,
+                    media_type="application/vnd.microsoft.portable-executable",
+                    filename=os.path.basename(latest_exe)
+                )
 
-    exe_files = glob.glob(exe_pattern)
-    if exe_files:
-        latest_exe = max(exe_files, key=os.path.getmtime)
-        return FileResponse(
-            latest_exe,
-            media_type="application/vnd.microsoft.portable-executable",
-            filename=os.path.basename(latest_exe)
-        )
-
-    # 캐시된 GitHub 릴리즈 에셋 정보 확인
+    # 2. 캐시된 GitHub 릴리즈 에셋 정보 확인
     info = _cached_update_info.get("data")
+    if not info or not info.get("installer_download_url"):
+        try:
+            info = check_for_update()
+            if info:
+                _cached_update_info["data"] = info
+        except Exception:
+            pass
+
     if info and info.get("installer_download_url"):
         return RedirectResponse(info["installer_download_url"], status_code=307)
+
+    # 3. GitHub Releases API 직접 조회를 통한 .exe 다이렉트 다운로드 에셋 링크 확보
+    try:
+        req = urllib.request.Request(
+            "https://api.github.com/repos/kks3365550/Kova/releases/latest",
+            headers={"User-Agent": "BackupSystemUpdater/2.9", "Accept": "application/vnd.github.v3+json"}
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            for asset in data.get("assets", []):
+                name = asset.get("name", "")
+                if name.endswith(".exe") and ("Setup" in name or "Kova" in name):
+                    return RedirectResponse(asset.get("browser_download_url"), status_code=307)
+    except Exception as e_gh:
+        logger.warning("Failed to resolve direct installer asset from GitHub: %s", e_gh)
 
     return RedirectResponse("https://github.com/kks3365550/Kova/releases/latest", status_code=307)
 

@@ -118,7 +118,7 @@ def get_current_installed_version() -> str:
         return "2.9.1"
 
 
-GITHUB_REPO = "kks3365550/BackupSystem"
+GITHUB_REPO = "kks3365550/Kova"
 GITHUB_LATEST_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
 
@@ -161,7 +161,7 @@ def _check_github_release(current_ver: str) -> Optional[Dict[str, Any]]:
                 sig_url = dl_url
             elif name == "SHA256SUMS.txt":
                 sha_url = dl_url
-            elif name.startswith("BackupSystem_Setup_") and name.endswith(".exe"):
+            elif name.endswith(".exe") and ("Setup" in name or "Kova" in name):
                 installer_url = dl_url
 
         if not zip_url:
