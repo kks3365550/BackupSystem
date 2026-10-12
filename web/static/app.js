@@ -75,6 +75,11 @@ function renderOffsiteStatusWidget() {
         heroLocalRepo.title = rPath;
     }
 
+    // Node C: Topology Offsite Pipeline Binding
+    const topoBadge = document.getElementById('topology-offsite-badge');
+    const topoTarget = document.getElementById('topology-offsite-target');
+    const topoStatus = document.getElementById('topology-offsite-status');
+
     if (!off || !off.enabled) {
         if (sidebarStatus) {
             sidebarStatus.innerText = '미사용';
@@ -97,6 +102,18 @@ function renderOffsiteStatusWidget() {
         if (heroOffsite) {
             heroOffsite.innerText = '미사용 (로컬 전용)';
             heroOffsite.className = 'font-bold text-slate-400 text-xs';
+        }
+        if (topoBadge) {
+            topoBadge.innerText = '미사용';
+            topoBadge.className = 'text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400 border border-slate-700';
+        }
+        if (topoTarget) {
+            topoTarget.innerText = '미설정 (로컬 전용)';
+            topoTarget.title = '';
+        }
+        if (topoStatus) {
+            topoStatus.innerText = '로컬 전용';
+            topoStatus.className = 'text-slate-400 font-medium';
         }
         return;
     }
@@ -135,6 +152,24 @@ function renderOffsiteStatusWidget() {
         heroOffsite.innerText = `${shortTarget} (${hasSnaps ? '동기화 완료' : '대기'})`;
         heroOffsite.title = targetText;
         heroOffsite.className = 'font-bold text-indigo-300 text-xs';
+    }
+
+    if (topoBadge) {
+        topoBadge.innerText = '3-2-1 동기화';
+        topoBadge.className = 'text-[10px] px-2 py-0.5 rounded-full font-medium bg-indigo-950 text-indigo-300 border border-indigo-700';
+    }
+    if (topoTarget) {
+        topoTarget.innerText = targetText;
+        topoTarget.title = targetText;
+    }
+    if (topoStatus) {
+        if (hasSnaps) {
+            topoStatus.innerText = '동기화 완료';
+            topoStatus.className = 'text-emerald-400 font-medium';
+        } else {
+            topoStatus.innerText = '동기화 대기 중';
+            topoStatus.className = 'text-amber-400 font-medium';
+        }
     }
 }
 
@@ -242,28 +277,47 @@ async function completeOnboardingWizard() {
 
 function renderDashboardStats() {
     const stats = state.storageStats || {};
-    document.getElementById('stat-total-snaps').innerText = stats.total_snapshots || '0';
-    document.getElementById('stat-stored-bytes').innerText = formatBytes(stats.stored_bytes);
-    document.getElementById('stat-logical-bytes').innerText = formatBytes(stats.logical_bytes);
-    document.getElementById('stat-dedup-saved').innerText = `${formatBytes(stats.dedup_saved_bytes)} (${stats.savings_percentage || 0}%)`;
+    const totalSnapsEl = document.getElementById('stat-total-snaps');
+    const storedBytesEl = document.getElementById('stat-stored-bytes');
+    const logicalBytesEl = document.getElementById('stat-logical-bytes');
+    const dedupSavedEl = document.getElementById('stat-dedup-saved');
+
+    if (totalSnapsEl) totalSnapsEl.innerText = stats.total_snapshots || '0';
+    if (storedBytesEl) storedBytesEl.innerText = formatBytes(stats.stored_bytes);
+    if (logicalBytesEl) logicalBytesEl.innerText = formatBytes(stats.logical_bytes);
+    if (dedupSavedEl) dedupSavedEl.innerText = `${formatBytes(stats.dedup_saved_bytes)} (${stats.savings_percentage || 0}%)`;
 
     // Active profiles count
     const activeProfCount = (state.profiles || []).filter(p => p.auto_backup_enabled).length;
-    document.getElementById('stat-active-profiles').innerText = `${activeProfCount} / ${state.profiles.length}`;
+    const activeProfEl = document.getElementById('stat-active-profiles');
+    if (activeProfEl) activeProfEl.innerText = `${activeProfCount} / ${(state.profiles || []).length}`;
+
+    // Node A & B Topology Pipeline Binding & Metric Card 1
+    const topoSrcLog = document.getElementById('topology-source-logical');
+    const topoVaultStored = document.getElementById('topology-vault-stored');
+    const topoVaultSavings = document.getElementById('topology-vault-savings');
+    const dedupBadge = document.getElementById('stat-dedup-pct-badge');
+    const dedupProgress = document.getElementById('stat-dedup-progress');
+
+    if (topoSrcLog) topoSrcLog.innerText = formatBytes(stats.logical_bytes);
+    if (topoVaultStored) topoVaultStored.innerText = formatBytes(stats.stored_bytes);
+    if (topoVaultSavings) topoVaultSavings.innerText = `${stats.savings_percentage || 0}% 절감`;
+    if (dedupBadge) dedupBadge.innerText = `${stats.savings_percentage || 0}% SAVED`;
+    if (dedupProgress) dedupProgress.style.width = `${Math.min(100, Math.max(0, stats.savings_percentage || 0))}%`;
 
     // Track 2-15: Chunking Telemetry
     const badgeEl = document.getElementById('stat-chunk-files-badge');
     const chunksEl = document.getElementById('stat-total-chunks');
     const stratEl = document.getElementById('stat-chunk-strategies');
-    if (badgeEl) badgeEl.innerText = `청킹 파일: ${(stats.chunked_files_count || 0).toLocaleString()}개`;
+    if (badgeEl) badgeEl.innerText = `${(stats.chunked_files_count || 0).toLocaleString()}개 분할`;
     if (chunksEl) chunksEl.innerText = `${(stats.total_chunks || 0).toLocaleString()}개`;
     if (stratEl) {
         const strats = stats.chunk_strategies || {};
         const fastcdcCount = strats.fastcdc || strats.fastcdc_v1 || 0;
         const fixedCount = strats.fixed || strats.fixed_block || 0;
         stratEl.innerHTML = `
-            <span class="px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800/60 font-mono">FastCDC: ${fastcdcCount.toLocaleString()}</span>
-            <span class="px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800/60 font-mono">Fixed: ${fixedCount.toLocaleString()}</span>
+            <span class="px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800/60 font-mono text-[11px]">FastCDC: ${fastcdcCount.toLocaleString()}</span>
+            <span class="px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800/60 font-mono text-[11px]">Fixed: ${fixedCount.toLocaleString()}</span>
         `;
     }
 }
