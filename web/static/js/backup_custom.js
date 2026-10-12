@@ -2,11 +2,13 @@
 // [백업시스템] 사용자 커스텀 선택 백업 (설치 프로그램, AI 프로젝트, 커스텀 폴더)
 // =========================================================================
 
-async function loadCustomSelectionData() {
+async function loadCustomSelectionData(retryCount = 0) {
     try {
         const containerApps = document.getElementById('installed-apps-container');
-        if (containerApps) containerApps.innerHTML = `<div class="text-slate-400 text-center py-6 flex items-center justify-center gap-2"><i data-lucide="loader-2" class="w-4 h-4 animate-spin text-blue-400"></i> 설치된 프로그램 목록을 분석 중입니다...</div>`;
-        lucide.createIcons();
+        if (containerApps && !containerApps.querySelector('.app-item')) {
+            containerApps.innerHTML = `<div class="text-zinc-400 text-center py-6 flex items-center justify-center gap-2"><i data-lucide="loader-2" class="w-4 h-4 animate-spin text-blue-400"></i> 설치된 프로그램 목록을 분석 중입니다...</div>`;
+            lucide.createIcons();
+        }
 
         const apps = await fetchAPI('/api/apps/installed');
         
@@ -21,8 +23,19 @@ async function loadCustomSelectionData() {
         updateCustomSummary();
     } catch (e) {
         console.error('Failed to load custom selection data:', e);
+        if (retryCount < 1) {
+            setTimeout(() => loadCustomSelectionData(retryCount + 1), 800);
+            return;
+        }
         const containerApps = document.getElementById('installed-apps-container');
-        if (containerApps) containerApps.innerHTML = `<div class="text-red-400 text-center py-6">프로그램 목록을 불러오지 못했습니다: ${e.message}</div>`;
+        if (containerApps) containerApps.innerHTML = `
+            <div class="text-center py-6 space-y-2">
+                <div class="text-red-400 text-xs">일시적인 통신 지연 (${e.message})</div>
+                <button onclick="loadCustomSelectionData()" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-xs font-medium border border-zinc-700 transition">
+                    목록 다시 불러오기
+                </button>
+            </div>
+        `;
     }
 }
 
