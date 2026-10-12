@@ -2,7 +2,7 @@ import os
 import sys
 import time
 import threading
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 _cached_apps = None
 _cached_apps_time = 0
