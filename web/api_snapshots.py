@@ -113,27 +113,55 @@ def list_snapshots(repo_dir: Optional[str] = None):
                 s["is_local_protected"] = s.get("is_verified", True)
                 all_snaps.append(s)
 
-        # 2. 리포지토리별 1회 배치 조회 (N+1 완전 제거)
+        # 2. 리포지토리별 1회 배치 조회 (원격지 실제 저장소 검증 + 레플리케이션 큐 통합)
         if repo_snap_ids:
+            remote_repo = None
+            try:
+                from core.config import ConfigManager
+                off_cfg = ConfigManager.get_offsite_config()
+                if off_cfg.get("enabled") and off_cfg.get("remote_path"):
+                    cand_remote = off_cfg.get("remote_path")
+                    if os.path.exists(cand_remote):
+                        remote_repo = cand_remote
+            except Exception:
+                pass
+
+            remote_snaps_set = set()
+            if remote_repo:
+                remote_snap_dir = os.path.join(remote_repo, "snapshots")
+                if os.path.isdir(remote_snap_dir):
+                    try:
+                        remote_snaps_set = {
+                            fname[:-5] for fname in os.listdir(remote_snap_dir) if fname.endswith(".json")
+                        }
+                    except Exception:
+                        pass
+
             try:
                 from core.replication_queue import ReplicationQueueManager
                 rq = ReplicationQueueManager(r)
                 batch_status = rq.get_status_batch(repo_snap_ids)
-
-                for s in all_snaps:
-                    if s.get("repo_dir") == r:
-                        sid = s.get("id")
-                        q_info = batch_status.get(sid)
-                        if q_info:
-                            s["offsite_status"] = q_info.get("state", "NONE")
-                            s["is_offsite_protected"] = (q_info.get("state") == "COMMITTED")
-                        else:
-                            s["offsite_status"] = "NONE"
-                            s["is_offsite_protected"] = False
             except Exception:
-                for s in all_snaps:
-                    if s.get("repo_dir") == r:
-                        s["offsite_status"] = "NONE"
+                batch_status = {}
+
+            for s in all_snaps:
+                if s.get("repo_dir") == r:
+                    sid = s.get("id")
+                    q_info = batch_status.get(sid)
+                    q_state = q_info.get("state") if q_info else None
+
+                    # 원격지 저장소에 실제 파일이 존재하거나 큐에서 커밋 완료된 경우
+                    if sid in remote_snaps_set or q_state == "COMMITTED":
+                        s["offsite_status"] = "COMMITTED"
+                        s["is_offsite_protected"] = True
+                    elif q_state in ("TRANSFERRING", "PENDING"):
+                        s["offsite_status"] = q_state
+                        s["is_offsite_protected"] = False
+                    elif remote_repo:
+                        s["offsite_status"] = "UNSYNCED"
+                        s["is_offsite_protected"] = False
+                    else:
+                        s["offsite_status"] = "DISABLED"
                         s["is_offsite_protected"] = False
 
     all_snaps.sort(key=lambda x: x.get("created_at", 0), reverse=True)
@@ -149,6 +177,24 @@ def get_snapshot(snapshot_id: str, repo_dir: Optional[str] = None, include_entri
     data = SnapshotEngine.get_snapshot(r, snapshot_id)
     if not data:
         raise HTTPException(status_code=404, detail="Snapshot not found")
+
+    # 오프사이트 복제 검증
+    is_offsite_protected = False
+    offsite_status = "DISABLED"
+    try:
+        from core.config import ConfigManager
+        off_cfg = ConfigManager.get_offsite_config()
+        if off_cfg.get("enabled") and off_cfg.get("remote_path"):
+            cand_remote = off_cfg.get("remote_path")
+            remote_snap_file = os.path.join(cand_remote, "snapshots", f"{snapshot_id}.json")
+            if os.path.exists(remote_snap_file):
+                is_offsite_protected = True
+                offsite_status = "COMMITTED"
+            else:
+                offsite_status = "UNSYNCED"
+    except Exception:
+        pass
+
     if not include_entries:
         # Strip massive entries array to send lightweight metadata (0.001s response, ~500 bytes)
         return {
@@ -160,8 +206,12 @@ def get_snapshot(snapshot_id: str, repo_dir: Optional[str] = None, include_entri
             "backup_type": data.get("backup_type"),
             "base_snapshot_id": data.get("base_snapshot_id"),
             "sources": data.get("sources", []),
-            "summary": data.get("summary", {})
+            "summary": data.get("summary", {}),
+            "is_offsite_protected": is_offsite_protected,
+            "offsite_status": offsite_status
         }
+    data["is_offsite_protected"] = is_offsite_protected
+    data["offsite_status"] = offsite_status
     return data
 
 

@@ -31,24 +31,79 @@ function switchTab(tabId) {
 
 async function loadDashboard() {
     try {
-        const [sys, stats, profiles, snaps] = await Promise.all([
+        const [sys, stats, profiles, snaps, offsite] = await Promise.all([
             fetchAPI('/api/system-info'),
             fetchAPI('/api/storage-stats'),
             fetchAPI('/api/profiles'),
-            fetchAPI('/api/snapshots')
+            fetchAPI('/api/snapshots'),
+            fetchAPI('/api/offsite').catch(() => null)
         ]);
 
         state.systemInfo = sys;
         state.storageStats = stats;
         state.profiles = profiles;
         state.snapshots = snaps;
+        state.offsite = offsite;
 
         renderDashboardStats();
         renderRecentSnapshots();
         renderSystemDrives();
+        renderOffsiteStatusWidget();
         checkOnboardingWizard();
     } catch (err) {
         console.error('Failed to load dashboard:', err);
+    }
+}
+
+function renderOffsiteStatusWidget() {
+    const off = state.offsite;
+    const sidebarStatus = document.getElementById('sidebar-offsite-status');
+    const dashBadge = document.getElementById('dashboard-offsite-badge');
+    const dashMode = document.getElementById('dashboard-offsite-mode');
+    const dashTarget = document.getElementById('dashboard-offsite-target');
+    const dashState = document.getElementById('dashboard-offsite-sync-state');
+
+    if (!off || !off.enabled) {
+        if (sidebarStatus) {
+            sidebarStatus.innerText = '미사용';
+            sidebarStatus.className = 'text-slate-500 font-mono font-medium';
+        }
+        if (dashBadge) {
+            dashBadge.innerText = '비활성화';
+            dashBadge.className = 'text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400 border border-slate-700';
+        }
+        if (dashMode) dashMode.innerText = '로컬 전용';
+        if (dashTarget) dashTarget.innerText = '설정 안 됨';
+        if (dashState) {
+            dashState.innerText = '로컬 백업만 수행';
+            dashState.className = 'text-slate-400 font-medium';
+        }
+        return;
+    }
+
+    const modeText = off.replication_type === 'robocopy' ? 'Robocopy (LAN/NAS)' : (off.replication_type === 'rclone' ? 'Rclone (Cloud/S3)' : (off.replication_type || '원격'));
+    const targetText = off.remote_path || '-';
+
+    if (sidebarStatus) {
+        sidebarStatus.innerText = '3-2-1 보호중';
+        sidebarStatus.className = 'text-blue-400 font-mono font-medium';
+    }
+    if (dashBadge) {
+        dashBadge.innerText = '3-2-1 보호 활성';
+        dashBadge.className = 'text-[10px] px-2 py-0.5 rounded-full font-medium bg-blue-900/60 text-blue-300 border border-blue-700';
+    }
+    if (dashMode) dashMode.innerText = modeText;
+    if (dashTarget) {
+        dashTarget.innerText = targetText;
+        dashTarget.title = targetText;
+    }
+    if (dashState) {
+        const hasSnaps = (state.snapshots || []).some(s => s.is_offsite_protected || s.offsite_status === 'COMMITTED');
+        if (hasSnaps) {
+            dashState.innerHTML = '<span class="text-blue-400 font-semibold">🌐 최신 스냅샷 동기화 완료</span>';
+        } else {
+            dashState.innerHTML = '<span class="text-amber-400 font-semibold">⏳ 스냅샷 복제 대기/진행 중</span>';
+        }
     }
 }
 
@@ -233,6 +288,18 @@ function renderRecentSnapshots() {
                                 ${isFull ? 'FULL' : 'INCREMENTAL'}
                             </span>
                             ${s.vss_enabled ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 font-semibold" title="Windows Volume Shadow Copy(VSS) 일관성 백업">VSS</span>' : ''}
+                            ${s.is_local_protected !== false ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold" title="로컬 저장소 검증 완료">🛡️ 로컬보호</span>' : ''}
+                            ${(() => {
+                                if (s.is_offsite_protected || s.offsite_status === 'COMMITTED') {
+                                    return '<span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-semibold" title="3-2-1 원격 저장소 복제 완료">🌐 3-2-1 원격보호</span>';
+                                } else if (s.offsite_status === 'TRANSFERRING' || s.offsite_status === 'PENDING') {
+                                    return '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 font-semibold animate-pulse" title="원격 저장소 복제 동기화 진행 중">⏳ 원격동기화</span>';
+                                } else if (s.offsite_status === 'UNSYNCED') {
+                                    return '<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-amber-400 border border-amber-700/60 font-semibold" title="원격 저장소 미동기화 (대기 중)">⏸️ 원격미복제</span>';
+                                } else {
+                                    return '<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-700 font-medium" title="오프사이트 원격 복제 비활성화">로컬전용</span>';
+                                }
+                            })()}
                         </div>
                         <div class="text-xs text-slate-400 mt-0.5">
                             ${formatDate(s.iso_time)} · 파일 ${sum.total_files || 0}개 (${formatBytes(sum.total_bytes)})

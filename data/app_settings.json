@@ -5,5 +5,8 @@
   "dark_mode": true,
   "log_level": "INFO",
   "min_free_disk_gb": 10,
-  "enable_ransomware_protection": false
+  "enable_ransomware_protection": false,
+  "offsite_enabled": true,
+  "offsite_remote_path": "X:\\repo",
+  "offsite_auto_sync": true
 }
