@@ -187,267 +187,150 @@
         <!-- Main Content Area -->
         <main class="flex-1 overflow-y-auto p-6 bg-slate-950/60">
 
-            <!-- TAB 1: 대시보드 (Dashboard) -->
-            <div id="tab-dashboard" class="tab-content space-y-6">
+            <!-- TAB 1: 대시보드 (Dashboard) - Windows 11 Fluent 순정 설정 스타일 -->
+            <div id="tab-dashboard" class="tab-content space-y-5">
                 
-                <!-- 1. HEADER: Title & Global Status Pill -->
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                        <h1 class="text-xl sm:text-2xl font-black text-slate-100 tracking-tight flex items-center gap-2.5">
-                            <i data-lucide="network" class="w-6 h-6 text-blue-400"></i>
-                            <span>Data Protection Topology Pipeline</span>
-                        </h1>
-                        <p class="text-xs sm:text-sm text-slate-400 mt-1">
-                            3-2-1 복제 토폴로지, FastCDC 청킹 엔진, 로컬 WORM 금고 및 오프사이트 원격 동기화 파이프라인
-                        </p>
+                <!-- 1. TOP HEADER: Status Title + 3-2-1 Pill + Quick Backup Button -->
+                <div class="flex items-center justify-between p-5 rounded-2xl glass-card border border-slate-700/60 bg-slate-900/80">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center">
+                            <i data-lucide="shield-check" class="w-5 h-5 text-emerald-400"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2.5">
+                                <h1 class="text-lg font-bold text-slate-100 tracking-tight">백업 상태</h1>
+                                <span id="dash-protection-pill" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1.5">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    <span>3-2-1 보호 정상</span>
+                                </span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-0.5">로컬 WORM 불변 금고 및 원격 오프사이트 복제가 안전하게 유지되고 있습니다.</p>
+                        </div>
                     </div>
-                    <div class="inline-flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-950/40 backdrop-blur-xl px-4 py-1.5 shadow-lg shrink-0 self-start sm:self-auto">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span class="text-xs font-bold text-emerald-300">Global Status: Secure</span>
-                        <span class="text-xs text-slate-400 font-mono">(3-2-1 Active)</span>
+                    <button onclick="triggerQuickBackup()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-md shadow-blue-600/30 flex items-center gap-2 shrink-0">
+                        <i data-lucide="play" class="w-4 h-4 fill-current"></i> 지금 백업 시작
+                    </button>
+                </div>
+
+                <!-- 2. STORAGE USAGE & SAVINGS BAR (Windows 11 Fluent Storage Card) -->
+                <div class="p-5 rounded-2xl glass-card border border-slate-700/60 bg-slate-900/80 space-y-3">
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-slate-200 font-bold flex items-center gap-2">
+                            <i data-lucide="hard-drive" class="w-4 h-4 text-blue-400"></i>
+                            <span>스토리지 사용 현황</span>
+                            <span class="text-slate-400 font-normal">(실보관: <b id="stat-stored-bytes" class="text-slate-200 font-mono">0 B</b> / 논리 원본: <b id="stat-logical-bytes" class="text-slate-300 font-mono">0 B</b>)</span>
+                        </span>
+                        <div class="flex items-center gap-2">
+                            <span id="stat-dedup-saved" class="text-emerald-400 font-mono font-bold">0 B (0%)</span>
+                            <span id="stat-dedup-pct-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">79.6% 절감</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Segmented Fluent Progress Bar -->
+                    <div class="w-full bg-slate-950 rounded-full h-3 overflow-hidden border border-slate-800 p-0.5">
+                        <div id="stat-dedup-progress" class="bg-gradient-to-r from-blue-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: 25%"></div>
+                    </div>
+
+                    <div class="flex justify-between items-center text-[11px] text-slate-400 pt-1">
+                        <div class="flex items-center gap-3">
+                            <span>스냅샷 보관: <b id="stat-total-snaps" class="text-slate-200 font-mono">0</b>개</span>
+                            <span>•</span>
+                            <span>활성 프로필: <b id="stat-active-profiles" class="text-slate-200 font-mono">0 / 0</b></span>
+                        </div>
+                        <div class="flex items-center gap-2 font-mono text-[11px]">
+                            <span id="stat-chunk-files-badge" class="text-slate-300">FastCDC 청킹: 0개 분할</span>
+                            <span id="stat-total-chunks" class="hidden">0개</span>
+                            <span id="stat-chunk-strategies" class="hidden"></span>
+                        </div>
                     </div>
                 </div>
 
-                <!-- 2. 3-STAGE INTERACTIVE TOPOLOGY PIPELINE -->
-                <div class="relative w-full rounded-2xl glass-card border border-slate-700/60 p-5 bg-gradient-to-b from-slate-900/90 via-slate-950/80 to-slate-900/90 shadow-2xl">
-                    <div class="grid grid-cols-1 lg:grid-cols-11 gap-4 items-center">
-                        
-                        <!-- NODE A: PC Source Drive -->
-                        <div class="lg:col-span-3 rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4 space-y-3 relative overflow-hidden group hover:border-cyan-500/50 transition">
-                            <div class="flex justify-between items-center">
-                                <div class="flex items-center gap-2.5">
-                                    <div class="w-9 h-9 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center font-bold font-mono text-sm">A</div>
-                                    <div>
-                                        <div class="text-[10px] text-slate-400 font-mono uppercase tracking-wider">Node A</div>
-                                        <div class="text-sm font-bold text-slate-100">PC Source Drive</div>
-                                    </div>
-                                </div>
-                                <span class="text-[10px] px-2 py-0.5 rounded-full font-medium bg-cyan-950 text-cyan-300 border border-cyan-800">Source</span>
+                <!-- 3. PROTECTION STATUS ROWS (Fluent List Style) -->
+                <div class="rounded-2xl glass-card border border-slate-700/60 bg-slate-900/80 divide-y divide-slate-800 overflow-hidden">
+                    <!-- Row 1: Local WORM Vault -->
+                    <div class="p-4 flex items-center justify-between text-xs hover:bg-slate-800/40 transition">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
+                                <i data-lucide="lock" class="w-4 h-4 text-emerald-400"></i>
                             </div>
-                            <div class="space-y-1.5 text-xs">
-                                <div class="flex justify-between text-slate-400">
-                                    <span>로컬 원본 데이터:</span>
-                                    <span id="topology-source-logical" class="text-slate-100 font-mono font-bold">0 B</span>
-                                </div>
-                                <div class="flex justify-between text-slate-400">
-                                    <span>VSS 섀도 복사본:</span>
-                                    <span class="text-emerald-400 font-medium">활성 (무중단)</span>
-                                </div>
-                            </div>
-                            <div class="pt-2 border-t border-slate-800 flex justify-between items-center text-[11px]">
-                                <span class="text-slate-500">Source Integrity</span>
-                                <span class="text-emerald-400 font-semibold flex items-center gap-1"><i data-lucide="check" class="w-3 h-3"></i> Verified</span>
-                            </div>
-                        </div>
-
-                        <!-- CONNECTOR 1: FastCDC Chunking -->
-                        <div class="lg:col-span-1 flex flex-col items-center justify-center py-2 lg:py-0">
-                            <div class="hidden lg:flex w-full items-center justify-center relative">
-                                <div class="w-full h-1 bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 rounded-full shadow-lg shadow-blue-500/50 animate-pulse"></div>
-                                <div class="absolute -top-3 px-2 py-0.5 rounded-full bg-slate-950 text-[9px] font-mono font-bold text-cyan-300 border border-cyan-800/80 whitespace-nowrap shadow">
-                                    FastCDC ➔
-                                </div>
-                            </div>
-                            <div class="lg:hidden flex items-center gap-1.5 py-1 text-cyan-400 font-mono text-xs font-bold">
-                                <span>↓ FastCDC Chunking & SHA-256 CAS ↓</span>
-                            </div>
-                        </div>
-
-                        <!-- NODE B: Local WORM Immutability Vault -->
-                        <div class="lg:col-span-3 rounded-2xl border border-blue-500/40 bg-gradient-to-b from-slate-900/90 to-blue-950/30 p-4 space-y-3 relative overflow-hidden group hover:border-blue-400/60 transition shadow-lg shadow-blue-500/10">
-                            <div class="flex justify-between items-center">
-                                <div class="flex items-center gap-2.5">
-                                    <div class="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/40 flex items-center justify-center font-bold font-mono text-sm">B</div>
-                                    <div>
-                                        <div class="text-[10px] text-blue-300 font-mono uppercase tracking-wider">Node B (WORM)</div>
-                                        <div class="text-sm font-bold text-slate-100">Local WORM Vault</div>
-                                    </div>
-                                </div>
-                                <span class="text-[10px] px-2 py-0.5 rounded-full font-medium bg-blue-950 text-blue-300 border border-blue-700">Protected</span>
-                            </div>
-                            <div class="space-y-1.5 text-xs">
-                                <div class="flex justify-between text-slate-400">
-                                    <span>실보관 (압축/CAS):</span>
-                                    <span id="topology-vault-stored" class="text-slate-100 font-mono font-bold">0 B</span>
-                                </div>
-                                <div class="flex justify-between text-slate-400">
-                                    <span>중복제거 절감률:</span>
-                                    <span id="topology-vault-savings" class="text-emerald-400 font-mono font-bold">0% 절감</span>
-                                </div>
-                            </div>
-                            <div class="pt-2 border-t border-slate-800 flex justify-between items-center text-[11px]">
-                                <span class="text-slate-500">NTFS WORM Lock</span>
-                                <span class="text-emerald-400 font-semibold flex items-center gap-1"><i data-lucide="lock" class="w-3 h-3 text-amber-400"></i> 변조 방지</span>
-                            </div>
-                        </div>
-
-                        <!-- CONNECTOR 2: 3-2-1 Offsite Remote Replication -->
-                        <div class="lg:col-span-1 flex flex-col items-center justify-center py-2 lg:py-0">
-                            <div class="hidden lg:flex w-full items-center justify-center relative">
-                                <div class="w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full shadow-lg shadow-indigo-500/50 animate-pulse"></div>
-                                <div class="absolute -top-3 px-2 py-0.5 rounded-full bg-slate-950 text-[9px] font-mono font-bold text-indigo-300 border border-indigo-800/80 whitespace-nowrap shadow">
-                                    3-2-1 Sync ➔
-                                </div>
-                            </div>
-                            <div class="lg:hidden flex items-center gap-1.5 py-1 text-indigo-400 font-mono text-xs font-bold">
-                                <span>↓ Robocopy / Cloud 3-2-1 Replication ↓</span>
-                            </div>
-                        </div>
-
-                        <!-- NODE C: Offsite Remote Replica -->
-                        <div class="lg:col-span-3 rounded-2xl border border-indigo-500/40 bg-gradient-to-b from-slate-900/90 to-indigo-950/30 p-4 space-y-3 relative overflow-hidden group hover:border-indigo-400/60 transition shadow-lg shadow-indigo-500/10">
-                            <div class="flex justify-between items-center">
-                                <div class="flex items-center gap-2.5">
-                                    <div class="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 flex items-center justify-center font-bold font-mono text-sm">C</div>
-                                    <div>
-                                        <div class="text-[10px] text-indigo-300 font-mono uppercase tracking-wider">Node C (Offsite)</div>
-                                        <div class="text-sm font-bold text-slate-100">Offsite Cloud / NAS</div>
-                                    </div>
-                                </div>
-                                <span id="topology-offsite-badge" class="text-[10px] px-2 py-0.5 rounded-full font-medium bg-indigo-950 text-indigo-300 border border-indigo-700">3-2-1 동기화</span>
-                            </div>
-                            <div class="space-y-1.5 text-xs">
-                                <div class="flex justify-between text-slate-400">
-                                    <span>원격 저장소 경로:</span>
-                                    <span id="topology-offsite-target" class="text-slate-100 font-mono truncate max-w-[130px]" title="">-</span>
-                                </div>
-                                <div class="flex justify-between text-slate-400">
-                                    <span>복제 엔진 상태:</span>
-                                    <span id="topology-offsite-status" class="text-emerald-400 font-medium">동기화 완료</span>
-                                </div>
-                            </div>
-                            <div class="pt-2 border-t border-slate-800 flex justify-between items-center text-[11px]">
-                                <span class="text-slate-500">3-2-1 Remote Vault</span>
-                                <span class="text-blue-400 font-semibold flex items-center gap-1"><i data-lucide="cloud" class="w-3.5 h-3.5"></i> Synced</span>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-
-                <!-- 3. THREE METRIC CARDS (Deduplication, Telemetry, Storage) -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <!-- Metric Card 1: Deduplication Savings -->
-                    <div class="p-5 rounded-2xl glass-card border border-slate-700/60 space-y-3 relative overflow-hidden">
-                        <div class="flex justify-between items-center">
-                            <div class="text-xs font-bold text-slate-300 flex items-center gap-2">
-                                <i data-lucide="zap" class="w-4 h-4 text-emerald-400"></i>
-                                <span>스토리지 중복제거 절감률</span>
-                            </div>
-                            <span id="stat-dedup-pct-badge" class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">0% SAVED</span>
-                        </div>
-                        <div>
-                            <div id="stat-dedup-saved" class="text-2xl font-black text-emerald-400 font-mono">0 B (0%)</div>
-                            <div class="text-xs text-slate-400 mt-1">블롭 해시 재사용 및 무중복 저장</div>
-                        </div>
-                        <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
-                            <div id="stat-dedup-progress" class="bg-gradient-to-r from-emerald-500 to-teal-400 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
-                        </div>
-                    </div>
-
-                    <!-- Metric Card 2: Smart Chunking Telemetry -->
-                    <div class="p-5 rounded-2xl glass-card border border-slate-700/60 space-y-3 relative overflow-hidden">
-                        <div class="flex justify-between items-center">
-                            <div class="text-xs font-bold text-slate-300 flex items-center gap-2">
-                                <i data-lucide="split" class="w-4 h-4 text-cyan-400"></i>
-                                <span>FastCDC 스마트 청킹 텔레메트리</span>
-                            </div>
-                            <span id="stat-chunk-files-badge" class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">0개 분할</span>
-                        </div>
-                        <div>
-                            <div id="stat-total-chunks" class="text-2xl font-black text-slate-100 font-mono">0개</div>
-                            <div class="text-xs text-slate-400 mt-1">총 분할 생성된 고유 블롭 청크</div>
-                        </div>
-                        <div id="stat-chunk-strategies" class="text-xs text-slate-300 font-mono flex items-center gap-2">
-                            <span class="px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800/60 text-[11px]">FastCDC: 0</span>
-                            <span class="px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800/60 text-[11px]">Fixed(4MB): 0</span>
-                        </div>
-                    </div>
-
-                    <!-- Metric Card 3: Snapshots & Profiles -->
-                    <div class="p-5 rounded-2xl glass-card border border-slate-700/60 space-y-3 relative overflow-hidden">
-                        <div class="flex justify-between items-center">
-                            <div class="text-xs font-bold text-slate-300 flex items-center gap-2">
-                                <i data-lucide="archive" class="w-4 h-4 text-purple-400"></i>
-                                <span>스냅샷 보관 & 자동 스케줄</span>
-                            </div>
-                            <span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-purple-950 text-purple-300 border border-purple-800">자동화 가동</span>
-                        </div>
-                        <div class="flex justify-between items-end">
                             <div>
-                                <div id="stat-total-snaps" class="text-2xl font-black text-slate-100 font-mono">0</div>
-                                <div class="text-xs text-slate-400 mt-1">시점별 롤백 가능 스냅샷 수</div>
-                            </div>
-                            <div class="text-right">
-                                <div id="stat-active-profiles" class="text-sm font-bold text-slate-200 font-mono">0 / 0</div>
-                                <div class="text-[11px] text-slate-500">활성 백업 프로필</div>
+                                <div class="font-bold text-slate-200">로컬 WORM 불변 금고</div>
+                                <div class="text-[11px] text-slate-400">NTFS 변조 방지 락 & 랜섬웨어 무력화 보존</div>
                             </div>
                         </div>
-                        <div class="text-xs text-slate-400 flex justify-between items-center pt-0.5">
-                            <span>실제 저장소: <b id="stat-stored-bytes" class="text-slate-200 font-mono">0 B</b></span>
-                            <span>논리 총량: <b id="stat-logical-bytes" class="text-slate-300 font-mono">0 B</b></span>
+                        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 flex items-center gap-1">
+                            <i data-lucide="check" class="w-3 h-3"></i> 정상 보호 (활성)
+                        </span>
+                    </div>
+
+                    <!-- Row 2: 3-2-1 Offsite Replication -->
+                    <div class="p-4 flex items-center justify-between text-xs hover:bg-slate-800/40 transition">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center">
+                                <i data-lucide="cloud" class="w-4 h-4 text-indigo-400"></i>
+                            </div>
+                            <div>
+                                <div class="font-bold text-slate-200 flex items-center gap-2">
+                                    <span>3-2-1 오프사이트 원격 복제</span>
+                                    <span id="dashboard-offsite-target" class="text-indigo-400 font-mono text-[11px]">-</span>
+                                </div>
+                                <div class="text-[11px] text-slate-400">
+                                    엔진: <span id="dashboard-offsite-mode" class="font-mono">Robocopy LAN/NAS</span>
+                                </div>
+                            </div>
                         </div>
+                        <span id="dashboard-offsite-badge" class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-950/80 text-indigo-300 border border-indigo-800/80 flex items-center gap-1">
+                            <span id="dashboard-offsite-sync-state">동기화 완료</span>
+                        </span>
+                    </div>
+
+                    <!-- Row 3: VSS Live Shadow Copy -->
+                    <div class="p-4 flex items-center justify-between text-xs hover:bg-slate-800/40 transition">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center">
+                                <i data-lucide="copy" class="w-4 h-4 text-cyan-400"></i>
+                            </div>
+                            <div>
+                                <div class="font-bold text-slate-200">VSS 무중단 섀도 복사본</div>
+                                <div class="text-[11px] text-slate-400">사용 중인 잠긴 파일 실시간 스냅샷 지원</div>
+                            </div>
+                        </div>
+                        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-950/80 text-cyan-300 border border-cyan-800/80 flex items-center gap-1">
+                            <i data-lucide="check" class="w-3 h-3"></i> 가동 중
+                        </span>
                     </div>
                 </div>
 
-                <!-- 4. MAIN TWO-COLUMN: RECENT TIME-MACHINE SNAPSHOTS & DRIVES / OFFSITE STATUS -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- 4. RECENT TIME-MACHINE SNAPSHOTS & SYSTEM DRIVES -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
                     <!-- Left: Recent Snapshots List (2 Cols) -->
                     <div class="lg:col-span-2 space-y-3">
                         <div class="flex justify-between items-center">
-                            <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2">
-                                <i data-lucide="clock" class="w-4 h-4 text-blue-400"></i> 최근 생성된 타임머신 스냅샷 (실시간 상태)
+                            <h2 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                                <i data-lucide="clock" class="w-4 h-4 text-blue-400"></i> 최근 생성된 백업 스냅샷
                             </h2>
                             <button onclick="switchTab('snapshots')" class="text-xs text-blue-400 hover:text-blue-300 font-medium">전체 스냅샷 보기 &rarr;</button>
                         </div>
-                        <div id="recent-snapshots-list" class="space-y-2.5">
+                        <div id="recent-snapshots-list" class="space-y-2">
                             <!-- Injected by JS -->
                         </div>
                     </div>
 
-                    <!-- Right: System Drives & Automation Status (1 Col) -->
+                    <!-- Right: System Drives & Automation (1 Col) -->
                     <div class="space-y-4">
-                        <!-- System Drives -->
-                        <div class="p-4 rounded-2xl glass-card border border-slate-700/60 space-y-3">
-                            <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2">
-                                <i data-lucide="hard-drive" class="w-4 h-4 text-amber-400"></i> 시스템 드라이브 현황
+                        <div class="space-y-3">
+                            <h2 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                                <i data-lucide="hard-drive" class="w-4 h-4 text-amber-400"></i> 시스템 드라이브
                             </h2>
-                            <div id="system-drives-list" class="space-y-2.5">
+                            <div id="system-drives-list" class="space-y-2">
                                 <!-- Injected by JS -->
                             </div>
-                        </div>
-
-                        <!-- 3-2-1 Offsite Remote Replication Status Card -->
-                        <div class="p-4 rounded-2xl glass-card border border-blue-900/40 bg-gradient-to-br from-slate-900/80 to-blue-950/20 space-y-2.5">
-                            <div class="flex justify-between items-center">
-                                <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2">
-                                    <i data-lucide="cloud" class="w-4 h-4 text-blue-400"></i> 3-2-1 오프사이트 원격 복제
-                                </h2>
-                                <span id="dashboard-offsite-badge" class="text-[10px] px-2 py-0.5 rounded-full font-medium bg-blue-900/60 text-blue-300 border border-blue-700">확인 중...</span>
-                            </div>
-                            <div class="text-xs text-slate-400 space-y-1.5 pt-1">
-                                <div class="flex justify-between items-center">
-                                    <span>복제 모드:</span>
-                                    <span id="dashboard-offsite-mode" class="text-slate-200 font-mono">-</span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span>원격 저장소 경로:</span>
-                                    <span id="dashboard-offsite-target" class="text-slate-200 font-mono truncate max-w-[150px]" title="">-</span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span>최근 복제 상태:</span>
-                                    <span id="dashboard-offsite-sync-state" class="text-blue-400 font-medium">-</span>
-                                </div>
-                            </div>
-                            <button onclick="switchTab('profiles')" class="w-full py-1.5 bg-blue-950/60 hover:bg-blue-900/60 text-blue-300 rounded-xl text-xs font-semibold transition border border-blue-800/60 flex items-center justify-center gap-1">
-                                원격 복제 설정 & 스케줄 관리 &rarr;
-                            </button>
                         </div>
 
                         <!-- OS Bare-Metal Image Quick Banner -->
                         <div class="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-teal-950/30 border border-emerald-800/40 space-y-2.5">
                             <div class="flex justify-between items-center">
-                                <h2 class="text-sm font-bold text-white flex items-center gap-1.5">
+                                <h2 class="text-xs font-bold text-white flex items-center gap-1.5">
                                     <i data-lucide="hard-drive" class="w-4 h-4 text-emerald-400"></i> OS 베어메탈 백업
                                 </h2>
                                 <span class="text-[10px] px-2 py-0.5 bg-emerald-900/60 text-emerald-300 rounded-full border border-emerald-700/50 font-medium">SSD 사망 대비</span>
@@ -455,12 +338,13 @@
                             <p class="text-[11px] text-slate-300">
                                 C: SSD 고장 시 새 SSD로 윈도우 재설치 없이 100% 원상복구 가능한 시스템 이미지를 관리합니다.
                             </p>
-                            <button onclick="switchTab('system-image')" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-md flex items-center justify-center gap-1.5">
+                            <button onclick="switchTab('system-image')" class="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-md flex items-center justify-center gap-1.5">
                                 <i data-lucide="shield" class="w-3.5 h-3.5"></i> OS 전체 백업 관리 &rarr;
                             </button>
                         </div>
                     </div>
                 </div>
+
             </div>
 
             <!-- TAB: 백업 항목 직접 선택 (Custom Item Selector) -->

@@ -75,10 +75,11 @@ function renderOffsiteStatusWidget() {
         heroLocalRepo.title = rPath;
     }
 
-    // Node C: Topology Offsite Pipeline Binding
+    // Node C: Topology Offsite Pipeline Binding & Fluent Dash Pill
     const topoBadge = document.getElementById('topology-offsite-badge');
     const topoTarget = document.getElementById('topology-offsite-target');
     const topoStatus = document.getElementById('topology-offsite-status');
+    const dashProtPill = document.getElementById('dash-protection-pill');
 
     if (!off || !off.enabled) {
         if (sidebarStatus) {
@@ -114,6 +115,10 @@ function renderOffsiteStatusWidget() {
         if (topoStatus) {
             topoStatus.innerText = '로컬 전용';
             topoStatus.className = 'text-slate-400 font-medium';
+        }
+        if (dashProtPill) {
+            dashProtPill.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span><span>로컬 WORM 보호 중</span>';
+            dashProtPill.className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1.5';
         }
         return;
     }
@@ -170,6 +175,10 @@ function renderOffsiteStatusWidget() {
             topoStatus.innerText = '동기화 대기 중';
             topoStatus.className = 'text-amber-400 font-medium';
         }
+    }
+    if (dashProtPill) {
+        dashProtPill.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span><span>3-2-1 보호 정상</span>';
+        dashProtPill.className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1.5';
     }
 }
 
