@@ -25,6 +25,7 @@
     </script>
     <!-- Lucide Icons (Local Bundle) -->
     <script src="/static/vendor/lucide.min.js"></script>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2338bdf8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolygon points='10 1.5 2 5.5 2 14.5 10 18.5 18 14.5 18 5.5 10 1.5'/%3E%3Cline x1='10' y1='1.5' x2='10' y2='18.5'/%3E%3Ccircle cx='10' cy='10' r='2.5' fill='%2338bdf8' fill-opacity='0.4'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="bg-[#09090b] text-zinc-100 min-h-screen flex flex-col font-sans antialiased selection:bg-blue-600 selection:text-white">
@@ -34,8 +35,12 @@
         <!-- Main Top Bar -->
         <div class="px-6 py-2.5 flex items-center justify-between border-b border-zinc-800/60">
             <div class="flex items-center gap-3">
-                <div class="w-7 h-7 rounded-lg bg-zinc-900 text-zinc-300 border border-zinc-800 flex items-center justify-center shadow-inner">
-                    <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
+                <div class="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-800/90 flex items-center justify-center shadow-inner group">
+                    <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover:scale-110">
+                        <polygon points="10 1.5 2 5.5 2 14.5 10 18.5 18 14.5 18 5.5 10 1.5" />
+                        <line x1="10" y1="1.5" x2="10" y2="18.5" />
+                        <circle cx="10" cy="10" r="2.5" fill="#38bdf8" fill-opacity="0.3" stroke="#38bdf8" stroke-width="1" />
+                    </svg>
                 </div>
                 <div class="flex items-center gap-2">
                     <h1 class="text-sm font-bold text-zinc-100 tracking-tight font-mono">KOVA VaultOS</h1>
