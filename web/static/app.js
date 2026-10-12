@@ -358,53 +358,35 @@ function renderRecentSnapshots() {
 
     if (!state.snapshots || state.snapshots.length === 0) {
         container.innerHTML = `
-            <div class="text-center py-8 text-slate-500 text-sm">
+            <div class="text-center py-6 text-slate-500 text-xs bg-slate-900/40 rounded-xl border border-slate-800">
                 생성된 백업 스냅샷이 없습니다. 상단의 '지금 백업 시작' 버튼을 눌러 첫 백업을 생성하세요.
             </div>
         `;
         return;
     }
 
-    const recents = state.snapshots.slice(0, 5);
+    const recents = state.snapshots.slice(0, 4);
     container.innerHTML = recents.map(s => {
         const isFull = s.backup_type === 'full';
         const sum = s.summary || {};
+        const formattedDate = formatDate(s.iso_time);
+        const typeLabel = isFull ? '전체 백업' : '증분 백업';
+        const sizeText = formatBytes(sum.total_bytes);
+
         return `
-            <div class="p-4 bg-slate-800/60 hover:bg-slate-800 rounded-xl border border-slate-700/60 flex items-center justify-between transition-all">
+            <div class="px-4 py-3 bg-slate-900/60 hover:bg-slate-800/60 rounded-xl border border-slate-800 flex items-center justify-between transition text-xs">
                 <div class="flex items-center gap-3">
-                    <div class="p-2.5 rounded-lg ${isFull ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'}">
-                        <i data-lucide="${isFull ? 'database' : 'layers'}" class="w-5 h-5"></i>
-                    </div>
-                    <div>
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="font-semibold text-sm text-slate-200">${s.profile_name || '백업'}</span>
-                            <span class="text-[10px] px-2 py-0.5 rounded-full font-medium ${isFull ? 'bg-blue-900/60 text-blue-300 border border-blue-700' : 'bg-emerald-900/60 text-emerald-300 border border-emerald-700'}">
-                                ${isFull ? 'FULL' : 'INCREMENTAL'}
-                            </span>
-                            ${s.vss_enabled ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 font-semibold" title="Windows Volume Shadow Copy(VSS) 일관성 백업">VSS</span>' : ''}
-                            ${s.is_local_protected !== false ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold" title="로컬 저장소 검증 완료">🛡️ 로컬보호</span>' : ''}
-                            ${(() => {
-                                if (s.is_offsite_protected || s.offsite_status === 'COMMITTED') {
-                                    return '<span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-semibold" title="3-2-1 원격 저장소 복제 완료">🌐 3-2-1 원격보호</span>';
-                                } else if (s.offsite_status === 'TRANSFERRING' || s.offsite_status === 'PENDING') {
-                                    return '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 font-semibold animate-pulse" title="원격 저장소 복제 동기화 진행 중">⏳ 원격동기화</span>';
-                                } else if (s.offsite_status === 'UNSYNCED') {
-                                    return '<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-amber-400 border border-amber-700/60 font-semibold" title="원격 저장소 미동기화 (대기 중)">⏸️ 원격미복제</span>';
-                                } else {
-                                    return '<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-700 font-medium" title="오프사이트 원격 복제 비활성화">로컬전용</span>';
-                                }
-                            })()}
-                        </div>
-                        <div class="text-xs text-slate-400 mt-0.5">
-                            ${formatDate(s.iso_time)} · 파일 ${sum.total_files || 0}개 (${formatBytes(sum.total_bytes)})
-                        </div>
-                    </div>
+                    <span class="font-mono text-slate-300 font-medium">${formattedDate}</span>
+                    <span class="text-slate-500">•</span>
+                    <span class="text-slate-400 font-medium">${s.profile_name || '기본 백업'} (${typeLabel})</span>
+                    <span class="text-slate-500">•</span>
+                    <span class="font-mono text-slate-300 font-semibold">${sizeText}</span>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button onclick="openRestoreModal('${s.id}')" class="px-3 py-1.5 bg-slate-700 hover:bg-blue-600 text-slate-200 hover:text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5">
-                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> 복원
+                    <button onclick="openRestoreModal('${s.id}')" class="px-3 py-1 bg-slate-800 hover:bg-blue-600 text-slate-200 hover:text-white rounded-lg text-xs font-semibold transition border border-slate-700/80 hover:border-blue-500 flex items-center gap-1">
+                        <i data-lucide="rotate-ccw" class="w-3 h-3"></i> 복원
                     </button>
-                    <button onclick="inspectSnapshot('${s.id}')" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-medium transition">
+                    <button onclick="inspectSnapshot('${s.id}')" class="px-2.5 py-1 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-medium transition border border-slate-700/60">
                         탐색
                     </button>
                 </div>
