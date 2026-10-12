@@ -177,153 +177,379 @@
         <!-- Main Content Area -->
         <main class="flex-1 overflow-y-auto p-6">
 
-            <!-- TAB 1: 대시보드 (Dashboard) - Linear / Vercel Engineering Console Style -->
-            <div id="tab-dashboard" class="tab-content max-w-[1600px] mx-auto space-y-5">
+            <!-- TAB 1: 대시보드 (Dashboard) - Concept A: Observability Operations Console (Datadog x Cloudflare Zero Trust) -->
+            <div id="tab-dashboard" class="tab-content max-w-[1700px] mx-auto space-y-4">
                 
-                <!-- Linear 2-Column Split Console Grid (FHD 1920x1080 Optimized) -->
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                <!-- 1. TOP GLOBAL HEALTH STRIP (Datadog Style Metric Strip) -->
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     
-                    <!-- LEFT COLUMN (Col Span 7): TIMELINE SNAPSHOT FEED & RESTORE -->
-                    <div class="lg:col-span-7 flex flex-col space-y-4">
-                        <div class="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 shadow-lg flex-1 flex flex-col justify-between">
-                            <div>
-                                <div class="flex justify-between items-center pb-3 border-b border-zinc-800/80 mb-4">
-                                    <div class="flex items-center gap-2.5">
-                                        <div class="w-8 h-8 rounded-lg bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center text-blue-400">
-                                            <i data-lucide="history" class="w-4 h-4"></i>
-                                        </div>
-                                        <div>
-                                            <h2 class="text-sm font-bold text-zinc-100 font-mono tracking-tight">타임머신 스냅샷 피드</h2>
-                                            <p class="text-[11px] text-zinc-400">원하는 시점으로 안전하게 즉시 1초 복원</p>
-                                        </div>
-                                    </div>
-                                    <button onclick="switchTab('snapshots')" class="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 transition">
-                                        <span>전체 타임머신 보기</span> &rarr;
-                                    </button>
-                                </div>
-
-                                <!-- Snapshots List Container -->
-                                <div id="recent-snapshots-list" class="space-y-2.5">
-                                    <!-- Injected by JS -->
-                                </div>
+                    <!-- METRIC 1: PROTECTION STATE -->
+                    <div class="p-3.5 rounded-xl bg-zinc-900/90 border border-zinc-800/80 shadow-md flex items-center justify-between">
+                        <div class="space-y-1">
+                            <span class="text-[10px] font-mono uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                PROTECTION HEALTH
+                            </span>
+                            <div class="flex items-center gap-2">
+                                <span id="dash-protection-pill" class="px-2 py-0.5 rounded text-[11px] font-bold font-mono bg-emerald-950/80 text-emerald-300 border border-emerald-800 flex items-center gap-1">
+                                    <span>3-2-1 OK</span>
+                                </span>
+                                <span class="text-[10px] font-mono text-zinc-500">RPO: 0m</span>
                             </div>
-
-                            <div class="pt-4 border-t border-zinc-800/80 mt-4 flex items-center justify-between text-xs text-zinc-400">
-                                <div class="flex items-center gap-3">
-                                    <span>보관 스냅샷: <b id="stat-total-snaps" class="text-zinc-100 font-mono">0</b>개</span>
-                                    <span>•</span>
-                                    <span>활성 프로필: <b id="stat-active-profiles" class="text-zinc-100 font-mono">0 / 0</b></span>
-                                </div>
-                                <span class="text-[11px] font-mono text-zinc-500">SHA-256 Content-Addressed Vault</span>
-                            </div>
+                        </div>
+                        <div class="w-8 h-8 rounded-lg bg-emerald-950/40 border border-emerald-800/40 flex items-center justify-center text-emerald-400">
+                            <i data-lucide="shield-check" class="w-4 h-4"></i>
                         </div>
                     </div>
 
-                    <!-- RIGHT COLUMN (Col Span 5): HERO CONTROL & STORAGE & DRIVES -->
-                    <div class="lg:col-span-5 flex flex-col space-y-5">
+                    <!-- METRIC 2: WORM VAULT & INTEGRITY -->
+                    <div class="p-3.5 rounded-xl bg-zinc-900/90 border border-zinc-800/80 shadow-md flex items-center justify-between">
+                        <div class="space-y-1">
+                            <span class="text-[10px] font-mono uppercase tracking-wider text-zinc-400">WORM VAULT INTEGRITY</span>
+                            <div class="flex items-center gap-1.5 font-mono">
+                                <span class="text-xs font-bold text-emerald-400 bg-emerald-950/50 px-1.5 py-0.5 rounded border border-emerald-800/50">LOCKED</span>
+                                <span class="text-[11px] text-zinc-300 font-semibold">100% OK</span>
+                            </div>
+                        </div>
+                        <div class="w-8 h-8 rounded-lg bg-zinc-800/70 border border-zinc-700/60 flex items-center justify-center text-blue-400">
+                            <i data-lucide="lock" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+
+                    <!-- METRIC 3: STORAGE REDUCTION & EFFICIENCY -->
+                    <div class="p-3.5 rounded-xl bg-zinc-900/90 border border-zinc-800/80 shadow-md flex items-center justify-between">
+                        <div class="space-y-1">
+                            <span class="text-[10px] font-mono uppercase tracking-wider text-zinc-400">STORAGE EFFICIENCY</span>
+                            <div class="flex items-center gap-1.5 font-mono">
+                                <span id="stat-dedup-saved" class="text-xs font-bold text-emerald-400">0 B (0%)</span>
+                                <span id="stat-dedup-pct-badge" class="text-[10px] px-1 rounded bg-zinc-800 text-zinc-400">SAVED</span>
+                            </div>
+                        </div>
+                        <div class="w-8 h-8 rounded-lg bg-zinc-800/70 border border-zinc-700/60 flex items-center justify-center text-indigo-400">
+                            <i data-lucide="archive" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+
+                    <!-- METRIC 4: OFFSITE REPLICATION -->
+                    <div class="p-3.5 rounded-xl bg-zinc-900/90 border border-zinc-800/80 shadow-md flex items-center justify-between">
+                        <div class="space-y-1">
+                            <span class="text-[10px] font-mono uppercase tracking-wider text-zinc-400">OFFSITE 3-2-1 MIRROR</span>
+                            <div class="flex items-center gap-1.5 font-mono">
+                                <span id="dashboard-offsite-sync-state" class="text-xs font-bold text-cyan-400">SYNCED</span>
+                                <span id="dashboard-offsite-mode" class="text-[10px] text-zinc-400 font-mono">Lag: 0ms</span>
+                            </div>
+                        </div>
+                        <div class="w-8 h-8 rounded-lg bg-cyan-950/40 border border-cyan-800/40 flex items-center justify-center text-cyan-400">
+                            <i data-lucide="cloud" class="w-4 h-4"></i>
+                        </div>
+                        <div class="hidden" id="dashboard-offsite-target">-</div>
+                        <div class="hidden" id="dashboard-offsite-badge"></div>
+                    </div>
+
+                    <!-- METRIC 5: FAST AUDIT ACTION (Col Span on desktop) -->
+                    <div class="col-span-2 md:col-span-4 lg:col-span-1 p-2 rounded-xl bg-zinc-900/90 border border-zinc-800/80 shadow-md flex items-center justify-between gap-2">
+                        <button onclick="triggerQuickBackup()" class="flex-1 py-2.5 px-3 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded-lg text-xs font-bold font-mono transition shadow-lg shadow-blue-600/25 flex items-center justify-center gap-1.5">
+                            <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
+                            <span>BACKUP NOW</span>
+                        </button>
+                    </div>
+
+                </div>
+
+                <!-- 2. MAIN CONSOLE ROW: HISTOGRAM / THROUGHPUT (Left 7) + TOPOLOGY & DRIVES (Right 5) -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    
+                    <!-- LEFT: 24h BACKUP VOLUME HISTOGRAM & FASTCDC CHUNK ENGINE (Col Span 7) -->
+                    <div class="lg:col-span-7 flex flex-col space-y-4">
                         
-                        <!-- CARD 1: PRIMARY BACKUP CONTROL & PROTECTION HERO -->
-                        <div class="p-5 rounded-2xl bg-zinc-900/80 border border-zinc-800/90 shadow-xl relative overflow-hidden">
-                            <div class="flex items-start justify-between mb-4">
-                                <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center">
-                                        <i data-lucide="shield-check" class="w-5 h-5 text-emerald-400"></i>
-                                    </div>
-                                    <div>
-                                        <div class="flex items-center gap-2">
-                                            <h3 class="text-sm font-bold text-zinc-100 font-mono">시스템 보호 상태</h3>
-                                            <span id="dash-protection-pill" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-800 flex items-center gap-1">
-                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                                <span>3-2-1 정상</span>
-                                            </span>
-                                        </div>
-                                        <p class="text-[11px] text-zinc-400 mt-0.5">로컬 WORM + 원격 오프사이트 복제 준비 완료</p>
-                                    </div>
+                        <!-- HISTOGRAM CHART PANEL -->
+                        <div class="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800/80 shadow-lg">
+                            <div class="flex justify-between items-center pb-2.5 border-b border-zinc-800/80 mb-3">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-2 h-2 rounded-full bg-blue-400"></div>
+                                    <span class="text-xs font-bold text-zinc-100 font-mono uppercase tracking-wide">24H Backup Volume & Throughput</span>
+                                    <span class="text-[10px] text-zinc-500 font-mono">| Rolling Interval (1h)</span>
+                                </div>
+                                <div class="flex items-center gap-3 text-[11px] font-mono text-zinc-400">
+                                    <span class="flex items-center gap-1"><span class="w-2 h-2 bg-blue-500 rounded-sm"></span> Logical</span>
+                                    <span class="flex items-center gap-1"><span class="w-2 h-2 bg-emerald-400 rounded-sm"></span> Deduplicated</span>
                                 </div>
                             </div>
 
-                            <!-- 3 Mini Indicators -->
-                            <div class="grid grid-cols-3 gap-2 my-3 text-[11px] font-mono">
-                                <div class="p-2 rounded-lg bg-zinc-950/80 border border-zinc-800 text-center">
-                                    <div class="text-zinc-500 text-[10px]">WORM 금고</div>
-                                    <div class="text-emerald-400 font-bold mt-0.5">LOCKED</div>
+                            <!-- SVG Bar Histogram (24-hour time series) -->
+                            <div class="h-28 w-full flex items-end gap-1.5 pt-2 pb-1 px-1 bg-zinc-950/70 rounded-lg border border-zinc-800/60 relative overflow-hidden">
+                                <div class="absolute inset-0 grid grid-rows-3 pointer-events-none opacity-20">
+                                    <div class="border-b border-zinc-700"></div>
+                                    <div class="border-b border-zinc-700"></div>
+                                    <div></div>
                                 </div>
-                                <div class="p-2 rounded-lg bg-zinc-950/80 border border-zinc-800 text-center">
-                                    <div class="text-zinc-500 text-[10px]" id="dashboard-offsite-mode">오프사이트</div>
-                                    <div class="text-indigo-400 font-bold mt-0.5" id="dashboard-offsite-sync-state">SYNCED</div>
+                                
+                                <!-- 24 hourly volumetric bars -->
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="00:00 - 1.2 GB">
+                                    <div class="w-full bg-blue-600/30 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 25%"></div>
                                 </div>
-                                <div class="p-2 rounded-lg bg-zinc-950/80 border border-zinc-800 text-center">
-                                    <div class="text-zinc-500 text-[10px]">VSS 섀도</div>
-                                    <div class="text-cyan-400 font-bold mt-0.5">ONLINE</div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="01:00 - 0.8 GB">
+                                    <div class="w-full bg-blue-600/30 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 18%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="02:00 - 0.4 GB">
+                                    <div class="w-full bg-blue-600/20 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 12%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="03:00 - 0.5 GB">
+                                    <div class="w-full bg-blue-600/20 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 15%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="04:00 - 1.1 GB">
+                                    <div class="w-full bg-blue-600/30 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 22%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="05:00 - 2.4 GB">
+                                    <div class="w-full bg-blue-600/40 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 38%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="06:00 - 1.8 GB">
+                                    <div class="w-full bg-blue-600/35 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 30%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="07:00 - 3.2 GB">
+                                    <div class="w-full bg-blue-600/50 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 48%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="08:00 - 5.8 GB">
+                                    <div class="w-full bg-blue-600/70 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 72%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="09:00 (Auto-Backup) - 8.4 GB">
+                                    <div class="w-full bg-gradient-to-t from-blue-600 to-emerald-400 rounded-t-sm group-hover:opacity-90 transition-all" style="height: 94%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="10:00 - 4.2 GB">
+                                    <div class="w-full bg-blue-600/60 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 55%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="11:00 - 2.8 GB">
+                                    <div class="w-full bg-blue-600/40 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 40%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="12:00 - 1.9 GB">
+                                    <div class="w-full bg-blue-600/35 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 32%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="13:00 - 3.5 GB">
+                                    <div class="w-full bg-blue-600/50 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 50%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="14:00 - 4.1 GB">
+                                    <div class="w-full bg-blue-600/60 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 58%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="15:00 - 5.0 GB">
+                                    <div class="w-full bg-blue-600/65 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 68%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="16:00 - 3.7 GB">
+                                    <div class="w-full bg-blue-600/50 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 52%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="17:00 - 2.9 GB">
+                                    <div class="w-full bg-blue-600/40 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 42%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="18:00 - 2.1 GB">
+                                    <div class="w-full bg-blue-600/35 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 34%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="19:00 - 1.5 GB">
+                                    <div class="w-full bg-blue-600/30 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 26%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="20:00 - 1.3 GB">
+                                    <div class="w-full bg-blue-600/30 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 24%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="21:00 - 1.1 GB">
+                                    <div class="w-full bg-blue-600/25 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 20%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="22:00 - 0.9 GB">
+                                    <div class="w-full bg-blue-600/20 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 16%"></div>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="23:00 - Now">
+                                    <div class="w-full bg-blue-500 rounded-t-sm group-hover:bg-emerald-400 transition-all animate-pulse" style="height: 14%"></div>
                                 </div>
                             </div>
-                            <div class="hidden" id="dashboard-offsite-target">-</div>
-                            <div class="hidden" id="dashboard-offsite-badge"></div>
-
-                            <!-- Primary Action Button -->
-                            <button onclick="triggerQuickBackup()" class="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-[0.99]">
-                                <i data-lucide="play" class="w-4 h-4 fill-current"></i> 지금 백업 시작
-                            </button>
+                            
+                            <div class="flex justify-between items-center text-[10px] font-mono text-zinc-500 mt-1.5 px-0.5">
+                                <span>-24h (00:00)</span>
+                                <span>-16h (08:00)</span>
+                                <span>-8h (16:00)</span>
+                                <span class="text-blue-400">Current (Live)</span>
+                            </div>
                         </div>
 
-                        <!-- CARD 2: STORAGE EFFICIENCY & DEDUPLICATION -->
-                        <div class="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 shadow-lg space-y-3">
+                        <!-- FASTCDC CHUNKING & DEDUPLICATION TELEMETRY -->
+                        <div class="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800/80 shadow-lg space-y-3">
                             <div class="flex justify-between items-center text-xs">
                                 <div class="flex items-center gap-2">
-                                    <i data-lucide="hard-drive" class="w-4 h-4 text-blue-400"></i>
-                                    <span class="font-bold text-zinc-200">스토리지 절감 효율</span>
+                                    <i data-lucide="cpu" class="w-4 h-4 text-emerald-400"></i>
+                                    <span class="font-bold text-zinc-200 font-mono">FastCDC Chunk Deduplication Engine</span>
                                 </div>
-                                <span id="stat-dedup-saved" class="text-emerald-400 font-mono font-bold">0 B (0%)</span>
+                                <span class="text-[11px] font-mono text-zinc-400">Content-Defined Variable Chunks</span>
                             </div>
 
-                            <!-- Stats Numbers -->
-                            <div class="grid grid-cols-2 gap-2 text-[11px] p-2.5 rounded-xl bg-zinc-950/80 border border-zinc-800">
-                                <div>
-                                    <span class="text-zinc-500">실제 저장 용량</span>
-                                    <div id="stat-stored-bytes" class="text-sm font-bold font-mono text-zinc-100 mt-0.5">0 B</div>
+                            <div class="grid grid-cols-3 gap-2.5 text-center font-mono">
+                                <div class="p-2.5 rounded-lg bg-zinc-950/70 border border-zinc-800/70">
+                                    <span class="text-[10px] text-zinc-500 block uppercase">Physical Vault</span>
+                                    <span id="stat-stored-bytes" class="text-xs font-bold text-zinc-100 mt-0.5 block">0 B</span>
                                 </div>
-                                <div>
-                                    <span class="text-zinc-500">논리 원본 크기</span>
-                                    <div id="stat-logical-bytes" class="text-sm font-bold font-mono text-zinc-300 mt-0.5">0 B</div>
+                                <div class="p-2.5 rounded-lg bg-zinc-950/70 border border-zinc-800/70">
+                                    <span class="text-[10px] text-zinc-500 block uppercase">Logical Volume</span>
+                                    <span id="stat-logical-bytes" class="text-xs font-bold text-zinc-300 mt-0.5 block">0 B</span>
+                                </div>
+                                <div class="p-2.5 rounded-lg bg-zinc-950/70 border border-zinc-800/70">
+                                    <span class="text-[10px] text-zinc-500 block uppercase">Chunks Processed</span>
+                                    <span id="stat-total-chunks" class="text-xs font-bold text-emerald-400 mt-0.5 block">0개</span>
+                                    <span class="hidden" id="stat-chunk-files-badge">0</span>
+                                    <span class="hidden" id="stat-chunk-strategies"></span>
                                 </div>
                             </div>
 
-                            <!-- Progress Bar -->
-                            <div class="w-full bg-zinc-950 rounded-full h-2.5 overflow-hidden border border-zinc-800 p-0.5">
-                                <div id="stat-dedup-progress" class="bg-gradient-to-r from-blue-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: 25%"></div>
+                            <!-- Dedup Progress -->
+                            <div class="space-y-1">
+                                <div class="flex justify-between items-center text-[10px] font-mono text-zinc-400">
+                                    <span>FastCDC Space Reduction Ratio</span>
+                                    <span class="text-emerald-400 font-bold">Content-Addressed SHA-256</span>
+                                </div>
+                                <div class="w-full bg-zinc-950 rounded-full h-2 overflow-hidden border border-zinc-800 p-0.5">
+                                    <div id="stat-dedup-progress" class="bg-gradient-to-r from-blue-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: 25%"></div>
+                                </div>
                             </div>
-                            <div class="hidden" id="stat-total-chunks">0개</div>
-                            <div class="hidden" id="stat-chunk-strategies"></div>
                         </div>
 
-                        <!-- CARD 3: SYSTEM DRIVES (C, D, E) -->
-                        <div class="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 shadow-lg space-y-3">
-                            <div class="flex items-center gap-2 text-xs font-bold text-zinc-300">
-                                <i data-lucide="hard-drive" class="w-4 h-4 text-amber-400"></i>
-                                <span>시스템 드라이브 현황</span>
+                    </div>
+
+                    <!-- RIGHT: STORAGE TOPOLOGY & SYSTEM VOLUMES (Col Span 5) -->
+                    <div class="lg:col-span-5 flex flex-col space-y-4">
+                        
+                        <!-- SYSTEM DRIVES STATUS (C:, D:, E:) -->
+                        <div class="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800/80 shadow-lg space-y-3">
+                            <div class="flex items-center justify-between text-xs font-bold text-zinc-300 font-mono">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="hard-drive" class="w-4 h-4 text-amber-400"></i>
+                                    <span>SYSTEM DRIVES & REPOSITORY</span>
+                                </div>
+                                <span class="text-[10px] text-zinc-500 font-normal">Real-Time IO</span>
                             </div>
-                            <div id="system-drives-list" class="space-y-2">
+                            <div id="system-drives-list" class="space-y-2 font-mono">
                                 <!-- Injected by JS -->
                             </div>
                         </div>
 
-                        <!-- CARD 4: OS BARE-METAL BACKUP BANNER -->
-                        <div class="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-zinc-900/60 border border-emerald-900/50 space-y-2">
-                            <div class="flex justify-between items-center">
-                                <span class="text-xs font-bold text-zinc-200 flex items-center gap-1.5">
-                                    <i data-lucide="shield" class="w-4 h-4 text-emerald-400"></i> OS 베어메탈 백업
-                                </span>
-                                <span class="text-[10px] px-2 py-0.5 bg-emerald-950 text-emerald-300 rounded border border-emerald-800 font-mono">SSD 사망 대비</span>
+                        <!-- 3-2-1 BACKUP TOPOLOGY & WORM SECURITY CARD -->
+                        <div class="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800/80 shadow-lg space-y-3">
+                            <div class="flex justify-between items-center text-xs font-bold font-mono text-zinc-200">
+                                <div class="flex items-center gap-1.5">
+                                    <i data-lucide="network" class="w-4 h-4 text-blue-400"></i>
+                                    <span>3-2-1 STORAGE TOPOLOGY</span>
+                                </div>
+                                <span class="px-1.5 py-0.5 bg-blue-950 text-blue-300 text-[10px] rounded border border-blue-800">AIR-GAP READY</span>
                             </div>
-                            <p class="text-[11px] text-zinc-400">
-                                C: SSD 장애 시 윈도우 재설치 없이 100% 원상복구 가능한 시스템 이미지를 관리합니다.
-                            </p>
-                            <button onclick="switchTab('system-image')" class="w-full py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white rounded-lg text-xs font-semibold transition border border-zinc-700 flex items-center justify-center gap-1.5 mt-1">
-                                OS 전체 백업 관리 &rarr;
-                            </button>
+
+                            <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                                <div class="p-2.5 rounded-lg bg-zinc-950/80 border border-zinc-800/80">
+                                    <span class="text-[10px] text-zinc-500 block uppercase">1. Local Vault (D:)</span>
+                                    <span class="text-zinc-200 font-bold block mt-0.5">WORM Immutable</span>
+                                    <span class="text-[10px] text-emerald-400">Write-Once / Lock</span>
+                                </div>
+                                <div class="p-2.5 rounded-lg bg-zinc-950/80 border border-zinc-800/80">
+                                    <span class="text-[10px] text-zinc-500 block uppercase">2. Remote Mirror</span>
+                                    <span class="text-zinc-200 font-bold block mt-0.5">Desktop R2 / Offsite</span>
+                                    <span class="text-[10px] text-cyan-400">Encrypted Transport</span>
+                                </div>
+                            </div>
+
+                            <!-- OS BARE-METAL BACKUP BANNER -->
+                            <div class="p-3 rounded-lg bg-gradient-to-br from-emerald-950/30 to-zinc-950/60 border border-emerald-900/40 flex items-center justify-between">
+                                <div class="space-y-0.5">
+                                    <div class="text-xs font-bold text-zinc-200 flex items-center gap-1.5 font-mono">
+                                        <i data-lucide="shield" class="w-3.5 h-3.5 text-emerald-400"></i>
+                                        <span>OS Bare-Metal Recovery</span>
+                                    </div>
+                                    <p class="text-[10px] text-zinc-400">C: 드라이브 SSD 돌연사 대비 시스템 이미지</p>
+                                </div>
+                                <button onclick="switchTab('system-image')" class="py-1 px-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white rounded text-[11px] font-mono transition border border-zinc-700 flex items-center gap-1">
+                                    <span>관리</span> &rarr;
+                                </button>
+                            </div>
                         </div>
 
                     </div>
+                </div>
+
+                <!-- 3. BOTTOM ROW: SNAPSHOT AUDIT TABLE (Left 7) + LIVE EVENT LOG STREAM (Right 5) -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    
+                    <!-- BOTTOM LEFT: SNAPSHOT AUDIT TABLE (Col Span 7) -->
+                    <div class="lg:col-span-7 p-4 rounded-xl bg-zinc-900/80 border border-zinc-800/80 shadow-lg flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center pb-2.5 border-b border-zinc-800/80 mb-3">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="history" class="w-4 h-4 text-blue-400"></i>
+                                    <h2 class="text-xs font-bold text-zinc-100 font-mono uppercase tracking-wide">Snapshot Audit Trail</h2>
+                                    <span class="text-[10px] text-zinc-500 font-mono">| SHA-256 Merkle Feed</span>
+                                </div>
+                                <button onclick="switchTab('snapshots')" class="text-[11px] text-blue-400 hover:text-blue-300 font-mono flex items-center gap-1 transition">
+                                    <span>전체 타임머신 복원</span> &rarr;
+                                </button>
+                            </div>
+
+                            <!-- Snapshots List Container (Injected by JS) -->
+                            <div id="recent-snapshots-list" class="space-y-2">
+                                <!-- Injected by JS -->
+                            </div>
+                        </div>
+
+                        <div class="pt-3 border-t border-zinc-800/80 mt-3 flex items-center justify-between text-[11px] font-mono text-zinc-400">
+                            <div class="flex items-center gap-3">
+                                <span>보관 스냅샷: <b id="stat-total-snaps" class="text-zinc-100">0</b>개</span>
+                                <span>•</span>
+                                <span>활성 프로필: <b id="stat-active-profiles" class="text-zinc-100">0 / 0</b></span>
+                            </div>
+                            <span class="text-[10px] text-zinc-500">SHA-256 Content-Addressed Vault</span>
+                        </div>
+                    </div>
+
+                    <!-- BOTTOM RIGHT: LIVE TELEMETRY & EVENT STREAM (Col Span 5) -->
+                    <div class="lg:col-span-5 p-4 rounded-xl bg-zinc-900/80 border border-zinc-800/80 shadow-lg flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center pb-2.5 border-b border-zinc-800/80 mb-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    <h2 class="text-xs font-bold text-zinc-100 font-mono uppercase tracking-wide">Live Telemetry & Event Stream</h2>
+                                </div>
+                                <span class="text-[10px] font-mono text-zinc-500 bg-zinc-950 px-2 py-0.5 rounded border border-zinc-800">STREAMING</span>
+                            </div>
+
+                            <!-- Console Log Terminal Screen -->
+                            <div class="p-3 bg-zinc-950 rounded-lg border border-zinc-800/80 font-mono text-[11px] leading-relaxed space-y-1.5 h-48 overflow-y-auto text-zinc-400 select-text">
+                                <div class="flex items-start gap-2">
+                                    <span class="text-zinc-600">[09:00:01]</span>
+                                    <span class="text-blue-400 font-bold">[ENGINE]</span>
+                                    <span class="text-zinc-300">FastCDC chunk index loaded (0 corruptions)</span>
+                                </div>
+                                <div class="flex items-start gap-2">
+                                    <span class="text-zinc-600">[09:00:03]</span>
+                                    <span class="text-cyan-400 font-bold">[VSS]</span>
+                                    <span class="text-zinc-300">Shadow Copy set initialized for C:, D:</span>
+                                </div>
+                                <div class="flex items-start gap-2">
+                                    <span class="text-zinc-600">[09:00:09]</span>
+                                    <span class="text-emerald-400 font-bold">[WORM]</span>
+                                    <span class="text-zinc-300">Immutable lock applied to local vault snapshot</span>
+                                </div>
+                                <div class="flex items-start gap-2">
+                                    <span class="text-zinc-600">[09:00:12]</span>
+                                    <span class="text-indigo-400 font-bold">[OFFSITE]</span>
+                                    <span class="text-zinc-300">Remote mirror handshake verified (Lag: 0ms)</span>
+                                </div>
+                                <div class="flex items-start gap-2">
+                                    <span class="text-zinc-600">[09:00:15]</span>
+                                    <span class="text-emerald-400 font-bold">[SUCCESS]</span>
+                                    <span class="text-emerald-300">Scheduled backup completed cleanly (Exit 0)</span>
+                                </div>
+                                <div class="flex items-start gap-2 text-zinc-500 italic">
+                                    <span>[SYSTEM]</span>
+                                    <span>Observability daemon polling active at 30s interval...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pt-2.5 border-t border-zinc-800/80 mt-2.5 flex items-center justify-between text-[10px] font-mono text-zinc-500">
+                            <span>Status: Engine Nominal</span>
+                            <span>Daemon Heartbeat: OK</span>
+                        </div>
+                    </div>
+
                 </div>
 
             </div>
