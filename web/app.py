@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from core.config import ConfigManager
 from core.storage import BlobStorage
 from core.scheduler import BackupScheduler
-from core.app_scanner import get_installed_applications, get_project_items
+from core.app_scanner import get_installed_applications
 # 인증 미들웨어에서 필요한 심볼만 남긴다.
 # 나머지(설정/로그인/변경/우회 토글)는 web/api_auth.py 로 분리되었다.
 from core.auth import is_auth_configured, is_auth_corrupted, get_auth_status, validate_session
@@ -321,7 +321,7 @@ def list_installed_apps(refresh: bool = False):
 
 @app.get("/api/projects/list")
 def list_project_items():
-    return get_project_items()
+    return []
 
 # --- Windows Task Scheduler API (On/Off Smart Execution) ---
 from core.windows_task import register_windows_scheduled_task, unregister_windows_scheduled_task, get_windows_scheduled_task_status

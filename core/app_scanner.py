@@ -153,34 +153,3 @@ def get_installed_applications(force_refresh: bool = False) -> List[Dict[str, An
         _cached_apps = apps
         _cached_apps_time = time.time()
         return apps
-
-def get_project_items(base_path: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    Lists sub-projects in the AI workspace or user Desktop with fast non-blocking scandir.
-    """
-    if not base_path:
-        candidate_paths = [
-            os.path.join(os.path.expanduser("~"), "Desktop", "ai"),
-            os.path.join(os.path.expanduser("~"), "Desktop"),
-            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        ]
-        base_path = next((p for p in candidate_paths if os.path.exists(p)), candidate_paths[0])
-
-    projects = []
-    if not os.path.exists(base_path):
-        return projects
-
-    try:
-        with os.scandir(base_path) as it:
-            for entry in it:
-                if entry.is_dir(follow_symlinks=False) and not entry.name.startswith(".") and entry.name != "backup_repository":
-                    projects.append({
-                        "name": entry.name,
-                        "path": entry.path,
-                        "item_count": 0
-                    })
-    except (PermissionError, OSError):
-        pass
-
-    projects.sort(key=lambda x: x["name"].lower())
-    return projects

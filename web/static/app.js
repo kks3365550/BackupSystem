@@ -62,6 +62,18 @@ function renderOffsiteStatusWidget() {
     const dashMode = document.getElementById('dashboard-offsite-mode');
     const dashTarget = document.getElementById('dashboard-offsite-target');
     const dashState = document.getElementById('dashboard-offsite-sync-state');
+    const heroScoreBadge = document.getElementById('hero-protection-score-badge');
+    const heroLocalRepo = document.getElementById('hero-local-repo-name');
+    const heroOffsite = document.getElementById('hero-offsite-state-name');
+
+    // Update Local Repo Name in Hero
+    if (heroLocalRepo) {
+        const activeProf = (state.profiles || []).find(p => p.auto_backup_enabled) || (state.profiles || [])[0];
+        const rPath = activeProf?.repo_dir || 'D:\\MyBackup_Repository';
+        const parts = rPath.split(/[\\/]/).filter(Boolean);
+        heroLocalRepo.innerText = parts[parts.length - 1] || '로컬 저장소';
+        heroLocalRepo.title = rPath;
+    }
 
     if (!off || !off.enabled) {
         if (sidebarStatus) {
@@ -77,6 +89,14 @@ function renderOffsiteStatusWidget() {
         if (dashState) {
             dashState.innerText = '로컬 백업만 수행';
             dashState.className = 'text-slate-400 font-medium';
+        }
+        if (heroScoreBadge) {
+            heroScoreBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span><span>로컬 WORM 보호 중 (3-2-1 원격 미설정)</span>';
+            heroScoreBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-800 flex items-center gap-1';
+        }
+        if (heroOffsite) {
+            heroOffsite.innerText = '미사용 (로컬 전용)';
+            heroOffsite.className = 'font-bold text-slate-400 text-xs';
         }
         return;
     }
@@ -97,13 +117,24 @@ function renderOffsiteStatusWidget() {
         dashTarget.innerText = targetText;
         dashTarget.title = targetText;
     }
+    
+    const hasSnaps = (state.snapshots || []).some(s => s.is_offsite_protected || s.offsite_status === 'COMMITTED');
     if (dashState) {
-        const hasSnaps = (state.snapshots || []).some(s => s.is_offsite_protected || s.offsite_status === 'COMMITTED');
         if (hasSnaps) {
             dashState.innerHTML = '<span class="text-blue-400 font-semibold">🌐 최신 스냅샷 동기화 완료</span>';
         } else {
             dashState.innerHTML = '<span class="text-amber-400 font-semibold">⏳ 스냅샷 복제 대기/진행 중</span>';
         }
+    }
+    if (heroScoreBadge) {
+        heroScoreBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span><span>100% 3-2-1 완벽 보호</span>';
+        heroScoreBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1';
+    }
+    if (heroOffsite) {
+        const shortTarget = targetText.length > 20 ? targetText.substring(0, 18) + '...' : targetText;
+        heroOffsite.innerText = `${shortTarget} (${hasSnaps ? '동기화 완료' : '대기'})`;
+        heroOffsite.title = targetText;
+        heroOffsite.className = 'font-bold text-indigo-300 text-xs';
     }
 }
 
