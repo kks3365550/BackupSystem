@@ -262,108 +262,31 @@
                     <!-- LEFT: 24h BACKUP VOLUME HISTOGRAM & FASTCDC CHUNK ENGINE (Col Span 7) -->
                     <div class="lg:col-span-7 flex flex-col space-y-4">
                         
-                        <!-- HISTOGRAM CHART PANEL -->
+                        <!-- DB-BACKED HISTORICAL SNAPSHOT VOLUME & GROWTH CHART PANEL -->
                         <div class="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800/80 shadow-lg">
                             <div class="flex justify-between items-center pb-2.5 border-b border-zinc-800/80 mb-3">
                                 <div class="flex items-center gap-2">
                                     <div class="w-2 h-2 rounded-full bg-blue-400"></div>
-                                    <span class="text-xs font-bold text-zinc-100 font-mono uppercase tracking-wide">24H Backup Volume & Throughput</span>
-                                    <span class="text-[10px] text-zinc-500 font-mono">| Rolling Interval (1h)</span>
+                                    <span class="text-xs font-bold text-zinc-100 font-mono uppercase tracking-wide">Snapshot Volume & Growth</span>
+                                    <span id="chart-meta-summary" class="text-[10px] text-zinc-500 font-mono">| 실측 DB 연동 스냅샷 추이</span>
                                 </div>
                                 <div class="flex items-center gap-3 text-[11px] font-mono text-zinc-400">
-                                    <span class="flex items-center gap-1"><span class="w-2 h-2 bg-blue-500 rounded-sm"></span> Logical</span>
-                                    <span class="flex items-center gap-1"><span class="w-2 h-2 bg-emerald-400 rounded-sm"></span> Deduplicated</span>
+                                    <span class="flex items-center gap-1"><span class="w-2 h-2 bg-blue-500 rounded-sm"></span> Total Size (GB)</span>
+                                    <span class="flex items-center gap-1"><span class="w-2 h-2 bg-emerald-400 rounded-sm"></span> Files Count</span>
                                 </div>
                             </div>
 
-                            <!-- SVG Bar Histogram (24-hour time series) -->
-                            <div class="h-28 w-full flex items-end gap-1.5 pt-2 pb-1 px-1 bg-zinc-950/70 rounded-lg border border-zinc-800/60 relative overflow-hidden">
-                                <div class="absolute inset-0 grid grid-rows-3 pointer-events-none opacity-20">
-                                    <div class="border-b border-zinc-700"></div>
-                                    <div class="border-b border-zinc-700"></div>
-                                    <div></div>
-                                </div>
-                                
-                                <!-- 24 hourly volumetric bars -->
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="00:00 - 1.2 GB">
-                                    <div class="w-full bg-blue-600/30 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 25%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="01:00 - 0.8 GB">
-                                    <div class="w-full bg-blue-600/30 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 18%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="02:00 - 0.4 GB">
-                                    <div class="w-full bg-blue-600/20 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 12%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="03:00 - 0.5 GB">
-                                    <div class="w-full bg-blue-600/20 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 15%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="04:00 - 1.1 GB">
-                                    <div class="w-full bg-blue-600/30 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 22%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="05:00 - 2.4 GB">
-                                    <div class="w-full bg-blue-600/40 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 38%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="06:00 - 1.8 GB">
-                                    <div class="w-full bg-blue-600/35 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 30%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="07:00 - 3.2 GB">
-                                    <div class="w-full bg-blue-600/50 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 48%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="08:00 - 5.8 GB">
-                                    <div class="w-full bg-blue-600/70 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 72%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="09:00 (Auto-Backup) - 8.4 GB">
-                                    <div class="w-full bg-gradient-to-t from-blue-600 to-emerald-400 rounded-t-sm group-hover:opacity-90 transition-all" style="height: 94%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="10:00 - 4.2 GB">
-                                    <div class="w-full bg-blue-600/60 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 55%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="11:00 - 2.8 GB">
-                                    <div class="w-full bg-blue-600/40 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 40%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="12:00 - 1.9 GB">
-                                    <div class="w-full bg-blue-600/35 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 32%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="13:00 - 3.5 GB">
-                                    <div class="w-full bg-blue-600/50 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 50%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="14:00 - 4.1 GB">
-                                    <div class="w-full bg-blue-600/60 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 58%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="15:00 - 5.0 GB">
-                                    <div class="w-full bg-blue-600/65 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 68%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="16:00 - 3.7 GB">
-                                    <div class="w-full bg-blue-600/50 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 52%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="17:00 - 2.9 GB">
-                                    <div class="w-full bg-blue-600/40 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 42%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="18:00 - 2.1 GB">
-                                    <div class="w-full bg-blue-600/35 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 34%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="19:00 - 1.5 GB">
-                                    <div class="w-full bg-blue-600/30 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 26%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="20:00 - 1.3 GB">
-                                    <div class="w-full bg-blue-600/30 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 24%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="21:00 - 1.1 GB">
-                                    <div class="w-full bg-blue-600/25 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 20%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="22:00 - 0.9 GB">
-                                    <div class="w-full bg-blue-600/20 rounded-t-sm group-hover:bg-blue-500 transition-all" style="height: 16%"></div>
-                                </div>
-                                <div class="flex-1 flex flex-col justify-end items-center h-full group" title="23:00 - Now">
-                                    <div class="w-full bg-blue-500 rounded-t-sm group-hover:bg-emerald-400 transition-all animate-pulse" style="height: 14%"></div>
+                            <!-- Dynamic DB-Backed Snapshot Chart Container -->
+                            <div id="dashboard-snapshot-chart" class="h-28 w-full flex items-end gap-2.5 pt-2 pb-1 px-2 bg-zinc-950/70 rounded-lg border border-zinc-800/60 relative overflow-hidden">
+                                <!-- Dynamically Injected by renderDashboardSnapshotChart() with Real SQLite/Metadata Data -->
+                                <div class="w-full h-full flex items-center justify-center text-zinc-500 text-xs font-mono">
+                                    실제 스냅샷 DB 데이터 로딩 중...
                                 </div>
                             </div>
                             
-                            <div class="flex justify-between items-center text-[10px] font-mono text-zinc-500 mt-1.5 px-0.5">
-                                <span>-24h (00:00)</span>
-                                <span>-16h (08:00)</span>
-                                <span>-8h (16:00)</span>
-                                <span class="text-blue-400">Current (Live)</span>
+                            <div id="chart-date-labels" class="flex justify-between items-center text-[10px] font-mono text-zinc-500 mt-1.5 px-0.5">
+                                <span>과거 스냅샷</span>
+                                <span class="text-blue-400">최신 스냅샷 (Live)</span>
                             </div>
                         </div>
 

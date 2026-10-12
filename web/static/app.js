@@ -396,9 +396,104 @@ function renderRecentSnapshots() {
     }).join('');
 
     lucide.createIcons();
+    renderDashboardSnapshotChart();
 }
 
-// Snapshots Tab
+function renderDashboardSnapshotChart() {
+    const container = document.getElementById('dashboard-snapshot-chart');
+    const metaSummary = document.getElementById('chart-meta-summary');
+    const dateLabels = document.getElementById('chart-date-labels');
+    if (!container) return;
+
+    if (!state.snapshots || state.snapshots.length === 0) {
+        container.innerHTML = `
+            <div class="w-full h-full flex flex-col items-center justify-center text-zinc-500 text-xs font-mono space-y-1">
+                <span>기록된 스냅샷이 없습니다.</span>
+                <span class="text-[10px] text-zinc-600">[BACKUP NOW]를 눌러 첫 스냅샷을 생성하세요.</span>
+            </div>
+        `;
+        if (metaSummary) metaSummary.innerText = '| 기록된 스냅샷 없음';
+        return;
+    }
+
+    // 시간순 오름차순 정렬 (과거 -> 최신)
+    const sorted = [...state.snapshots].sort((a, b) => {
+        const tA = Number(a.created_at || a.timestamp || 0);
+        const tB = Number(b.created_at || b.timestamp || 0);
+        return tA - tB;
+    });
+
+    // 최근 최대 14개 스냅샷
+    const chartSnaps = sorted.slice(-14);
+    const maxBytes = Math.max(...chartSnaps.map(s => (s.summary && s.summary.total_bytes) || 1), 1024 * 1024);
+    const latest = chartSnaps[chartSnaps.length - 1];
+
+    if (metaSummary && latest) {
+        const latestBytes = (latest.summary && latest.summary.total_bytes) || 0;
+        const latestFiles = (latest.summary && latest.summary.total_files) || 0;
+        metaSummary.innerText = `| 실측 DB 스냅샷 ${state.snapshots.length}개 보관 (최신: ${formatBytes(latestBytes)}, ${latestFiles.toLocaleString()}개 파일)`;
+    }
+
+    const barsHtml = chartSnaps.map((s, idx) => {
+        const isLatest = (idx === chartSnaps.length - 1);
+        const sum = s.summary || {};
+        const b = sum.total_bytes || 0;
+        const f = sum.total_files || 0;
+        const heightPct = Math.max(18, Math.min(95, Math.round((b / maxBytes) * 92)));
+        
+        let dateLabel = '';
+        try {
+            const d = new Date((s.created_at || s.timestamp) * 1000);
+            if (!isNaN(d.getTime())) {
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const hh = String(d.getHours()).padStart(2, '0');
+                const ii = String(d.getMinutes()).padStart(2, '0');
+                dateLabel = `${mm}/${dd} ${hh}:${ii}`;
+            } else {
+                dateLabel = s.id ? s.id.substring(5, 15) : `#${idx+1}`;
+            }
+        } catch(e) {
+            dateLabel = `#${idx+1}`;
+        }
+
+        const tooltip = `[스냅샷 #${idx+1}]\nID: ${s.id}\n일시: ${dateLabel}\n용량: ${formatBytes(b)}\n파일 수: ${f.toLocaleString()}개\n프로필: ${s.profile_name || '기본'}`;
+
+        return `
+            <div class="flex-1 flex flex-col justify-end items-center h-full group relative cursor-pointer" title="${tooltip}" onclick="inspectSnapshot('${s.id}')">
+                <div class="text-[9px] font-mono text-zinc-400 group-hover:text-white transition mb-1 opacity-0 group-hover:opacity-100 whitespace-nowrap absolute -top-4 pointer-events-none z-10 bg-zinc-900 px-1 rounded border border-zinc-700">
+                    ${formatBytes(b)}
+                </div>
+                <div class="w-full ${isLatest ? 'bg-gradient-to-t from-blue-600 via-cyan-500 to-emerald-400 shadow-md shadow-emerald-500/20' : 'bg-blue-600/50 group-hover:bg-blue-500'} rounded-t-sm transition-all duration-300 relative" style="height: ${heightPct}%">
+                    ${isLatest ? '<span class="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-emerald-300 rounded-full animate-ping"></span>' : ''}
+                </div>
+                <div class="text-[8px] font-mono text-zinc-500 group-hover:text-zinc-300 transition mt-1 truncate max-w-full text-center">
+                    ${dateLabel.split(' ')[1] || dateLabel}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="absolute inset-0 grid grid-rows-3 pointer-events-none opacity-20">
+            <div class="border-b border-zinc-700"></div>
+            <div class="border-b border-zinc-700"></div>
+            <div></div>
+        </div>
+        ${barsHtml}
+    `;
+
+    if (dateLabels && chartSnaps.length > 0) {
+        const first = chartSnaps[0];
+        const last = chartSnaps[chartSnaps.length - 1];
+        const firstDate = formatDate(first.iso_time || first.created_at);
+        const lastDate = formatDate(last.iso_time || last.created_at);
+        dateLabels.innerHTML = `
+            <span>첫 스냅샷: <b class="text-zinc-300">${firstDate}</b></span>
+            <span class="text-emerald-400">최신 스냅샷: <b>${lastDate} (Live)</b></span>
+        `;
+    }
+}
 
 // =========================================================================
 // 백업 프로필 관리 & Windows 작업 스케줄러 & 디렉토리 브라우저
