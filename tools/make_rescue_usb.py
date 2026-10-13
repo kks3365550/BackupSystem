@@ -204,14 +204,11 @@ def create_launchers(target_root: str):
         "\r\n"
         "[1] PC가 켜지지 않거나 C드라이브 SSD가 고장났을 때 (부팅 복구):\r\n"
         " 1. 이 USB를 PC에 꽂고 전원을 켭니다.\r\n"
-        " 2. 부팅 키(F11 또는 F12 또는 Del/F2)를 연타하여 부팅 메뉴 진입.\r\n"
+        " 2. 부팅 단축키(F11 또는 F12 또는 Del/F2)를 연타하여 부팅 메뉴 진입.\r\n"
         " 3. UEFI USB 드라이브를 선택하여 부팅합니다.\r\n"
-        " 4. Windows 설치 화면이 나오면 키보드의 [Shift + F10] 키를 누릅니다.\r\n"
-        "    -> 검은색 명령 프롬프트(cmd.exe) 창이 열립니다.\r\n"
-        " 5. USB 드라이브로 이동하여 긴급 복구 콘솔을 실행합니다:\r\n"
-        "    X:\\Sources> E:\r\n"
-        "    E:\\> 1_긴급복구콘솔_실행.bat\r\n"
-        "    (USB가 E:가 아닐 경우 D:, F: 등으로 이동하여 확인)\r\n"
+        " 4. [완전 자동 실행] 부팅 즉시 윈도우 설치 창을 건너뛰고 '긴급 재해 복구 콘솔'이 자동으로 실행됩니다!\r\n"
+        "    - 사람이 직접 Shift+F10을 누르거나 드라이브 문자를 찾을 필요가 없습니다.\r\n"
+        " 5. 화면에 감지된 최신 백업본을 확인한 후 Y를 누르면 즉시 C드라이브 전체 복원이 시작됩니다.\r\n"
         "\r\n"
         "[2] 윈도우가 정상 부팅된 상태에서 백업을 점검하거나 복원할 때:\r\n"
         " 1. 이 USB를 PC에 연결합니다.\r\n"
@@ -264,6 +261,18 @@ def build_rescue_usb(target_drive: str = DEFAULT_TARGET, iso_path: str = DEFAULT
             os.path.join(target_root, "sources"),
             exclude_files=["install.wim"]
         )
+
+        # 3-1. WinPE boot.wim에 복구 콘솔 자동 실행(setup.exe 우회) 주입
+        boot_wim_path = os.path.join(target_root, "sources", "boot.wim")
+        if os.path.exists(boot_wim_path):
+            log("3.5/4. WinPE boot.wim에 복구 콘솔 자동 실행 로직 주입 중...")
+            inject_script = os.path.join(PROJECT_ROOT, "tools", "inject_autostart_to_wim.py")
+            if os.path.exists(inject_script):
+                res = subprocess.run([sys.executable, inject_script], capture_output=True, text=True, encoding="utf-8", errors="replace")
+                if res.returncode == 0:
+                    log("  -> WinPE boot.wim 자동 실행 주입 성공 (setup.exe 차단 완료)")
+                else:
+                    log(f"  -> [주의] 자동 실행 주입 경고: {res.stderr.strip() or res.stdout.strip()}")
 
         # 4. 백업시스템 독립 런타임 및 도구 복사
         log("4/4. 백업시스템 독립 런타임 및 재해 복구 파이프라인 배치 중...")
