@@ -23,6 +23,46 @@ APP_FILE = os.path.join(BASE_DIR, 'web', 'app.py')
 INDEX_FILE = os.path.join(BASE_DIR, 'web', 'templates', 'index.html')
 ISS_FILE = os.path.join(BASE_DIR, 'installer', 'BackupSystem.iss')
 
+PREFLIGHT_LINT_TARGETS = ['core', 'web', 'cli_backup.py', 'cli.py', 'run.py', 'disaster_recovery.py']
+
+def run_preflight_lint_gate():
+    """GitHub Actions CI와 100% 동일한 정적 분석(pyflakes) 사전 검증 게이트.
+    린트 에러가 단 1건이라도 있으면 버전업/커밋/푸시를 즉시 차단(Fail-Closed)한다.
+    """
+    print("[0/5] Pre-flight Lint Check (pyflakes CI gate)...")
+    try:
+        res = subprocess.run(
+            [sys.executable, '-m', 'pyflakes'] + PREFLIGHT_LINT_TARGETS,
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+    except Exception as e:
+        print(f"      [FATAL] pyflakes 실행 실패: {e}")
+        sys.exit(1)
+
+    stdout = (res.stdout or '').strip()
+    stderr = (res.stderr or '').strip()
+
+    if res.returncode != 0 or stdout or stderr:
+        print("      " + "!" * 50)
+        print("      [BLOCKED] 정적 분석(pyflakes) 검증 실패! 릴리즈가 즉시 중단됩니다.")
+        print("      " + "!" * 50)
+        if stdout:
+            print("      [pyflakes 오류 출력]:")
+            for line in stdout.splitlines():
+                print(f"        -> {line}")
+        if stderr:
+            print("      [pyflakes 경고/에러]:")
+            for line in stderr.splitlines():
+                print(f"        -> {line}")
+        print("      * 코드를 수정한 후 다시 릴리즈를 실행하세요.")
+        sys.exit(1)
+
+    print("      [OK] pyflakes 무결성 검증 통과 (린트 오류 0건)")
+
 def get_current_version():
     if os.path.exists(VERSION_FILE):
         with open(VERSION_FILE, 'r', encoding='utf-8') as f:
@@ -533,6 +573,9 @@ def main():
     print("=" * 60)
     print("   Backup System Release & Versioning Pipeline")
     print("=" * 60)
+
+    # 릴리즈 착수 전 정적 분석(pyflakes) 사전 검증 (CI 실패 및 알림 메일 원천 차단)
+    run_preflight_lint_gate()
 
     cur_ver = get_current_version()
     if args.version:
