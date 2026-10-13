@@ -384,6 +384,28 @@
                                     <span>관리</span> &rarr;
                                 </button>
                             </div>
+
+                            <!-- RESCUE USB MAKER BANNER (Dashboard Quick Action) -->
+                            <div class="p-3 rounded-lg bg-gradient-to-br from-blue-950/40 via-zinc-950/60 to-indigo-950/40 border border-blue-900/50 flex items-center justify-between">
+                                <div class="space-y-0.5">
+                                    <div class="text-xs font-bold text-zinc-100 flex items-center gap-1.5 font-mono">
+                                        <i data-lucide="disc" class="w-3.5 h-3.5 text-blue-400"></i>
+                                        <span>긴급 복구 부팅 USB</span>
+                                        <span class="text-[9px] px-1.5 py-0.2 rounded bg-blue-900/60 text-blue-300 font-bold border border-blue-800/60">0초 자동실행</span>
+                                    </div>
+                                    <p class="text-[10px] text-zinc-400">부팅 불가 시 원클릭 복원용 UEFI 미디어</p>
+                                </div>
+                                <div class="flex items-center gap-1.5">
+                                    <button onclick="openRescueUsbModal()" class="py-1 px-2.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded text-[11px] font-mono font-bold transition shadow-sm flex items-center gap-1">
+                                        <i data-lucide="hard-drive" class="w-3 h-3"></i>
+                                        <span>제작</span>
+                                    </button>
+                                    <button onclick="openRescueGuideModal()" class="py-1 px-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded text-[11px] font-mono transition border border-zinc-700 flex items-center gap-1" title="복구 USB 사용법 및 부팅 안내">
+                                        <i data-lucide="help-circle" class="w-3 h-3 text-amber-400"></i>
+                                        <span>사용법</span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                     </div>
@@ -958,6 +980,28 @@
                             <div class="text-slate-500">[대기] '지금 OS 전체 백업 시작' 버튼을 누르면 WindowsImageBackup 생성을 시작합니다.</div>
                         </div>
                     </div>
+                <!-- RESCUE USB MAKER PANEL IN OS BACKUP TAB -->
+                <div class="p-6 bg-gradient-to-br from-blue-950/30 via-slate-900/60 to-indigo-950/30 rounded-2xl border border-blue-900/40 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="space-y-1">
+                            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                <i data-lucide="disc" class="w-4 h-4 text-blue-400"></i>
+                                <span>긴급 재해 복구(Rescue DR) UEFI 부팅 USB 제작기</span>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-900/60 text-blue-300 font-bold border border-blue-700/60">0초 전자동 실행</span>
+                            </h3>
+                            <p class="text-xs text-slate-400">
+                                윈도우 부팅 불가나 SSD 교체 시, PC에 꽂고 켜기만 하면 <strong>윈도우 설치 창 없이 0초 만에 복구 콘솔이 자동 실행</strong>되는 전용 비상 미디어입니다.
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="openRescueGuideModal()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition border border-slate-700 flex items-center gap-1.5">
+                                <i data-lucide="help-circle" class="w-3.5 h-3.5 text-amber-400"></i> 사용법 안내
+                            </button>
+                            <button onclick="openRescueUsbModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/30 flex items-center gap-1.5 transition">
+                                <i data-lucide="hard-drive" class="w-3.5 h-3.5"></i> USB 지금 제작
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Bare-Metal Emergency Recovery Manual -->
@@ -1478,12 +1522,167 @@
         </div>
     </div>
 
+    <!-- MODAL: Rescue USB Maker Wizard -->
+    <div id="rescue-usb-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/80">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
+                        <i data-lucide="disc" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                            <span>긴급 재해 복구(Rescue DR) UEFI 부팅 USB 제작기</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-900/60 text-blue-300 font-bold border border-blue-800/60">0초 자동실행 탑재</span>
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-0.5">연결된 이동식 USB에 순정 WinPE + 자동 복구 콘솔을 설치합니다.</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('rescue-usb-modal')" class="text-slate-400 hover:text-slate-200">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-5 overflow-y-auto space-y-4 text-xs">
+                <!-- 1. USB 대상 선택 -->
+                <div class="space-y-1.5">
+                    <div class="flex items-center justify-between text-slate-300 font-semibold">
+                        <label class="flex items-center gap-1.5">
+                            <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-blue-400"></i>
+                            <span>대상 USB 드라이브 선택</span>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <span id="rescue-usb-scan-badge" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">스캔 대기</span>
+                            <button onclick="loadRescueUsbTargets()" class="text-blue-400 hover:text-blue-300 text-[11px] font-mono flex items-center gap-1">
+                                <i data-lucide="refresh-cw" class="w-3 h-3"></i> 새로고침
+                            </button>
+                        </div>
+                    </div>
+                    <select id="rescue-usb-select" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-mono">
+                        <option value="">USB를 검색 중입니다...</option>
+                    </select>
+                </div>
+
+                <!-- 2. 선택된 대상 상세 정보 -->
+                <div id="rescue-usb-target-info">
+                    <!-- JS에 의해 동적 렌더링 -->
+                </div>
+
+                <!-- 3. 실시간 제작 진행률 & 콘솔 로그 -->
+                <div id="rescue-usb-progress-container" class="space-y-2 hidden">
+                    <div class="flex items-center justify-between text-xs">
+                        <span id="rescue-usb-phase-text" class="text-slate-300 font-semibold flex items-center gap-1.5 font-mono">
+                            <i data-lucide="loader-2" class="w-3.5 h-3.5 text-blue-400 animate-spin"></i>
+                            <span>제작 진행 중...</span>
+                        </span>
+                        <span id="rescue-usb-progress-pct" class="font-mono text-blue-400 font-bold">0%</span>
+                    </div>
+                    <div class="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                        <div id="rescue-usb-progress-bar" class="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-emerald-500 transition-all duration-300 w-0"></div>
+                    </div>
+                    <div class="space-y-1">
+                        <span class="text-[11px] text-slate-400 font-mono flex items-center gap-1">
+                            <i data-lucide="terminal" class="w-3 h-3 text-slate-500"></i> 실시간 빌드/주입 로그:
+                        </span>
+                        <div id="rescue-usb-console" class="bg-slate-950 rounded-xl p-3 font-mono text-[11px] text-slate-300 h-36 overflow-y-auto border border-slate-800/80 space-y-1 select-text"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 bg-slate-950 border-t border-slate-800 flex justify-between items-center">
+                <button type="button" onclick="openRescueGuideModal()" class="px-3 py-2 text-xs text-slate-400 hover:text-white flex items-center gap-1.5 transition">
+                    <i data-lucide="book-open" class="w-3.5 h-3.5 text-amber-400"></i>
+                    <span>부팅 및 복구 사용법 보기</span>
+                </button>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="closeModal('rescue-usb-modal')" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition">닫기</button>
+                    <button type="button" id="btn-start-make-usb" onclick="startRescueUsbCreation()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/30 flex items-center gap-1.5 transition">
+                        <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
+                        <span>긴급 복구 USB 제작 시작</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Rescue USB Usage Guide -->
+    <div id="rescue-guide-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/80">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                        <i data-lucide="life-buoy" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                            <span>긴급 재해 복구 부팅 USB 사용 안내서</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 font-bold border border-emerald-800/60">0초 자동실행</span>
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-0.5">PC 전원이 켜지지 않거나 부팅 불가/새 SSD 교체 시 복구 방법</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('rescue-guide-modal')" class="text-slate-400 hover:text-slate-200">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-5 overflow-y-auto space-y-4 text-xs">
+                <!-- 핵심 특징 스트립 -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono text-center">
+                    <div class="p-2 rounded-lg bg-zinc-950/70 border border-zinc-800 text-emerald-400 font-bold">0초 자동 실행</div>
+                    <div class="p-2 rounded-lg bg-zinc-950/70 border border-zinc-800 text-blue-400 font-bold">Shift+F10 불필요</div>
+                    <div class="p-2 rounded-lg bg-zinc-950/70 border border-zinc-800 text-indigo-400 font-bold">UEFI 보안부팅 지원</div>
+                    <div class="p-2 rounded-lg bg-zinc-950/70 border border-zinc-800 text-cyan-400 font-bold">백업본 자동 탐색</div>
+                </div>
+
+                <!-- 4단계 복구 절차 -->
+                <div class="space-y-2">
+                    <h4 class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <i data-lucide="check-circle" class="w-3.5 h-3.5 text-blue-400"></i>
+                        <span>실전 긴급 복구 4단계 절차</span>
+                    </h4>
+                    <div id="rescue-guide-steps" class="space-y-2">
+                        <!-- JS로 동적 렌더링 -->
+                    </div>
+                </div>
+
+                <!-- 제조사별 부팅 단축키 -->
+                <div class="space-y-2 pt-2 border-t border-zinc-800">
+                    <h4 class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <i data-lucide="keyboard" class="w-3.5 h-3.5 text-amber-400"></i>
+                        <span>주요 PC / 메인보드 부팅 단축키 (전원 켜자마자 연타)</span>
+                    </h4>
+                    <div id="rescue-guide-boot-keys" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <!-- JS로 동적 렌더링 -->
+                    </div>
+                </div>
+
+                <!-- 윈도우 부팅 상태 활용 팁 -->
+                <div class="p-3 bg-zinc-950 rounded-xl border border-zinc-800 text-[11px] text-zinc-400 leading-relaxed space-y-1">
+                    <div class="font-bold text-slate-200 flex items-center gap-1">
+                        <i data-lucide="info" class="w-3.5 h-3.5 text-blue-400"></i>
+                        <span>윈도우가 정상 작동하는 상태에서도 즉시 사용 가능:</span>
+                    </div>
+                    <div>USB를 PC에 꽂고 <b>1_긴급복구콘솔_실행.bat</b> 또는 <b>2_백업이미지탐색기.bat</b>을 더블클릭하면, 
+                    내장된 무설치 Python을 통해 언제든 즉시 시스템 백업을 점검하거나 복원할 수 있습니다.</div>
+                </div>
+            </div>
+
+            <div class="p-4 bg-slate-950 border-t border-slate-800 flex justify-end">
+                <button type="button" onclick="closeModal('rescue-guide-modal')" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-blue-600/30">
+                    확인 완료
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- 모듈화된 백업 서브시스템 스크립트 로드 -->
     <script src="/static/js/backup_utils.js?v={{ v_ts }}"></script>
     <script src="/static/js/backup_auth.js?v={{ v_ts }}"></script>
     <script src="/static/js/backup_snapshots.js?v={{ v_ts }}"></script>
     <script src="/static/js/backup_custom.js?v={{ v_ts }}"></script>
     <script src="/static/js/backup_sysimage.js?v={{ v_ts }}"></script>
+    <script src="/static/js/rescue_usb.js?v={{ v_ts }}"></script>
     <script src="/static/app.js?v={{ v_ts }}"></script>
 </body>
 </html>

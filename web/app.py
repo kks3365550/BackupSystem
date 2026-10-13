@@ -167,6 +167,8 @@ app.include_router(snapshots_router)
 app.include_router(update_router)
 from web.api_backup import router as backup_router
 app.include_router(backup_router)
+from web.api_rescue import router as rescue_router
+app.include_router(rescue_router)
 
 # --- Web UI Route ---
 @app.get("/", response_class=HTMLResponse)
