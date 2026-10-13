@@ -5,13 +5,12 @@ web/api_rescue.py - 긴급 재해 복구(Rescue DR) UEFI 부팅 USB 제작 API �
 
 import os
 import sys
-import json
 import time
 import shutil
 import threading
 import subprocess
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/rescue", tags=["Rescue USB"])
@@ -92,7 +91,6 @@ def scan_removable_drives() -> List[Dict[str, Any]]:
 
 
 def _background_usb_worker(target_drive: str, iso_path: str):
-    global _usb_task_state
     try:
         from tools.make_rescue_usb import (
             check_target_drive, mount_iso, dismount_iso,
@@ -241,8 +239,6 @@ def get_usb_targets():
 @router.post("/make-usb")
 def start_make_usb(req: MakeUsbRequest):
     """긴급 복구 USB 제작 시작"""
-    global _usb_task_state
-
     with _usb_lock:
         if _usb_task_state["is_running"]:
             raise HTTPException(status_code=400, detail="이미 USB 제작 작업이 진행 중입니다.")
