@@ -224,15 +224,19 @@ def get_storage_stats(repo_dir: Optional[str] = None):
 
     for r in repos:
         if os.path.exists(r):
-            st = BlobStorage(r).get_storage_stats()
-            total_blobs += st["total_blobs"]
-            stored_bytes += st["stored_bytes"]
-            logical_bytes += st["logical_bytes"]
-            total_snapshots += st["total_snapshots"]
-            total_chunks += st.get("total_chunks", 0)
-            chunked_files_count += st.get("chunked_files_count", 0)
-            for strat, count in st.get("chunk_strategies", {}).items():
-                chunk_strategies[strat] = chunk_strategies.get(strat, 0) + count
+            try:
+                st = BlobStorage(r).get_storage_stats()
+                total_blobs += st["total_blobs"]
+                stored_bytes += st["stored_bytes"]
+                logical_bytes += st["logical_bytes"]
+                total_snapshots += st["total_snapshots"]
+                total_chunks += st.get("total_chunks", 0)
+                chunked_files_count += st.get("chunked_files_count", 0)
+                for strat, count in st.get("chunk_strategies", {}).items():
+                    chunk_strategies[strat] = chunk_strategies.get(strat, 0) + count
+            except Exception as e:
+                import logging
+                logging.getLogger("BackupSystem").warning(f"Failed to query storage stats for repo {r}: {e}")
 
     saved_bytes = max(0, logical_bytes - stored_bytes)
     ratio = round((saved_bytes / logical_bytes * 100), 1) if logical_bytes > 0 else 0.0

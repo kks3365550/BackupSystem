@@ -57,7 +57,7 @@ def _get_all_candidate_repos(repo_dir: Optional[str] = None) -> List[str]:
                 mounted_roots.add(d)
 
     for m_root in mounted_roots:
-        for repo_cand in (m_root, os.path.join(m_root, "MyBackup_Repository"), os.path.join(m_root, "backup_repository")):
+        for repo_cand in (os.path.join(m_root, "MyBackup_Repository"), os.path.join(m_root, "backup_repository")):
             try:
                 if os.path.exists(os.path.join(repo_cand, "snapshots")) and os.path.exists(os.path.join(repo_cand, "blobs")):
                     candidates.add(os.path.abspath(repo_cand))
