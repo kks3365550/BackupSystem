@@ -134,12 +134,173 @@ start "" "%TOOL_EXE%"
 exit /b 0
 '''
 
-def write_crlf(path, content):
+vbs_script = '''Option Explicit
+
+Dim fso, shell, outFile, ts, outPath, curDir
+Set fso = CreateObject("Scripting.FileSystemObject")
+Set shell = CreateObject("WScript.Shell")
+
+curDir = fso.GetParentFolderName(WScript.ScriptFullName)
+ts = Year(Now) & Right("0" & Month(Now), 2) & Right("0" & Day(Now), 2) & "_" & Right("0" & Hour(Now), 2) & Right("0" & Minute(Now), 2)
+
+If fso.FolderExists("D:\\") Then
+    If Not fso.FolderExists("D:\\사무실_라이선스_백업") Then fso.CreateFolder("D:\\사무실_라이선스_백업")
+    outPath = "D:\\사무실_라이선스_백업\\라이선스_제품키_추출_" & ts & ".txt"
+Else
+    outPath = curDir & "\\라이선스_제품키_추출_" & ts & ".txt"
+End If
+
+Set outFile = fso.CreateTextFile(outPath, True, True)
+
+outFile.WriteLine "======================================================================"
+outFile.WriteLine "   [사무실 PC] 라이선스 키 및 설치 제품키 전수 추출 보고서"
+outFile.WriteLine "   추출 일시: " & Now
+outFile.WriteLine "======================================================================"
+outFile.WriteLine ""
+
+' 1. Windows 제품키 디코딩
+outFile.WriteLine "[1. Windows 제품키]"
+Dim winKey
+winKey = GetWindowsProductKey()
+outFile.WriteLine " - Windows 제품 키: " & winKey
+outFile.WriteLine ""
+
+' 2. MS Office 제품키 탐색
+outFile.WriteLine "[2. Microsoft Office 제품키]"
+Dim officeKey
+officeKey = GetOfficeProductKey()
+outFile.WriteLine " - Office 탐색 결과: " & officeKey
+outFile.WriteLine ""
+
+' 3. 한컴오피스 / 한글 시리얼 탐색
+outFile.WriteLine "[3. 한컴오피스 (한글) 시리얼 / 등록정보]"
+Dim hncSerial
+hncSerial = GetHncSerial()
+outFile.WriteLine hncSerial
+outFile.WriteLine ""
+
+' 4. Tecnosoft 및 기타 계측/업무 S/W 레지스트리 경로 안내
+outFile.WriteLine "[4. Tecnosoft SPD 및 기타 업무용 소프트웨어]"
+outFile.WriteLine " - Tecnosoft SPD 설치 경로는 USB의 'Disk2vhd' 도구로 C드라이브 전체를 가상화 백업해 두었습니다."
+outFile.WriteLine " - 레지스트리 키: HKLM\\SOFTWARE\\Tecnosoft 및 HKCU\\SOFTWARE\\Tecnosoft"
+outFile.WriteLine ""
+outFile.WriteLine "======================================================================"
+
+outFile.Close
+
+MsgBox "라이선스 키 추출이 완료되었습니다!" & vbCrLf & vbCrLf & "저장 위치: " & outPath, vbInformation, "라이선스 추출 완료"
+
+Function GetWindowsProductKey()
+    On Error Resume Next
+    Dim regObj, digitalProductId, isWin8
+    Const HKEY_LOCAL_MACHINE = &H80000002
+    Set regObj = GetObject("winmgmts:{impersonationLevel=impersonate}!\\\\.\\root\\default:StdRegProv")
+    regObj.GetBinaryValue HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", "DigitalProductId", digitalProductId
+    If IsArray(digitalProductId) Then
+        isWin8 = (digitalProductId(66) \\ 6) And 1
+        digitalProductId(66) = (digitalProductId(66) And &HF7) Or ((isWin8 And 2) * 4)
+        GetWindowsProductKey = DecodeKey(digitalProductId, isWin8)
+    Else
+        GetWindowsProductKey = "레지스트리에서 제품키를 찾을 수 없습니다."
+    End If
+End Function
+
+Function GetOfficeProductKey()
+    On Error Resume Next
+    Dim regObj, digitalProductId, isWin8, res, k, hivePaths
+    Const HKEY_LOCAL_MACHINE = &H80000002
+    Set regObj = GetObject("winmgmts:{impersonationLevel=impersonate}!\\\\.\\root\\default:StdRegProv")
+    
+    hivePaths = Array( _
+        "SOFTWARE\\Microsoft\\Office\\14.0\\Registration", _
+        "SOFTWARE\\Microsoft\\Office\\15.0\\Registration", _
+        "SOFTWARE\\Microsoft\\Office\\16.0\\Registration", _
+        "SOFTWARE\\Wow6432Node\\Microsoft\\Office\\14.0\\Registration", _
+        "SOFTWARE\\Wow6432Node\\Microsoft\\Office\\15.0\\Registration", _
+        "SOFTWARE\\Wow6432Node\\Microsoft\\Office\\16.0\\Registration" _
+    )
+    
+    res = ""
+    For Each k In hivePaths
+        Dim subKeys, subK
+        regObj.EnumKey HKEY_LOCAL_MACHINE, k, subKeys
+        If IsArray(subKeys) Then
+            For Each subK In subKeys
+                regObj.GetBinaryValue HKEY_LOCAL_MACHINE, k & "\\" & subK, "DigitalProductId", digitalProductId
+                If IsArray(digitalProductId) Then
+                    isWin8 = (digitalProductId(66) \\ 6) And 1
+                    digitalProductId(66) = (digitalProductId(66) And &HF7) Or ((isWin8 And 2) * 4)
+                    res = res & vbCrLf & " - Office (" & k & "): " & DecodeKey(digitalProductId, isWin8)
+                End If
+            Next
+        End If
+    Next
+    
+    If res = "" Then
+        GetOfficeProductKey = "오피스 설치 키를 레지스트리에서 찾지 못했거나 볼륨 라이선스(KMS/간편실행) 방식입니다."
+    Else
+        GetOfficeProductKey = res
+    End If
+End Function
+
+Function GetHncSerial()
+    On Error Resume Next
+    Dim regObj, val, res
+    Const HKEY_LOCAL_MACHINE = &H80000002
+    Const HKEY_CURRENT_USER = &H80000001
+    Set regObj = GetObject("winmgmts:{impersonationLevel=impersonate}!\\\\.\\root\\default:StdRegProv")
+    res = ""
+    
+    regObj.GetStringValue HKEY_LOCAL_MACHINE, "SOFTWARE\\Hnc\\Hwp", "ProductKey", val
+    If val <> "" Then res = res & " - 한컴 HWP 제품키 (HKLM): " & val & vbCrLf
+    
+    regObj.GetStringValue HKEY_LOCAL_MACHINE, "SOFTWARE\\Wow6432Node\\Hnc\\Hwp", "ProductKey", val
+    If val <> "" Then res = res & " - 한컴 HWP 제품키 (HKLM WOW64): " & val & vbCrLf
+    
+    regObj.GetStringValue HKEY_CURRENT_USER, "SOFTWARE\\Hnc\\Hwp", "SerialNumber", val
+    If val <> "" Then res = res & " - 한컴 HWP 시리얼번호 (HKCU): " & val & vbCrLf
+
+    If res = "" Then
+        GetHncSerial = " - 한글 시리얼 키 레지스트리 미검출 (Disk2vhd 가상화 백업본에서 확인 권장)"
+    Else
+        GetHncSerial = res
+    End If
+End Function
+
+Function DecodeKey(rKey, isWin8)
+    Const keyOffset = 52
+    Dim i, j, cur, x, keyOutput, chars
+    chars = "BCDFGHJKMPQRTVWXY2346789"
+    keyOutput = ""
+    i = 28
+    Do
+        cur = 0
+        j = 14
+        Do
+            cur = cur * 256
+            cur = rKey(j + keyOffset) + cur
+            rKey(j + keyOffset) = (cur \\ 24)
+            cur = cur Mod 24
+            j = j - 1
+        Loop While j >= 0
+        i = i - 1
+        keyOutput = Mid(chars, cur + 1, 1) & keyOutput
+        If (((29 - i) Mod 6) = 0) And (i <> -1) Then
+            i = i - 1
+            keyOutput = "-" & keyOutput
+        End If
+    Loop While i >= 0
+    DecodeKey = keyOutput
+End Function
+'''
+
+def write_crlf(path, content, encoding='utf-8'):
     crlf_content = content.strip().replace('\r\n', '\n').replace('\n', '\r\n') + '\r\n'
     with open(path, 'wb') as f:
-        f.write(crlf_content.encode('utf-8'))
+        f.write(crlf_content.encode(encoding))
     print(f'Successfully wrote: {path}')
 
 write_crlf(r'E:\0_사무실_공유폴더_및_네트워크_원클릭백업.bat', net_script)
 write_crlf(r'E:\0_사무실_Tecnosoft_SPD_원클릭추출.bat', tec_script)
 write_crlf(r'E:\0_사무실_C드라이브_가상화백업(Disk2vhd).bat', vhd_script)
+write_crlf(r'E:\0_사무실_라이선스키_원클릭_추출.vbs', vbs_script, encoding='utf-16le')

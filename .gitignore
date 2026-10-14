@@ -59,6 +59,7 @@ data/profiles.json
 # 2026-10-07 이전 커밋(1813a21 등 3건)에 이미 남아 있으므로 필요하면
 # git filter-repo 로 이력을 정리해야 한다.
 data/auth_config.json
+data/active_port.txt
 
 # Legacy snapshot (v2.9.10) - 구버전 아카이브라 빌드/검증에서 참조하지 않는다.
 # 하위 개인키는 tools/build_v2921_release.py 가 서명용으로 찾으므로

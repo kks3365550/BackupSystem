@@ -76,6 +76,34 @@ def is_port_in_use(port: int) -> bool:
     except Exception:
         return False
 
+def find_available_port(start_port: int, max_tries: int = 50) -> int:
+    for offset in range(max_tries):
+        candidate = start_port + offset
+        if 1 <= candidate <= 65535 and not is_port_in_use(candidate):
+            return candidate
+    return -1
+
+ACTIVE_PORT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "active_port.txt")
+
+def get_active_port(fallback_port: int) -> int:
+    try:
+        if os.path.exists(ACTIVE_PORT_FILE):
+            with open(ACTIVE_PORT_FILE, "r", encoding="utf-8") as f:
+                p = int(f.read().strip())
+                if is_port_in_use(p):
+                    return p
+    except Exception:
+        pass
+    return fallback_port
+
+def set_active_port(port: int):
+    try:
+        os.makedirs(os.path.dirname(ACTIVE_PORT_FILE), exist_ok=True)
+        with open(ACTIVE_PORT_FILE, "w", encoding="utf-8") as f:
+            f.write(str(port))
+    except Exception:
+        pass
+
 _server_mutex_handle = None
 
 def acquire_single_instance_mutex(is_silent: bool, port: int) -> bool:
@@ -99,7 +127,8 @@ def acquire_single_instance_mutex(is_silent: bool, port: int) -> bool:
 
         if last_error == ERROR_ALREADY_EXISTS:
             if not is_silent:
-                open_browser(port)
+                active_p = get_active_port(port)
+                open_browser(active_p)
             if mutex:
                 kernel32.CloseHandle(mutex)
             sys.exit(0)
@@ -135,20 +164,39 @@ def main():
     settings = ConfigManager.get_settings()
     port = settings.get("server_port", 8765)
     host = settings.get("server_host", "0.0.0.0")
-    
+
+    # CLI 인자: --port <number> 지원 (지정 시 우선 적용)
+    try:
+        if "--port" in sys.argv:
+            idx = sys.argv.index("--port")
+            if idx + 1 < len(sys.argv):
+                port = int(sys.argv[idx + 1])
+    except Exception:
+        pass
+
     # CLI 인자 검사: --silent 가 있으면 브라우저 자동 오픈 억제 (부팅 무음 모드)
     is_silent = "--silent" in sys.argv or "-s" in sys.argv
     auto_open = False if is_silent else settings.get("auto_open_browser", True)
 
     # 1. Windows Named Mutex 기반 단일 인스턴스 보호
-    # (기존 인스턴스 존재 시: is_silent=False면 브라우저 오픈 후 exit, is_silent=True면 즉시 exit)
+    # (기존 인스턴스 존재 시: is_silent=False면 기존 실행 포트 브라우저 오픈 후 exit, is_silent=True면 즉시 exit)
     acquire_single_instance_mutex(is_silent=is_silent, port=port)
 
-    # 2. Fallback: 포트가 이미 점유 중인 경우 (Mutex가 비-Windows 환경에서 실패했을 때 대비)
+    # 2. 타 프로그램 포트 점유 여부 확인 및 자동 우회 (Fallback)
     if is_port_in_use(port):
-        if not is_silent:
-            open_browser(port)
-        return
+        original_port = port
+        port = find_available_port(start_port=port, max_tries=50)
+        if port == -1:
+            err_msg = f"기본 포트 {original_port} 및 대체 포트(최대 50개)가 모두 점유되어 서버를 시작할 수 없습니다."
+            print(f"[!] {err_msg}", file=sys.stderr)
+            if not is_silent:
+                show_error_dialog("백업시스템 포트 충돌", err_msg)
+            return
+
+        print(f"[!] 알림: 기본 포트({original_port})가 다른 프로그램에 의해 사용 중입니다.")
+        print(f"[*] 사용 가능한 포트({port})(으)로 자동 우회하여 백업 서버를 시작합니다.")
+
+    set_active_port(port)
 
     # 3. 서버 시작 준비
     print("=" * 60)
