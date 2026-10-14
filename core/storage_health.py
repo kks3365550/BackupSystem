@@ -118,6 +118,13 @@ def get_system_storage_health(force_refresh: bool = False) -> Dict[str, Any]:
         volumes = get_volumes_info()
 
         overall = "healthy"
+        # 수집 결과가 아예 없는 경우 False Positive 방지
+        if not disks and not volumes:
+            overall = "unknown"
+        elif not disks:
+            overall = "warning"
+
+
         # 물리 디스크 중 하나라도 Healthy가 아니면 경고
         for d in disks:
             h = d.get("health_status", "").lower()
@@ -128,13 +135,14 @@ def get_system_storage_health(force_refresh: bool = False) -> Dict[str, Any]:
                 overall = "warning"
 
         # 볼륨 중 critical이 있으면 critical
-        if overall != "critical":
+        if overall not in ("critical", "unknown"):
             for v in volumes:
                 if v.get("status") == "critical":
                     overall = "critical"
                     break
                 elif v.get("status") == "warning" and overall == "healthy":
                     overall = "warning"
+
 
         result = {
             "success": True,

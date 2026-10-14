@@ -20,8 +20,8 @@ from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger("BackupSystem.VSS")
 
-# Windows VSS 서비스 충돌 방지를 위한 모듈 레벨 락
-_vss_lock = threading.Lock()
+# Windows VSS 서비스 충돌 방지를 위한 모듈 레벨 재진입 가능 락 (데드락 방지)
+_vss_lock = threading.RLock()
 
 
 def flush_sqlite_databases(paths: List[str]):
