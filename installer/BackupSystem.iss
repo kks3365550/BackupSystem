@@ -3,7 +3,7 @@
 ; =========================================================================
 
 #define MyAppName "Kova"
-#define MyAppVersion "2.13.59"
+#define MyAppVersion "2.13.60"
 #define MyAppPublisher "kks3365550"
 #define MyAppURL "http://127.0.0.1:8765"
 #define MyAppExeName "Kova.exe"
@@ -99,19 +99,19 @@ var
   AppDir, StopBat: String;
 begin
   Result := True;
+
+  AppDir := ExpandConstant('{localappdata}\Programs\백업시스템');
+  StopBat := AppDir + '\stop_backup_system.bat';
+  if FileExists(StopBat) then
+    Exec(StopBat, '', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
   AppDir := ExpandConstant('{autopf}\{#MyAppName}');
   StopBat := AppDir + '\stop_backup_system.bat';
   if FileExists(StopBat) then
-  begin
     Exec(StopBat, '', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Sleep(1500);
-  end
-  else
-  begin
-    // 기본 경로에 배치 파일이 없더라도 혹시 실행 중인 백업시스템 프로세스 선별 종료
-    Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process | Where-Object { ($_.Name -match ''^(python|wscript)'') -and ($_.CommandLine -like ''*백업시스템*'' -or $_.CommandLine -like ''*run.py*'' -or $_.CommandLine -like ''*tray_app.py*'') } | Stop-Process -Force"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Sleep(1000);
-  end;
+
+  Exec('cmd.exe', '/c taskkill /F /IM pythonw.exe /IM python.exe 2>nul', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(1500);
 end;
 
 // v2.10.4: 언인스톨 시작 즉시 백업시스템 프로세스(트레이, 서버) 안전 종료 및 파일 잠금 선제 해제
