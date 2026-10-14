@@ -47,14 +47,10 @@ class TestV241Features(unittest.TestCase):
     def tearDown(self):
         # Clean up any WORM protections before removing temp directory
         try:
-            self.worm_manager.unprotect_directory(self.repo_dir, authorized=True)
-            for root, dirs, files in os.walk(self.temp_dir):
-                for f in files:
-                    self.worm_manager.unprotect_file(os.path.join(root, f), authorized=True)
-                for d in dirs:
-                    self.worm_manager.unprotect_directory(os.path.join(root, d), authorized=True)
+            self.worm_manager.unprotect_directory(self.temp_dir, authorized=True)
         except Exception:
             pass
+
 
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir, ignore_errors=True)

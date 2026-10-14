@@ -27,6 +27,7 @@ function switchTab(tabId) {
     if (tabId === 'system-image') {
         loadSystemImageStatus();
         loadVhdxList();
+        if (typeof loadMigrationDrives === 'function') loadMigrationDrives();
     }
 }
 

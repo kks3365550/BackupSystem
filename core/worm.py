@@ -157,16 +157,22 @@ class WORMManager:
             return False
 
         if self._is_windows:
-            success = True
+            # 단 1회의 재귀 호출(/t)로 전체 디렉토리 트리의 Deny ACL을 일괄 해제 (성능 병목/프로세스 폭풍 방지)
+            success = self._run_icacls(dirpath, ["/remove:d", SID_EVERYONE, "/t", "/c", "/q"])
+            # 읽기 전용 속성(chmod)도 일괄 복원
             try:
                 for root, dirs, files in os.walk(dirpath):
-                    if not self._run_icacls(root, ["/remove:d", SID_EVERYONE]):
-                        success = False
-            except (PermissionError, OSError) as e:
-                logger.warning(f"Error during unprotect_directory walk on {dirpath}: {e}")
-                success = False
+                    for f in files:
+                        fp = os.path.join(root, f)
+                        try:
+                            os.chmod(fp, os.stat(fp).st_mode | stat.S_IWUSR)
+                        except OSError:
+                            pass
+            except OSError:
+                pass
             return success
         return True
+
 
     def protect_repository(self, repo_dir: str, protect_dirs: bool = True) -> Dict[str, int]:
         """

@@ -1017,6 +1017,85 @@
                         </div>
                     </div>
 
+                <!-- LIVE SSD MIGRATION (CLONE & BOOTABLE) PANEL -->
+                <div class="p-6 bg-gradient-to-br from-indigo-950/40 via-slate-900/80 to-purple-950/40 rounded-2xl border border-indigo-500/30 space-y-5 shadow-2xl">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-zinc-800/80">
+                        <div class="space-y-1">
+                            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                <i data-lucide="cpu" class="w-4 h-4 text-indigo-400"></i>
+                                <span>1-Click 라이브 SSD 마이그레이션 (Live Disk Clone & Bootable)</span>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-300 font-bold border border-indigo-800">삼성 매지션 방식</span>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 font-bold border border-emerald-800">즉시 부팅 가능</span>
+                            </h3>
+                            <p class="text-xs text-zinc-400">
+                                현재 켜져 있는 Windows C: 드라이브(OS + 모든 프로그램 + 설정)를 VSS로 실시간 캡처하여 다른 물리 SSD로 통째로 복제하고, 
+                                즉시 부팅할 수 있도록 부트로더(<code>bcdboot</code>)를 자동 주입합니다.
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button onclick="loadMigrationDrives()" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-xl text-xs font-semibold transition border border-zinc-700 flex items-center gap-1.5" title="연결된 SSD 목록 새로고침">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 드라이브 새로고침
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Target Selection & Execution Controls -->
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center bg-zinc-950/60 p-4 rounded-xl border border-zinc-800/80">
+                        <div class="md:col-span-7 space-y-1.5">
+                            <label class="text-xs text-zinc-300 font-semibold flex items-center gap-1.5">
+                                <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-blue-400"></i>
+                                <span>복제 대상(타겟) 새 SSD 드라이브 선택:</span>
+                            </label>
+                            <select id="migration-target-select" onchange="onMigrationDriveChange()" class="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500 font-mono">
+                                <option value="">드라이브 목록 로딩 중...</option>
+                            </select>
+                            <div id="migration-drive-info" class="text-xs pt-0.5">
+                                <!-- JS 동적 출력 -->
+                            </div>
+                        </div>
+
+                        <div class="md:col-span-5 flex items-center justify-end gap-3 pt-2 md:pt-0">
+                            <button id="btn-start-migration" onclick="openMigrationConfirmModal()" class="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2">
+                                <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+                                <span>지금 새 SSD로 마이그레이션 시작</span>
+                            </button>
+                            <button id="btn-stop-migration" onclick="stopLiveMigration()" class="hidden w-full sm:w-auto px-4 py-2.5 bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/80 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5">
+                                <i data-lucide="square" class="w-3.5 h-3.5 fill-current"></i>
+                                <span>작업 중단</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Progress Status Bar -->
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center text-xs">
+                            <div class="flex items-center gap-2">
+                                <span class="text-zinc-300 font-semibold">진행 상태:</span>
+                                <span id="migration-current-phase" class="text-zinc-400 font-mono">대기 중</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span id="migration-progress-percent" class="font-mono font-bold text-indigo-400">0.0%</span>
+                                <span id="migration-status-badge" class="text-[11px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-zinc-800 text-zinc-400 border border-zinc-700">대기 중</span>
+                            </div>
+                        </div>
+                        <div class="w-full bg-zinc-950 rounded-full h-2.5 overflow-hidden border border-zinc-800">
+                            <div id="migration-progress-bar" class="bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Real-time Execution Console -->
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-zinc-300 font-semibold flex items-center gap-2">
+                                <i data-lucide="terminal" class="w-3.5 h-3.5 text-cyan-400"></i> 실시간 마이그레이션 실행 콘솔
+                            </span>
+                        </div>
+                        <div id="migration-console" class="bg-zinc-950 rounded-xl p-4 font-mono text-xs text-zinc-300 h-44 overflow-y-auto border border-zinc-800/80 space-y-1 select-text">
+                            <div class="text-zinc-500">[대기] 새 SSD를 선택하고 '지금 새 SSD로 마이그레이션 시작'을 누르면 실시간 복제가 시작됩니다.</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- RESCUE USB MAKER PANEL IN OS BACKUP TAB -->
                 <div class="p-6 bg-gradient-to-br from-blue-950/30 via-slate-900/60 to-indigo-950/30 rounded-2xl border border-blue-900/40 space-y-4">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1719,12 +1798,68 @@
         </div>
     </div>
 
+    <!-- MODAL: Migration Danger Confirmation -->
+    <div id="migration-confirm-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-zinc-900 border border-amber-500/50 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in">
+            <div class="p-5 bg-gradient-to-r from-amber-950/80 via-zinc-900 to-zinc-900 border-b border-zinc-800 flex justify-between items-center">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-bold">
+                        <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-sm text-zinc-100">라이브 SSD 마이그레이션 실행 확인</h3>
+                        <p class="text-[11px] text-amber-300/80">대상 드라이브 데이터가 덮어씌워집니다</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('migration-confirm-modal')" class="text-zinc-400 hover:text-zinc-200">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-5 space-y-4 text-xs text-zinc-300 leading-relaxed">
+                <div class="p-3 bg-amber-950/30 border border-amber-800/40 rounded-xl space-y-2">
+                    <div class="font-semibold text-amber-300 flex items-center gap-1.5">
+                        <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                        <span>주의: 대상 드라이브 (<span id="modal-migration-target-text" class="font-mono font-bold text-white"></span>) 데이터 덮어쓰기</span>
+                    </div>
+                    <p class="text-[11px] text-zinc-400">
+                        선택하신 대상 드라이브에 저장된 기존 데이터는 복제 과정에서 원본 C: 드라이브 내용과 동일하게 미러링 동기화됩니다. 
+                        반드시 대상 드라이브가 올바른 새 SSD인지 다시 한번 확인해 주세요.
+                    </p>
+                </div>
+
+                <div class="space-y-2 text-[11px] text-zinc-400 font-mono bg-zinc-950 p-3 rounded-xl border border-zinc-800">
+                    <div>✓ 원본 볼륨: C:\ (현재 가동 중인 Windows OS)</div>
+                    <div>✓ 실시간 정합성: VSS(볼륨 섀도 복사본) 무중단 스냅샷 적용</div>
+                    <div>✓ 부트로더: bcdboot 자동 주입으로 즉시 단독 부팅 가능</div>
+                </div>
+
+                <label class="flex items-start gap-2.5 p-3 rounded-xl bg-zinc-950/80 border border-zinc-800 cursor-pointer select-none">
+                    <input type="checkbox" id="chk-migration-danger-confirm" onchange="onMigrationDangerCheckChange()" class="mt-0.5 rounded border-zinc-700 text-indigo-600 focus:ring-0">
+                    <span class="text-xs text-zinc-300">
+                        대상 드라이브를 정확히 확인하였으며, Windows C: 드라이브를 라이브 복제하여 부팅 가능한 SSD로 생성하는 것에 동의합니다.
+                    </span>
+                </label>
+            </div>
+
+            <div class="p-4 bg-zinc-950 border-t border-zinc-800 flex justify-end gap-2">
+                <button onclick="closeModal('migration-confirm-modal')" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-semibold transition">
+                    취소
+                </button>
+                <button id="btn-run-migration-final" onclick="confirmAndRunMigration()" disabled class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/30">
+                    확인 및 마이그레이션 시작
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- 모듈화된 백업 서브시스템 스크립트 로드 -->
     <script src="/static/js/backup_utils.js?v={{ v_ts }}"></script>
     <script src="/static/js/backup_auth.js?v={{ v_ts }}"></script>
     <script src="/static/js/backup_snapshots.js?v={{ v_ts }}"></script>
     <script src="/static/js/backup_custom.js?v={{ v_ts }}"></script>
     <script src="/static/js/backup_sysimage.js?v={{ v_ts }}"></script>
+    <script src="/static/js/backup_migration.js?v={{ v_ts }}"></script>
     <script src="/static/js/rescue_usb.js?v={{ v_ts }}"></script>
     <script src="/static/app.js?v={{ v_ts }}"></script>
 </body>

@@ -643,7 +643,11 @@ class SnapshotEngine:
                 storage.db.record_new_blob(stored_size=new_stored_bytes, count=new_blobs_count)
             except Exception:
                 pass
-        storage.db.checkpoint("TRUNCATE")
+        try:
+            storage.db.checkpoint("TRUNCATE")
+        except Exception as e_chk:
+            log.warning(f"Metadata DB WAL checkpoint 실패 (다음 트랜잭션에서 자동 수행됨): {e_chk}")
+
 
         # 5. Automated Restore Verification (실제 디컴프레스 및 바이트 단위 전수 복원 검증)
         try:

@@ -170,6 +170,8 @@ from web.api_backup import router as backup_router
 app.include_router(backup_router)
 from web.api_rescue import router as rescue_router
 app.include_router(rescue_router)
+from web.api_migration import router as migration_router
+app.include_router(migration_router)
 
 # --- Web UI Route ---
 @app.get("/", response_class=HTMLResponse)
@@ -397,15 +399,28 @@ class VhdxDismountRequest(BaseModel):
 
 @app.get("/api/system-image/vhdx-list")
 def get_system_image_vhdx_list(target_drive: str = "D:"):
-    return {"success": True, "vhdx_list": SystemImageManager.list_vhdx_images(target_drive)}
+    try:
+        return {"success": True, "vhdx_list": SystemImageManager.list_vhdx_images(target_drive)}
+    except Exception as e:
+        logger.error(f"VHDX 목록 조회 중 예외 발생: {e}")
+        return {"success": False, "error": f"VHDX 목록 조회 실패: {e}", "vhdx_list": []}
 
 @app.post("/api/system-image/mount")
 def mount_system_image_vhdx(req: VhdxMountRequest):
-    return SystemImageManager.mount_vhdx(req.vhdx_path, read_only=req.read_only)
+    try:
+        return SystemImageManager.mount_vhdx(req.vhdx_path, read_only=req.read_only)
+    except Exception as e:
+        logger.error(f"VHDX 마운트 중 예외 발생: {e}")
+        return {"success": False, "error": f"VHDX 마운트 처리 실패: {e}"}
 
 @app.post("/api/system-image/dismount")
 def dismount_system_image_vhdx(req: VhdxDismountRequest):
-    return SystemImageManager.dismount_vhdx(req.vhdx_path)
+    try:
+        return SystemImageManager.dismount_vhdx(req.vhdx_path)
+    except Exception as e:
+        logger.error(f"VHDX 마운트 해제 중 예외 발생: {e}")
+        return {"success": False, "error": f"VHDX 마운트 해제 처리 실패: {e}"}
+
 
 # --- 3-2-1 Offsite Remote Replication API ---
 class OffsiteSaveRequest(BaseModel):
