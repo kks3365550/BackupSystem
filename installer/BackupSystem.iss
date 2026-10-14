@@ -3,7 +3,7 @@
 ; =========================================================================
 
 #define MyAppName "Kova"
-#define MyAppVersion "2.14.0"
+#define MyAppVersion "2.14.1"
 #define MyAppPublisher "kks3365550"
 #define MyAppURL "http://127.0.0.1:8765"
 #define MyAppExeName "Kova.exe"
@@ -81,8 +81,6 @@ Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""BackupS
 ; v2.10.4: 기존 data/logs 내부 파일의 ACL 상속 갭 방지 (재귀적 users-modify 부여)
 Filename: "icacls.exe"; Parameters: """{app}\data"" /grant Users:(OI)(CI)M /T /C /Q"; Flags: runhidden; Check: IsAdminInstallMode
 Filename: "icacls.exe"; Parameters: """{app}\logs"" /grant Users:(OI)(CI)M /T /C /Q"; Flags: runhidden; Check: IsAdminInstallMode
-Filename: "wscript.exe"; Parameters: """{app}\start_silent.vbs"""; Flags: nowait postinstall skipifsilent; Description: "백업 서비스 백그라운드 시작"
-Filename: "wscript.exe"; Parameters: """{app}\start_tray.vbs"""; Flags: nowait postinstall skipifsilent; Description: "시스템 트레이 에이전트 시작"
 
 [UninstallRun]
 Filename: "{app}\stop_backup_system.bat"; Flags: runhidden waituntilterminated
@@ -92,14 +90,15 @@ Filename: "schtasks.exe"; Parameters: "/delete /tn ""BackupSystem_Server_Daemon"
 Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""BackupSystem"""; Flags: runhidden; Check: IsAdminInstallMode
 
 [Code]
-// v2.10.6: 설치 시작 시 기존 실행 중인 백업시스템 프로세스(트레이, 서버) 선제 안전 종료 (파일 잠금 경고 원천 차단)
+// v2.14.1+: 설치 시작 시 기존 실행 중인 백업시스템 프로세스(트레이, 서버, 포트 8765) 선제 강제 종료 및 파일 잠금 해제 대기 루프
 function InitializeSetup(): Boolean;
 var
   ResultCode: Integer;
-  AppDir, StopBat: String;
+  AppDir, StopBat, KillPsCmd: String;
 begin
   Result := True;
 
+  // 1. 기존 설치 경로별 stop_backup_system.bat 실행
   AppDir := ExpandConstant('{localappdata}\Programs\백업시스템');
   StopBat := AppDir + '\stop_backup_system.bat';
   if FileExists(StopBat) then
@@ -110,8 +109,50 @@ begin
   if FileExists(StopBat) then
     Exec(StopBat, '', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-  Exec('cmd.exe', '/c taskkill /F /IM pythonw.exe /IM python.exe 2>nul', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Sleep(1500);
+  AppDir := ExpandConstant('{localappdata}\Programs\{#MyAppName}');
+  StopBat := AppDir + '\stop_backup_system.bat';
+  if FileExists(StopBat) then
+    Exec(StopBat, '', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  // 2. PowerShell 원라이너로 8765 포트 점유 프로세스 및 run.py / tray_app.py 프로세스 전수 강제 종료 및 파일 락 해제 대기
+  KillPsCmd := 
+    '-NoProfile -ExecutionPolicy Bypass -Command "' +
+    '$ports = @(8765); ' +
+    'Get-NetTCPConnection -LocalPort $ports -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; ' +
+    'Get-CimInstance Win32_Process | Where-Object { ' +
+    '  ($_.Name -in ''python.exe'',''pythonw.exe'') -and ($_.CommandLine -match ''(run\.py|tray_app\.py|백업시스템|Kova)'') ' +
+    '} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; ' +
+    'for ($i=0; $i -lt 10; $i++) { ' +
+    '  $left = Get-CimInstance Win32_Process | Where-Object { ($_.Name -in ''python.exe'',''pythonw.exe'') -and ($_.CommandLine -match ''(run\.py|tray_app\.py|백업시스템|Kova)'') }; ' +
+    '  if (-not $left) { break }; ' +
+    '  Start-Sleep -Milliseconds 500; ' +
+    '}"';
+
+  Exec('powershell.exe', KillPsCmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(1000);
+end;
+
+// v2.14.1+: 설치 완료 즉시 최신 새 버전으로 무창 백그라운드 자동 재구동 (일반/무인 설치 무관)
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+  AppDir, SilentVbs, TrayVbs: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    AppDir := ExpandConstant('{app}');
+    SilentVbs := AppDir + '\start_silent.vbs';
+    TrayVbs := AppDir + '\start_tray.vbs';
+
+    if FileExists(SilentVbs) then
+    begin
+      Exec('wscript.exe', '"' + SilentVbs + '"', AppDir, SW_HIDE, ewNoWait, ResultCode);
+    end;
+    if FileExists(TrayVbs) then
+    begin
+      Exec('wscript.exe', '"' + TrayVbs + '"', AppDir, SW_HIDE, ewNoWait, ResultCode);
+    end;
+  end;
 end;
 
 // v2.10.4: 언인스톨 시작 즉시 백업시스템 프로세스(트레이, 서버) 안전 종료 및 파일 잠금 선제 해제
@@ -128,4 +169,5 @@ begin
     Sleep(1000);
   end;
 end;
+
 
