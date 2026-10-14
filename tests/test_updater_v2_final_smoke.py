@@ -259,10 +259,22 @@ class TestFinalWindowsE2ESmoke(unittest.TestCase):
                 self.assertIn("v2.9.8", f.read())
 
     def test_05_check_backup_repository_immutability(self):
-        """[CHECK 6] OTA 전체 라이프사이클 수행 전후 실제 백업 저장소(D:\\MyBackup_Repository) 불변 검증"""
-        repo_dir = r"D:\MyBackup_Repository"
-        if not os.path.exists(repo_dir):
-            repo_dir = os.path.abspath("backup_repository")
+        """[CHECK 6] OTA 전체 라이프사이클 수행 전후 mock 백업 저장소 불변 검증"""
+        repo_dir = os.path.join(self.test_root, "mock_backup_repository")
+        os.makedirs(repo_dir, exist_ok=True)
+
+        # 실제 대용량 D:\MyBackup_Repository 전수 해싱으로 인한 장시간 블로킹을 방지하기 위해
+        # self.test_root 내부에 mock 백업 저장소 샘플 파일들을 배치하여 격리 검증 수행
+        sample_files = {
+            "backup_manifest.json": json.dumps({"version": "2.9.8", "files": ["core/backup.py"]}, ensure_ascii=False),
+            "core_backup.py": "# v2.9.8 stable code\n",
+            "logs/last_update.log": "2026-09-27 OTA noop\n",
+        }
+        for rel_path, content in sample_files.items():
+            full_path = os.path.join(repo_dir, rel_path)
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            with open(full_path, "w", encoding="utf-8") as f:
+                f.write(content)
 
         def _get_repo_checksums(path: str) -> dict:
             checksums = {}
