@@ -6,6 +6,7 @@ Promoted from Track 2-10 prototype with full Windows NTFS atomicity and CRC32/SH
 """
 
 import os
+import time
 import struct
 import zlib
 import hashlib
@@ -104,8 +105,16 @@ class PackContainerWriter:
             f.flush()
             os.fsync(f.fileno())
 
-        # Atomic replace on Windows
-        os.replace(tmp_idx, self.idx_path)
+        # Atomic replace on Windows with retry for [WinError 32] file locking
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                os.replace(tmp_idx, self.idx_path)
+                break
+            except PermissionError:
+                if attempt == max_retries - 1:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
 
     def close(self):
         if self.pack_file and not self.pack_file.closed:

@@ -15,6 +15,10 @@ DEFAULT_EXCLUDE_PATTERNS = [
     "desktop.ini",
     "*.etl",
     "LiveKernelReports",
+    "WindowsApps",
+    "Temporary Internet Files",
+    "UsrClass.dat*",
+    "WebCacheLock.dat",
 
     # 2. Backup repositories & recursion guards (CRITICAL)
     "WindowsImageBackup",
@@ -27,6 +31,7 @@ DEFAULT_EXCLUDE_PATTERNS = [
     "*.tmp",
     "*.temp",
     "*.lock",
+    "lockfile",
     "*~*",
     "~$*",              # Office temporary lock files (e.g. ~$Document.docx)
     "*.crdownload",     # Chrome incomplete download

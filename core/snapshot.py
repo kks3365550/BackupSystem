@@ -100,48 +100,53 @@ class SnapshotEngine:
                     sub_dirs = []
                     found_files = []
 
-                    with os.scandir(curr_dir) as it:
-                        for entry in it:
-                            try:
-                                if entry.is_dir(follow_symlinks=False):
-                                    # Fast O(1) directory exclusion
-                                    if path_filter.is_dir_excluded(entry.name, full_path=entry.path):
-                                        continue
-                                    if entry.is_symlink():
-                                        # Junction or Symlink directory: do not recurse to avoid loops
-                                        # Safe path check: ensure src_root is a true parent directory
-                                        try:
-                                             common = os.path.commonpath([src_root, entry.path])
-                                             is_under_src = (common == src_root)
-                                        except ValueError:
-                                             is_under_src = False
-                                        
-                                        if is_under_src:
-                                             rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')
+                    try:
+                        with os.scandir(curr_dir) as it:
+                            for entry in it:
+                                try:
+                                    if entry.is_dir(follow_symlinks=False):
+                                        # Fast O(1) directory exclusion
+                                        if path_filter.is_dir_excluded(entry.name, full_path=entry.path):
+                                            continue
+                                        if entry.is_symlink():
+                                            # Junction or Symlink directory: do not recurse to avoid loops
+                                            # Safe path check: ensure src_root is a true parent directory
+                                            try:
+                                                 common = os.path.commonpath([src_root, entry.path])
+                                                 is_under_src = (common == src_root)
+                                            except ValueError:
+                                                 is_under_src = False
+                                            
+                                            if is_under_src:
+                                                 rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')
+                                            else:
+                                                 rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')
+                                            st = entry.stat()
+                                            found_files.append((entry.path, src_root, rel_path, 0, st.st_mtime))
                                         else:
-                                             rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')
-                                        st = entry.stat()
-                                        found_files.append((entry.path, src_root, rel_path, 0, st.st_mtime))
-                                    else:
-                                        sub_dirs.append(entry.path)
-                                elif entry.is_file(follow_symlinks=False):
-                                    # Fast O(1) file exclusion
-                                    if not path_filter.is_file_excluded(entry.name):
-                                        st = entry.stat()
-                                        # Safe path check: ensure src_root is a true parent directory
-                                        try:
-                                             common = os.path.commonpath([src_root, entry.path])
-                                             is_under_src = (common == src_root)
-                                        except ValueError:
-                                             is_under_src = False
-                                        
-                                        if is_under_src:
-                                             rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')
-                                        else:
-                                             rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')
-                                        found_files.append((entry.path, src_root, rel_path, st.st_size, st.st_mtime))
-                            except (PermissionError, OSError):
-                                continue
+                                            sub_dirs.append(entry.path)
+                                    elif entry.is_file(follow_symlinks=False):
+                                        # Fast O(1) file exclusion
+                                        if not path_filter.is_file_excluded(entry.name):
+                                            st = entry.stat()
+                                            # Safe path check: ensure src_root is a true parent directory
+                                            try:
+                                                 common = os.path.commonpath([src_root, entry.path])
+                                                 is_under_src = (common == src_root)
+                                            except ValueError:
+                                                 is_under_src = False
+                                            
+                                            if is_under_src:
+                                                 rel_path = entry.path[len(src_root):].lstrip('\\/').replace('\\', '/')
+                                            else:
+                                                 rel_path = os.path.relpath(entry.path, src_root).replace('\\', '/')
+                                            found_files.append((entry.path, src_root, rel_path, st.st_size, st.st_mtime))
+                                except (PermissionError, OSError):
+                                    continue
+                    except PermissionError as e:
+                        log.debug(f"PermissionError while scanning directory: {curr_dir} ({e})")
+                    except OSError as e:
+                        log.warning(f"OSError while scanning directory: {curr_dir} ({e})")
 
                     report_progress = False
                     total_count_report = 0
@@ -461,6 +466,16 @@ class SnapshotEngine:
                         "status": st
                     }
                     return res_entry, is_new, stored_sz, st, None
+            except (PermissionError, OSError) as ex:
+                log.warning(f"스냅샷 파일 접근 스킵 (권한/잠금/가상경로) [{s_root}/{r_path}]: {ex}")
+                return {
+                    "source_root": s_root,
+                    "rel_path": r_path,
+                    "size": size,
+                    "mtime": mtime,
+                    "error": str(ex),
+                    "status": "skipped"
+                }, False, 0, "skipped", str(ex)
             except Exception as ex:
                 log.error(f"스냅샷 파일 백업 실패 [{s_root}/{r_path}]: {ex}", exc_info=True)
                 return {
