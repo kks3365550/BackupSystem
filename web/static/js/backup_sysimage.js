@@ -183,4 +183,104 @@ async function verifySnapshot(snapshotId) {
     }
 }
 
-// Modal Helpers
+// VHDX Virtual Disk Mounting & Explorer
+async function loadVhdxList() {
+    const container = document.getElementById('vhdx-list-container');
+    const driveSelect = document.getElementById('sysimg-drive-select');
+    const targetDrive = driveSelect ? driveSelect.value : 'D:';
+    if (!container) return;
+
+    try {
+        const res = await fetchAPI(`/api/system-image/vhdx-list?target_drive=${targetDrive}`);
+        if (!res || !res.success || !res.vhdx_list || res.vhdx_list.length === 0) {
+            container.innerHTML = `
+                <div class="text-slate-500 text-xs py-4 text-center bg-slate-950/40 rounded-xl border border-slate-800">
+                    발견된 VHDX 백업 이미지가 없습니다. 상단에서 시스템 이미지 백업을 먼저 생성해 주세요.
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = res.vhdx_list.map(item => {
+            const isMounted = item.is_mounted;
+            const driveBadge = isMounted && item.mount_drive 
+                ? `<span class="px-2 py-0.5 bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold text-xs rounded">${item.mount_drive} 드라이브로 마운트됨</span>`
+                : (isMounted ? `<span class="px-2 py-0.5 bg-cyan-950 text-cyan-300 border border-cyan-800 text-xs rounded">마운트됨</span>` : '');
+
+            const actionBtn = isMounted
+                ? `<button onclick="dismountVhdx('${encodeURIComponent(item.path)}')" class="px-3 py-1.5 bg-rose-900/60 hover:bg-rose-800 text-rose-200 border border-rose-700/60 rounded-xl text-xs font-semibold transition flex items-center gap-1">
+                    <i data-lucide="disc-3" class="w-3.5 h-3.5"></i> 언마운트 (해제)
+                   </button>`
+                : `<button onclick="mountVhdx('${encodeURIComponent(item.path)}')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition shadow-md shadow-blue-600/30 flex items-center gap-1">
+                    <i data-lucide="folder-check" class="w-3.5 h-3.5"></i> 읽기전용 마운트
+                   </button>`;
+
+            return `
+                <div class="p-3 bg-slate-950/70 hover:bg-slate-900/90 rounded-xl border border-slate-800/90 flex flex-col md:flex-row md:items-center justify-between gap-3 transition">
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div class="w-8 h-8 rounded-lg ${isMounted ? 'bg-cyan-950 text-cyan-400 border border-cyan-800' : 'bg-slate-800 text-slate-400'} flex items-center justify-center shrink-0">
+                            <i data-lucide="${isMounted ? 'hard-drive' : 'file'}" class="w-4 h-4"></i>
+                        </div>
+                        <div class="overflow-hidden">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-200 text-xs truncate font-mono">${item.filename}</span>
+                                ${driveBadge}
+                            </div>
+                            <div class="text-[11px] text-slate-400 font-mono mt-0.5 flex gap-3">
+                                <span>용량: <strong class="text-slate-300">${item.size_gb} GB</strong></span>
+                                <span>백업일: ${item.modified_at}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        ${actionBtn}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        if (window.lucide) lucide.createIcons();
+    } catch (e) {
+        console.error('Failed to load VHDX list:', e);
+        container.innerHTML = `<div class="text-red-400 text-xs py-2">VHDX 목록 로딩 실패: ${e.message}</div>`;
+    }
+}
+
+async function mountVhdx(encodedPath) {
+    const vhdxPath = decodeURIComponent(encodedPath);
+    try {
+        const res = await fetchAPI('/api/system-image/mount', {
+            method: 'POST',
+            body: JSON.stringify({ vhdx_path: vhdxPath, read_only: true })
+        });
+        if (res && res.success) {
+            showToast(res.message || 'VHDX가 마운트되었습니다.', 'success');
+            loadVhdxList();
+            if (typeof loadDashboard === 'function') loadDashboard();
+        } else {
+            alert('VHDX 마운트 실패: ' + (res ? res.error : '알 수 없는 오류'));
+        }
+    } catch (e) {
+        alert('마운트 요청 오류: ' + e.message);
+    }
+}
+
+async function dismountVhdx(encodedPath) {
+    const vhdxPath = decodeURIComponent(encodedPath);
+    try {
+        const res = await fetchAPI('/api/system-image/dismount', {
+            method: 'POST',
+            body: JSON.stringify({ vhdx_path: vhdxPath })
+        });
+        if (res && res.success) {
+            showToast('VHDX가 성공적으로 언마운트되었습니다.', 'info');
+            loadVhdxList();
+            if (typeof loadDashboard === 'function') loadDashboard();
+        } else {
+            alert('VHDX 언마운트 실패: ' + (res ? res.error : '알 수 없는 오류'));
+        }
+    } catch (e) {
+        alert('언마운트 요청 오류: ' + e.message);
+    }
+}
+
