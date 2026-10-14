@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from core.config import ConfigManager
 from core.storage import BlobStorage
 from core.scheduler import BackupScheduler
+from core.storage_health import get_system_storage_health
 from core.app_scanner import get_installed_applications
 # 인증 미들웨어에서 필요한 심볼만 남긴다.
 # 나머지(설정/로그인/변경/우회 토글)는 web/api_auth.py 로 분리되었다.
@@ -210,6 +211,11 @@ def get_system_info():
         "drives": drives
     }
 
+@app.get("/api/system/storage-health")
+def get_storage_health(force: bool = False):
+    """물리 디스크 SMART 및 볼륨 사용률 종합 헬스 상태 조회 (Sprint 1)"""
+    return get_system_storage_health(force_refresh=force)
+
 @app.get("/api/storage-stats")
 def get_storage_stats(repo_dir: Optional[str] = None):
     repos = [repo_dir] if repo_dir and os.path.exists(repo_dir) else _get_all_candidate_repos(repo_dir)
@@ -381,6 +387,25 @@ def get_system_image_logs():
 @app.post("/api/system-image/stop")
 def stop_system_image():
     return SystemImageManager.stop_backup()
+
+class VhdxMountRequest(BaseModel):
+    vhdx_path: str
+    read_only: bool = True
+
+class VhdxDismountRequest(BaseModel):
+    vhdx_path: str
+
+@app.get("/api/system-image/vhdx-list")
+def get_system_image_vhdx_list(target_drive: str = "D:"):
+    return {"success": True, "vhdx_list": SystemImageManager.list_vhdx_images(target_drive)}
+
+@app.post("/api/system-image/mount")
+def mount_system_image_vhdx(req: VhdxMountRequest):
+    return SystemImageManager.mount_vhdx(req.vhdx_path, read_only=req.read_only)
+
+@app.post("/api/system-image/dismount")
+def dismount_system_image_vhdx(req: VhdxDismountRequest):
+    return SystemImageManager.dismount_vhdx(req.vhdx_path)
 
 # --- 3-2-1 Offsite Remote Replication API ---
 class OffsiteSaveRequest(BaseModel):

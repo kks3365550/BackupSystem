@@ -1,12 +1,13 @@
 import os
 import sys
 import time
+import json
 import shutil
 import ctypes
 import subprocess
 import datetime
 import threading
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional, Callable, List
 
 class SystemImageManager:
     _lock = threading.Lock()
@@ -233,3 +234,172 @@ class SystemImageManager:
             return {"success": True, "message": "백업 작업 중단 요청 완료"}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    @classmethod
+    def list_vhdx_images(cls, search_drive: str = "D:") -> List[Dict[str, Any]]:
+        """
+        지정 드라이브(기본 D:) 및 WindowsImageBackup 내의 VHDX 이미지들을 탐색하고
+        각 파일의 마운트 상태와 볼륨 정보를 반환.
+        """
+        search_drive = search_drive.rstrip("\\/") + "\\"
+        results = []
+        target_dir = os.path.join(search_drive, "WindowsImageBackup")
+        if not os.path.exists(target_dir):
+            return results
+
+        # 현재 마운트된 디스크 이미지 정보 수집
+        mounted_map = cls._get_all_mounted_images()
+
+        for root, _, files in os.walk(target_dir):
+            for file in files:
+                if file.lower().endswith(".vhdx"):
+                    full_path = os.path.join(root, file)
+                    try:
+                        sz = os.path.getsize(full_path)
+                        mtime = os.path.getmtime(full_path)
+                        mtime_str = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        norm_path = os.path.normpath(full_path).lower()
+                        mount_info = mounted_map.get(norm_path, None)
+
+                        results.append({
+                            "path": full_path,
+                            "filename": file,
+                            "size_bytes": sz,
+                            "size_gb": round(sz / (1024 ** 3), 2),
+                            "modified_at": mtime_str,
+                            "is_mounted": bool(mount_info and mount_info.get("attached")),
+                            "mount_drive": mount_info.get("drive_letter") if mount_info else None
+                        })
+                    except OSError:
+                        continue
+
+        # 최신 파일 순으로 정렬
+        results.sort(key=lambda x: x["modified_at"], reverse=True)
+        return results
+
+    @classmethod
+    def _get_all_mounted_images(cls) -> Dict[str, Dict[str, Any]]:
+        """현재 시스템에 마운트된 모든 VHD/VHDX 이미지 맵 반환 (소문자 정규화 경로 -> 정보)"""
+        if sys.platform != "win32":
+            return {}
+
+        ps_script = (
+            "Get-DiskImage -ErrorAction SilentlyContinue | "
+            "ForEach-Object { "
+            "  $img = $_; "
+            "  $vol = $img | Get-Volume -ErrorAction SilentlyContinue; "
+            "  [PSCustomObject]@{ "
+            "    ImagePath = $img.ImagePath; "
+            "    Attached = $img.Attached; "
+            "    DriveLetter = if ($vol) { $vol.DriveLetter } else { $null } "
+            "  } "
+            "} | ConvertTo-Json -Compress"
+        )
+        try:
+            flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+                creationflags=flags
+            )
+            if res.returncode != 0 or not res.stdout.strip():
+                return {}
+            data = json.loads(res.stdout.strip())
+            if isinstance(data, dict):
+                data = [data]
+            out = {}
+            for item in data:
+                ipath = item.get("ImagePath")
+                if ipath:
+                    norm = os.path.normpath(ipath).lower()
+                    dl = item.get("DriveLetter")
+                    out[norm] = {
+                        "attached": item.get("Attached", False),
+                        "drive_letter": f"{dl}:" if dl else None
+                    }
+            return out
+        except Exception as e:
+            cls.append_log(f"마운트된 디스크 이미지 조회 예외: {e}", level="WARNING")
+            return {}
+
+    @classmethod
+    def mount_vhdx(cls, vhdx_path: str, read_only: bool = True) -> Dict[str, Any]:
+        """
+        VHDX 이미지를 읽기 전용으로 안전하게 가상 드라이브에 마운트.
+        """
+        if not os.path.exists(vhdx_path):
+            return {"success": False, "error": f"VHDX 파일을 찾을 수 없습니다: {vhdx_path}"}
+
+        access_opt = "-Access ReadOnly" if read_only else ""
+        escaped_path = vhdx_path.replace("'", "''")
+        ps_script = (
+            f"$p = '{escaped_path}'; "
+            f"$img = Mount-DiskImage -ImagePath $p {access_opt} -PassThru; "
+            f"$vol = $img | Get-Volume -ErrorAction SilentlyContinue; "
+            f"[PSCustomObject]@{{"
+            f"  Attached = $img.Attached; "
+            f"  DriveLetter = if ($vol) {{ $vol.DriveLetter }} else {{ $null }} "
+            f"}} | ConvertTo-Json -Compress"
+        )
+
+        try:
+            flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=20,
+                creationflags=flags
+            )
+            if res.returncode != 0:
+                return {"success": False, "error": f"VHDX 마운트 실패: {res.stderr.strip() or res.stdout.strip()}"}
+            
+            data = json.loads(res.stdout.strip())
+            drive_letter = data.get("DriveLetter")
+            drive_str = f"{drive_letter}:" if drive_letter else "마운트됨(문자 미할당)"
+            cls.append_log(f"VHDX 마운트 성공 ({drive_str}): {vhdx_path}", level="SUCCESS")
+            return {
+                "success": True,
+                "message": f"성공적으로 마운트되었습니다 ({drive_str}).",
+                "drive_letter": drive_str,
+                "attached": data.get("Attached", True)
+            }
+        except Exception as e:
+            return {"success": False, "error": f"VHDX 마운트 중 오류 발생: {str(e)}"}
+
+    @classmethod
+    def dismount_vhdx(cls, vhdx_path: str) -> Dict[str, Any]:
+        """
+        마운트된 VHDX 이미지 안전 분리(언마운트).
+        """
+        if not os.path.exists(vhdx_path):
+            return {"success": False, "error": f"VHDX 파일을 찾을 수 없습니다: {vhdx_path}"}
+
+        escaped_path = vhdx_path.replace("'", "''")
+        ps_script = f"Dismount-DiskImage -ImagePath '{escaped_path}'"
+
+        try:
+            flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=15,
+                creationflags=flags
+            )
+            if res.returncode == 0:
+                cls.append_log(f"VHDX 언마운트 완료: {vhdx_path}", level="INFO")
+                return {"success": True, "message": "VHDX가 안전하게 언마운트되었습니다."}
+            else:
+                return {"success": False, "error": f"VHDX 언마운트 실패: {res.stderr.strip()}"}
+        except Exception as e:
+            return {"success": False, "error": f"VHDX 언마운트 중 오류: {str(e)}"}

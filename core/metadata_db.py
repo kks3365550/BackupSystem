@@ -436,3 +436,19 @@ class MetadataDB:
                 conn.commit()
         except Exception:
             pass
+
+    def checkpoint(self, mode: str = "TRUNCATE") -> bool:
+        """
+        SQLite WAL 모드의 로그를 메인 DB 파일로 즉시 강제 병합 및 자르기(TRUNCATE).
+        정전이나 충돌 시에도 metadata.db 단일 파일의 원자적 일관성을 보장.
+        """
+        try:
+            with self._lock, self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(f"PRAGMA wal_checkpoint({mode});")
+                row = cursor.fetchone()
+                logger.debug(f"[WAL Checkpoint] mode={mode}, result={row}")
+                return True
+        except Exception as e:
+            logger.warning(f"[WAL Checkpoint] Failed to checkpoint ({mode}): {e}")
+            return False

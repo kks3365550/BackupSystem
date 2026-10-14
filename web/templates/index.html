@@ -348,6 +348,20 @@
                             </div>
                         </div>
 
+                        <!-- PHYSICAL DISKS (SMART HEALTH) -->
+                        <div class="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800/80 shadow-lg space-y-3">
+                            <div class="flex items-center justify-between text-xs font-bold text-zinc-300 font-mono">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="activity" class="w-4 h-4 text-emerald-400"></i>
+                                    <span>PHYSICAL DISKS & SMART HEALTH</span>
+                                </div>
+                                <span id="storage-overall-badge" class="px-1.5 py-0.5 bg-emerald-950 text-emerald-300 text-[10px] rounded border border-emerald-800">HEALTHY</span>
+                            </div>
+                            <div id="physical-disks-list" class="space-y-2 font-mono text-xs">
+                                <div class="text-zinc-500 text-[11px] py-1">스토리지 건강 상태 로딩 중...</div>
+                            </div>
+                        </div>
+
                         <!-- 3-2-1 BACKUP TOPOLOGY & WORM SECURITY CARD -->
                         <div class="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800/80 shadow-lg space-y-3">
                             <div class="flex justify-between items-center text-xs font-bold font-mono text-zinc-200">
@@ -980,6 +994,29 @@
                             <div class="text-slate-500">[대기] '지금 OS 전체 백업 시작' 버튼을 누르면 WindowsImageBackup 생성을 시작합니다.</div>
                         </div>
                     </div>
+
+                    <!-- VHDX Image Mount & Explorer -->
+                    <div class="p-6 bg-slate-900/80 rounded-2xl border border-slate-800 space-y-4">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                    <i data-lucide="folder-search" class="w-4 h-4 text-cyan-400"></i>
+                                    <span>백업된 VHDX 가상 드라이브 마운트 (읽기 전용 탐색 & 복구)</span>
+                                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 font-bold border border-cyan-800">무손실 안전 마운트</span>
+                                </h3>
+                                <p class="text-xs text-slate-400 mt-0.5">
+                                    전체 복원하지 않고도 WindowsImageBackup 내부의 VHDX 파일을 읽기 전용 가상 드라이브로 즉시 마운트하여 필요한 파일만 꺼내올 수 있습니다.
+                                </p>
+                            </div>
+                            <button onclick="loadVhdxList()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition border border-slate-700 flex items-center gap-1.5 shrink-0">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> VHDX 목록 새로고침
+                            </button>
+                        </div>
+                        <div id="vhdx-list-container" class="space-y-2">
+                            <div class="text-slate-500 text-xs py-2">VHDX 이미지 목록을 불러오는 중...</div>
+                        </div>
+                    </div>
+
                 <!-- RESCUE USB MAKER PANEL IN OS BACKUP TAB -->
                 <div class="p-6 bg-gradient-to-br from-blue-950/30 via-slate-900/60 to-indigo-950/30 rounded-2xl border border-blue-900/40 space-y-4">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1296,8 +1333,14 @@
                     </div>
                 </div>
                 <div>
-                    <label class="block text-slate-300 font-semibold mb-1">제외 패턴 (쉼표 구분)</label>
-                    <input type="text" id="prof-excludes" placeholder="*.tmp, *.log, .git, node_modules" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 font-mono focus:outline-none focus:border-blue-500">
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-slate-300 font-semibold">제외 패턴 (쉼표 구분)</label>
+                        <button type="button" onclick="applySmartExcludePreset()" class="text-xs text-blue-400 hover:text-blue-300 underline font-mono flex items-center gap-1">
+                            <i data-lucide="sparkles" class="w-3 h-3"></i>스마트 제외 프리셋 적용
+                        </button>
+                    </div>
+                    <input type="text" id="prof-excludes" placeholder="*.tmp, *.log, .git, node_modules, pagefile.sys, hiberfil.sys" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 font-mono text-xs focus:outline-none focus:border-blue-500">
+                    <p class="text-[10px] text-zinc-500 mt-1">Acronis/Macrium 방식: 시스템 가상메모리(pagefile, hiberfil, swapfile), 휴지통, 임시파일 등 자동 제외</p>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>

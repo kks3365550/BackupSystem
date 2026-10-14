@@ -15,7 +15,12 @@ DEFAULT_PROFILE = {
     ],
     "repo_dir": os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backup_repository")),
     "exclude_patterns": [
-        "*.tmp", "*.log", ".git", "__pycache__", "node_modules", "backup_repository"
+        "pagefile.sys", "hiberfil.sys", "swapfile.sys",
+        "$RECYCLE.BIN", "$Recycle.Bin", "System Volume Information",
+        "*.tmp", "*.temp", "*.lock", "lockfile",
+        "*.log", ".git", "__pycache__", "*.pyc",
+        "node_modules", ".cache", ".pytest_cache",
+        "backup_repository", "MyBackup_Repository", "WindowsImageBackup"
     ],
     "schedule_type": "interval_hours",
     "schedule_value": "12",

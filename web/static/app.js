@@ -24,18 +24,23 @@ function switchTab(tabId) {
     if (tabId === 'profiles') loadProfiles();
     if (tabId === 'dashboard') loadDashboard();
     if (tabId === 'custom') loadCustomSelectionData();
+    if (tabId === 'system-image') {
+        loadSystemImageStatus();
+        loadVhdxList();
+    }
 }
 
 // API Calls
 
 async function loadDashboard() {
     try {
-        const [sys, stats, profiles, snaps, offsite] = await Promise.all([
+        const [sys, stats, profiles, snaps, offsite, storageHealth] = await Promise.all([
             fetchAPI('/api/system-info'),
             fetchAPI('/api/storage-stats'),
             fetchAPI('/api/profiles'),
             fetchAPI('/api/snapshots'),
-            fetchAPI('/api/offsite').catch(() => null)
+            fetchAPI('/api/offsite').catch(() => null),
+            fetchAPI('/api/system/storage-health').catch(() => null)
         ]);
 
         state.systemInfo = sys;
@@ -43,10 +48,12 @@ async function loadDashboard() {
         state.profiles = profiles;
         state.snapshots = snaps;
         state.offsite = offsite;
+        state.storageHealth = storageHealth;
 
         renderDashboardStats();
         renderRecentSnapshots();
         renderSystemDrives();
+        renderStorageHealth();
         renderOffsiteStatusWidget();
         checkOnboardingWizard();
     } catch (err) {
@@ -349,6 +356,86 @@ function renderSystemDrives() {
             </div>
         </div>
     `).join('');
+}
+
+function renderStorageHealth() {
+    const container = document.getElementById('physical-disks-list');
+    const badge = document.getElementById('storage-overall-badge');
+    if (!container || !state.storageHealth || !state.storageHealth.physical_disks) return;
+
+    const data = state.storageHealth;
+    if (badge) {
+        if (data.overall_status === 'healthy') {
+            badge.className = 'px-1.5 py-0.5 bg-emerald-950 text-emerald-300 text-[10px] rounded border border-emerald-800';
+            badge.innerText = 'HEALTHY';
+        } else if (data.overall_status === 'warning') {
+            badge.className = 'px-1.5 py-0.5 bg-amber-950 text-amber-300 text-[10px] rounded border border-amber-800';
+            badge.innerText = 'WARNING';
+        } else {
+            badge.className = 'px-1.5 py-0.5 bg-rose-950 text-rose-300 text-[10px] rounded border border-rose-800 animate-pulse';
+            badge.innerText = 'CRITICAL';
+        }
+    }
+
+    if (data.physical_disks.length === 0) {
+        container.innerHTML = '<div class="text-zinc-500 text-[11px] py-1">감지된 물리 디스크 정보가 없습니다.</div>';
+        return;
+    }
+
+    container.innerHTML = data.physical_disks.map(disk => {
+        const isHealthy = disk.health_status.toLowerCase() === 'healthy';
+        const isWarning = disk.health_status.toLowerCase() === 'warning';
+        const statusColor = isHealthy ? 'text-emerald-400 bg-emerald-950/60 border-emerald-800' :
+                           isWarning ? 'text-amber-400 bg-amber-950/60 border-amber-800' :
+                           'text-rose-400 bg-rose-950/60 border-rose-800';
+
+        const busBadge = disk.bus_type === 'NVMe' 
+            ? '<span class="px-1.5 py-0.5 text-[9px] font-bold bg-purple-950 text-purple-300 border border-purple-800 rounded">NVMe</span>'
+            : (disk.bus_type === 'SATA' 
+                ? '<span class="px-1.5 py-0.5 text-[9px] font-bold bg-blue-950 text-blue-300 border border-blue-800 rounded">SATA</span>'
+                : `<span class="px-1.5 py-0.5 text-[9px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700 rounded">${disk.bus_type || 'DISK'}</span>`);
+
+        return `
+            <div class="p-2.5 bg-zinc-950/80 rounded-xl border border-zinc-800/90 flex flex-col gap-1.5">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-1.5 overflow-hidden">
+                        <span class="text-zinc-400 font-mono text-[11px] font-bold">#${disk.device_id}</span>
+                        <span class="font-bold text-zinc-200 text-xs truncate max-w-[160px]" title="${disk.name}">${disk.name}</span>
+                        ${busBadge}
+                    </div>
+                    <span class="px-1.5 py-0.5 text-[10px] rounded border font-mono ${statusColor}">${disk.health_status}</span>
+                </div>
+                <div class="flex justify-between items-center text-[10px] text-zinc-400 font-mono">
+                    <span>유형: ${disk.media_type || 'SSD'}</span>
+                    <span>용량: ${disk.size_gb.toFixed(1)} GB</span>
+                    <span class="text-zinc-500">상태: ${disk.operational_status}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    if (window.lucide) {
+        lucide.createIcons();
+    }
+}
+
+function applySmartExcludePreset() {
+    const input = document.getElementById('prof-excludes');
+    if (!input) return;
+    const presets = [
+        "pagefile.sys", "hiberfil.sys", "swapfile.sys", "DumpStack.log*",
+        "$Recycle.Bin", "System Volume Information", "PerfLogs",
+        "*.tmp", "*.temp", "*.log", "node_modules", ".git", ".cache",
+        "AppData\\Local\\Temp", "AppData\\Local\\Microsoft\\Windows\\INetCache"
+    ];
+    let current = input.value.split(',').map(s => s.trim()).filter(Boolean);
+    for (const p of presets) {
+        if (!current.includes(p)) {
+            current.push(p);
+        }
+    }
+    input.value = current.join(', ');
+    showToast('스마트 제외 프리셋(VSS/OS/임시파일)이 적용되었습니다.', 'info');
 }
 
 function renderRecentSnapshots() {
@@ -1002,7 +1089,271 @@ function selectCurrentBrowsePath() {
     closeModal('browse-modal');
 }
 
-// Custom Selection Tab Logic
+// =========================================================================
+// 시스템 이미지(베어메탈) & VHDX 마운트 제어
+// =========================================================================
+
+let sysImageLogTimer = null;
+
+async function loadSystemImageStatus() {
+    const driveSelect = document.getElementById('sysimg-drive-select');
+    const targetDrive = driveSelect ? driveSelect.value : 'D:';
+
+    try {
+        const data = await fetchAPI(`/api/system-image/status?target_drive=${targetDrive}`);
+        if (!data) return;
+
+        const cUsed = document.getElementById('sysimg-c-used');
+        const cTotal = document.getElementById('sysimg-c-total');
+        if (cUsed) cUsed.innerText = `${data.c_drive.used_gb} GB`;
+        if (cTotal) cTotal.innerText = `전체 ${data.c_drive.total_gb} GB 중 사용 중`;
+
+        const dTitle = document.getElementById('sysimg-target-title');
+        const dFree = document.getElementById('sysimg-d-free');
+        const dBadge = document.getElementById('sysimg-space-badge');
+        if (dTitle) dTitle.innerText = `백업 저장 드라이브 (${data.target_drive})`;
+        if (dFree) dFree.innerText = `${data.target_drive_info.free_gb} GB`;
+        if (dBadge) {
+            if (data.target_drive_info.sufficient_space) {
+                dBadge.innerHTML = '<span class="text-emerald-400 font-semibold">✓ 백업 가능 (여유 공간 충분)</span>';
+            } else {
+                dBadge.innerHTML = '<span class="text-amber-400 font-semibold">! 여유 공간 부족 주의</span>';
+            }
+        }
+
+        const lastStatus = document.getElementById('sysimg-last-status');
+        const lastTime = document.getElementById('sysimg-last-time');
+        if (lastStatus && lastTime) {
+            if (data.backup_info.exists) {
+                lastStatus.innerText = `${data.backup_info.size_gb} GB`;
+                lastStatus.className = 'text-2xl font-black text-emerald-400 font-mono';
+                lastTime.innerText = `최근 백업: ${data.backup_info.last_modified || '-'}`;
+            } else {
+                lastStatus.innerText = '미생성';
+                lastStatus.className = 'text-2xl font-black text-slate-100 font-mono';
+                lastTime.innerText = `${data.backup_info.path} 에 이미지 없음`;
+            }
+        }
+
+        updateSystemImageRunningUI(data.is_running);
+
+        if (data.is_running) {
+            startPollingSystemImageLogs();
+        }
+    } catch (e) {
+        console.error('Failed to load system image status:', e);
+    }
+}
+
+function updateSystemImageRunningUI(isRunning) {
+    const btnStart = document.getElementById('btn-start-sysimg');
+    const btnStop = document.getElementById('btn-stop-sysimg');
+    const badge = document.getElementById('sysimg-running-badge');
+
+    if (isRunning) {
+        if (btnStart) {
+            btnStart.disabled = true;
+            btnStart.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> 백업 생성 진행 중...';
+            btnStart.classList.add('opacity-60', 'cursor-not-allowed');
+        }
+        if (btnStop) btnStop.classList.remove('hidden');
+        if (badge) {
+            badge.innerText = '백업 실행 중';
+            badge.className = 'text-[11px] px-2.5 py-0.5 rounded-full font-bold bg-amber-950/80 text-amber-300 border border-amber-700/60 animate-pulse';
+        }
+    } else {
+        if (btnStart) {
+            btnStart.disabled = false;
+            btnStart.innerHTML = '<i data-lucide="save" class="w-4 h-4"></i> 지금 OS 전체 백업 시작';
+            btnStart.classList.remove('opacity-60', 'cursor-not-allowed');
+        }
+        if (btnStop) btnStop.classList.add('hidden');
+        if (badge) {
+            badge.innerText = '대기 중';
+            badge.className = 'text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400 border border-slate-700';
+        }
+    }
+    if (window.lucide) lucide.createIcons();
+}
+
+async function startSystemImageBackup() {
+    const driveSelect = document.getElementById('sysimg-drive-select');
+    const targetDrive = driveSelect ? driveSelect.value : 'D:';
+
+    const msg = `윈도우 베어메탈(전체) 시스템 이미지 백업을 시작하시겠습니까?\n\n` +
+        `• 대상: C: 전체 (부팅 EFI 파티션, 복구 파티션, OS 전체)\n` +
+        `• 저장 위치: ${targetDrive}\\WindowsImageBackup\n\n` +
+        `※ 시스템 권한을 위해 윈도우 관리자(UAC) 확인 창이 뜨면 '예'를 눌러주세요.`;
+
+    if (!confirm(msg)) return;
+
+    updateSystemImageRunningUI(true);
+
+    const consoleBox = document.getElementById('sysimg-console');
+    if (consoleBox) {
+        consoleBox.innerHTML = '<div class="text-blue-400">[시작] 윈도우 wbadmin 시스템 이미지 백업 명령을 호출합니다...</div>';
+    }
+
+    try {
+        const res = await fetchAPI('/api/system-image/start', {
+            method: 'POST',
+            body: JSON.stringify({ target_drive: targetDrive })
+        });
+
+        if (res && res.success) {
+            startPollingSystemImageLogs();
+        } else {
+            alert('백업 시작 실패: ' + (res ? res.error : '알 수 없는 오류'));
+            updateSystemImageRunningUI(false);
+        }
+    } catch (e) {
+        alert('백업 요청 오류: ' + e.message);
+        updateSystemImageRunningUI(false);
+    }
+}
+
+function startPollingSystemImageLogs() {
+    if (sysImageLogTimer) clearInterval(sysImageLogTimer);
+
+    sysImageLogTimer = setInterval(async () => {
+        try {
+            const data = await fetchAPI('/api/system-image/logs');
+            if (!data) return;
+
+            const consoleBox = document.getElementById('sysimg-console');
+            if (consoleBox && data.logs) {
+                consoleBox.innerHTML = data.logs.map(line => {
+                    let color = 'text-slate-300';
+                    if (line.includes('[SUCCESS]') || line.includes('성공적으로 완료')) color = 'text-emerald-400 font-bold';
+                    if (line.includes('[ERROR]') || line.includes('오류') || line.includes('실패')) color = 'text-red-400 font-bold';
+                    if (line.includes('[WARNING]')) color = 'text-amber-400';
+                    return `<div class="${color}">${line}</div>`;
+                }).join('');
+                consoleBox.scrollTop = consoleBox.scrollHeight;
+            }
+
+            if (!data.is_running) {
+                clearInterval(sysImageLogTimer);
+                sysImageLogTimer = null;
+                updateSystemImageRunningUI(false);
+                loadSystemImageStatus();
+                loadVhdxList();
+            }
+        } catch (e) {
+            console.error('Error polling system image logs:', e);
+        }
+    }, 2000);
+}
+
+async function stopSystemImageBackup() {
+    if (!confirm('진행 중인 윈도우 시스템 이미지 백업을 중단하시겠습니까?')) return;
+    try {
+        await fetchAPI('/api/system-image/stop', { method: 'POST' });
+        alert('백업 중단 명령이 전송되었습니다.');
+    } catch (e) {
+        alert('중단 실패: ' + e.message);
+    }
+}
+
+async function loadVhdxList() {
+    const container = document.getElementById('vhdx-list-container');
+    const driveSelect = document.getElementById('sysimg-drive-select');
+    const targetDrive = driveSelect ? driveSelect.value : 'D:';
+    if (!container) return;
+
+    try {
+        const res = await fetchAPI(`/api/system-image/vhdx-list?target_drive=${targetDrive}`);
+        if (!res || !res.success || !res.vhdx_list || res.vhdx_list.length === 0) {
+            container.innerHTML = `
+                <div class="text-slate-500 text-xs py-4 text-center bg-slate-950/40 rounded-xl border border-slate-800">
+                    발견된 VHDX 백업 이미지가 없습니다. 상단에서 시스템 이미지 백업을 먼저 생성해 주세요.
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = res.vhdx_list.map(item => {
+            const isMounted = item.is_mounted;
+            const driveBadge = isMounted && item.mount_drive 
+                ? `<span class="px-2 py-0.5 bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold text-xs rounded">${item.mount_drive} 드라이브로 마운트됨</span>`
+                : (isMounted ? `<span class="px-2 py-0.5 bg-cyan-950 text-cyan-300 border border-cyan-800 text-xs rounded">마운트됨</span>` : '');
+
+            const actionBtn = isMounted
+                ? `<button onclick="dismountVhdx('${encodeURIComponent(item.path)}')" class="px-3 py-1.5 bg-rose-900/60 hover:bg-rose-800 text-rose-200 border border-rose-700/60 rounded-xl text-xs font-semibold transition flex items-center gap-1">
+                    <i data-lucide="disc-3" class="w-3.5 h-3.5"></i> 언마운트 (해제)
+                   </button>`
+                : `<button onclick="mountVhdx('${encodeURIComponent(item.path)}')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition shadow-md shadow-blue-600/30 flex items-center gap-1">
+                    <i data-lucide="folder-check" class="w-3.5 h-3.5"></i> 읽기전용 마운트
+                   </button>`;
+
+            return `
+                <div class="p-3 bg-slate-950/70 hover:bg-slate-900/90 rounded-xl border border-slate-800/90 flex flex-col md:flex-row md:items-center justify-between gap-3 transition">
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div class="w-8 h-8 rounded-lg ${isMounted ? 'bg-cyan-950 text-cyan-400 border border-cyan-800' : 'bg-slate-800 text-slate-400'} flex items-center justify-center shrink-0">
+                            <i data-lucide="${isMounted ? 'hard-drive' : 'file'}" class="w-4 h-4"></i>
+                        </div>
+                        <div class="overflow-hidden">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-200 text-xs truncate font-mono">${item.filename}</span>
+                                ${driveBadge}
+                            </div>
+                            <div class="text-[11px] text-slate-400 font-mono mt-0.5 flex gap-3">
+                                <span>용량: <strong class="text-slate-300">${item.size_gb} GB</strong></span>
+                                <span>백업일: ${item.modified_at}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        ${actionBtn}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        if (window.lucide) lucide.createIcons();
+    } catch (e) {
+        console.error('Failed to load VHDX list:', e);
+        container.innerHTML = `<div class="text-red-400 text-xs py-2">VHDX 목록 로딩 실패: ${e.message}</div>`;
+    }
+}
+
+async function mountVhdx(encodedPath) {
+    const vhdxPath = decodeURIComponent(encodedPath);
+    try {
+        const res = await fetchAPI('/api/system-image/mount', {
+            method: 'POST',
+            body: JSON.stringify({ vhdx_path: vhdxPath, read_only: true })
+        });
+        if (res && res.success) {
+            showToast(res.message || 'VHDX가 마운트되었습니다.', 'success');
+            loadVhdxList();
+            loadDashboard(); // 시스템 드라이브 목록도 갱신
+        } else {
+            alert('VHDX 마운트 실패: ' + (res ? res.error : '알 수 없는 오류'));
+        }
+    } catch (e) {
+        alert('마운트 요청 오류: ' + e.message);
+    }
+}
+
+async function dismountVhdx(encodedPath) {
+    const vhdxPath = decodeURIComponent(encodedPath);
+    try {
+        const res = await fetchAPI('/api/system-image/dismount', {
+            method: 'POST',
+            body: JSON.stringify({ vhdx_path: vhdxPath })
+        });
+        if (res && res.success) {
+            showToast('VHDX가 성공적으로 언마운트되었습니다.', 'info');
+            loadVhdxList();
+            loadDashboard();
+        } else {
+            alert('VHDX 언마운트 실패: ' + (res ? res.error : '알 수 없는 오류'));
+        }
+    } catch (e) {
+        alert('언마운트 요청 오류: ' + e.message);
+    }
+}
 
 // =========================================================================
 // 시스템 종료 & 앱 초기화 진입점

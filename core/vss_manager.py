@@ -8,18 +8,62 @@ core/vss_manager.py: Windows Volume Shadow Copy (VSS) 스냅샷 관리자
 - optional 모드: 관리자가 명시적으로 허용한 경우에만 일반 직접 읽기로 fallback
 """
 
+import os
 import re
 import sys
 import ctypes
 import logging
 import subprocess
 import threading
+import sqlite3
 from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger("BackupSystem.VSS")
 
 # Windows VSS 서비스 충돌 방지를 위한 모듈 레벨 락
 _vss_lock = threading.Lock()
+
+
+def flush_sqlite_databases(paths: List[str]):
+    """
+    VSS 스냅샷 직전, 소스 경로 내의 SQLite 데이터베이스(-wal 파일 보유 등)에
+    PRAGMA wal_checkpoint(TRUNCATE)를 실행하여 트랜잭션 정합성(Application-Consistent) 확보.
+    """
+    sqlite_exts = {".db", ".sqlite", ".sqlite3"}
+    for p in paths:
+        try:
+            if not os.path.exists(p):
+                continue
+            if os.path.isfile(p):
+                _, ext = os.path.splitext(p)
+                if ext.lower() in sqlite_exts or p.lower().endswith("-wal"):
+                    db_target = p[:-4] if p.lower().endswith("-wal") else p
+                    _do_checkpoint(db_target)
+            elif os.path.isdir(p):
+                # 디렉토리 1~2 레벨 내의 SQLite DB 탐색
+                for root, dirs, files in os.walk(p):
+                    # 너무 깊은 디렉토리 탐색 방지 (성능 보호)
+                    depth = root[len(p):].count(os.sep)
+                    if depth > 3:
+                        continue
+                    for f in files:
+                        _, ext = os.path.splitext(f)
+                        if ext.lower() in sqlite_exts or f.lower().endswith("-wal"):
+                            db_target = os.path.join(root, f[:-4] if f.lower().endswith("-wal") else f)
+                            _do_checkpoint(db_target)
+        except Exception as e:
+            logger.debug(f"[VSS Pre-Hook] SQLite flush error on {p}: {e}")
+
+def _do_checkpoint(db_path: str):
+    if not os.path.exists(db_path):
+        return
+    try:
+        conn = sqlite3.connect(db_path, timeout=1.0)
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+        conn.close()
+        logger.info(f"[VSS Pre-Hook] SQLite wal_checkpoint(TRUNCATE) executed on {db_path}")
+    except Exception as e:
+        logger.debug(f"[VSS Pre-Hook] wal_checkpoint skipped/failed on {db_path}: {e}")
 
 
 class VSSRequiredError(Exception):
@@ -124,6 +168,9 @@ class VSSContext:
 
     def _setup(self):
         """백업 소스 경로들이 속한 모든 고유 볼륨에 대해 VSS 섀도 복사본 생성."""
+        # 0. 사전 훅: 소스 경로 내 열려있는 SQLite DB들 WAL 체크포인트 수행
+        flush_sqlite_databases(self.source_paths)
+
         unique_drives = set()
         for p in self.source_paths:
             drv = extract_drive_letter(p)

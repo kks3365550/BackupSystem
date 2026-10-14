@@ -584,6 +584,15 @@ class SnapshotEngine:
                 if t_key not in seen_keys and p_norm not in seen_norm_paths:
                     deleted_files_count += 1
 
+        # VSS Fast-Release: 파일 읽기가 완료되었으므로 시스템 자원 및 I/O 절약을 위해 섀도 복사본을 즉시 해제
+        vss_active_during_read = vss_ctx.vss_active if vss_ctx else False
+        vss_warnings_recorded = list(vss_ctx.warnings) if vss_ctx else []
+        if vss_ctx:
+            try:
+                vss_ctx.cleanup()
+            except Exception as e_vss_clean:
+                log.warning(f"VSS 조기 해제 중 경고: {e_vss_clean}")
+
         duration = time.time() - start_time
         snapshot_id = cls._generate_snapshot_id()
         backup_type = "incremental" if best_snapshot else "full"
@@ -599,8 +608,8 @@ class SnapshotEngine:
             "profile_name": profile_name,
             "backup_type": backup_type,
             "base_snapshot_id": best_snapshot["id"] if best_snapshot else None,
-            "vss_enabled": vss_ctx.vss_active if vss_ctx else False,
-            "vss_warnings": vss_ctx.warnings if vss_ctx else [],
+            "vss_enabled": vss_active_during_read,
+            "vss_warnings": vss_warnings_recorded,
             "manifest_signature": generate_manifest_signature(entries),
             "ed25519_signature": None,
             "encryption": {
@@ -624,16 +633,17 @@ class SnapshotEngine:
             "entries": entries
         }
 
-        # 4. Commit any active Pack Containers written by chunk workers
+        # 4단계 원자적 커밋 프로토콜 (4-Phase Atomic Commit)
+        # Phase 1: 활성 Pack 컨테이너 및 CAS 블롭 커밋
         storage.commit_active_pack()
 
-        # Batch update metadata DB once for all new blobs (Single atomic transaction!)
-        # Fix #11: pass new_blobs_count (unique new blobs) not new_files_count (which includes dedup)
+        # Phase 2: 메타데이터 DB 트랜잭션 기록 및 WAL Checkpoint(TRUNCATE)로 무결성 디스크 동기화
         if new_stored_bytes > 0 or new_blobs_count > 0:
             try:
                 storage.db.record_new_blob(stored_size=new_stored_bytes, count=new_blobs_count)
             except Exception:
                 pass
+        storage.db.checkpoint("TRUNCATE")
 
         # 5. Automated Restore Verification (실제 디컴프레스 및 바이트 단위 전수 복원 검증)
         try:
