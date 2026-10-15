@@ -324,31 +324,81 @@ class DriveArchiveManager:
             return 1, err
 
         try:
-            while True:
-                if cancel_event is not None and cancel_event.is_set():
-                    proc.terminate()
-                    time.sleep(0.5)
-                    if proc.poll() is None:
-                        proc.kill()
-                    msg = "DISM 작업이 사용자에 의해 취소되었습니다."
+            # Mock 객체 및 스트림 호환성 검사
+            first_peek = None
+            try:
+                first_peek = proc.stdout.read(1) if proc.stdout else ""
+            except Exception:
+                first_peek = None
+
+            if not isinstance(first_peek, str):
+                # Mock 환경 또는 read(1) 미지원 스트림 -> readline 기반 폴백
+                while True:
+                    if cancel_event is not None and cancel_event.is_set():
+                        proc.terminate()
+                        time.sleep(0.5)
+                        if proc.poll() is None:
+                            proc.kill()
+                        msg = "DISM 작업이 사용자에 의해 취소되었습니다."
+                        if log_callback:
+                            try:
+                                log_callback(msg)
+                            except Exception:
+                                pass
+                        return 1, "\n".join(lines + [msg])
+
+                    line = proc.stdout.readline() if proc.stdout else ""
+                    if not line:
+                        break
+                    line_str = line.rstrip("\r\n")
+                    lines.append(line_str)
                     if log_callback:
                         try:
-                            log_callback(msg)
+                            log_callback(line_str)
                         except Exception:
                             pass
-                    return 1, "\n".join(lines + [msg])
+            else:
+                # 실제 DISM 스트림 (\r 및 \n 실시간 라인 분리)
+                buf = [first_peek] if first_peek and first_peek not in ("\r", "\n") else []
+                while True:
+                    if cancel_event is not None and cancel_event.is_set():
+                        proc.terminate()
+                        time.sleep(0.5)
+                        if proc.poll() is None:
+                            proc.kill()
+                        msg = "DISM 작업이 사용자에 의해 취소되었습니다."
+                        if log_callback:
+                            try:
+                                log_callback(msg)
+                            except Exception:
+                                pass
+                        return 1, "\n".join(lines + [msg])
 
-                line = proc.stdout.readline() if proc.stdout else ""
-                if not line:
-                    break
+                    ch = proc.stdout.read(1) if proc.stdout else ""
+                    if not ch:
+                        if buf:
+                            tail = "".join(buf).strip()
+                            if tail:
+                                lines.append(tail)
+                                if log_callback:
+                                    try:
+                                        log_callback(tail)
+                                    except Exception:
+                                        pass
+                        break
 
-                line_str = line.rstrip("\r\n")
-                lines.append(line_str)
-                if log_callback:
-                    try:
-                        log_callback(line_str)
-                    except Exception:
-                        pass
+                    if ch in ("\r", "\n"):
+                        line_str = "".join(buf).strip()
+                        buf = []
+                        if line_str:
+                            lines.append(line_str)
+                            if log_callback:
+                                try:
+                                    log_callback(line_str)
+                                except Exception:
+                                    pass
+                    else:
+                        buf.append(ch)
 
             exit_code = proc.wait() if hasattr(proc, "wait") else 0
             if not isinstance(exit_code, int):
@@ -624,6 +674,21 @@ class DriveArchiveManager:
                 self.progress_percent = 10.0
                 self.current_phase = "DISM 압축 캡처 및 CheckIntegrity 무결성 블록 생성 중"
 
+            # DISM 잠금 파일 제외 설정 (Exit Code 32 / ERROR_SHARING_VIOLATION 원천 방지)
+            wim_config_dir = Path(tempfile.mkdtemp(prefix="bk_wim_cfg_"))
+            wim_config_ini = wim_config_dir / "wimscript.ini"
+            wim_config_content = (
+                "[ExclusionList]\n"
+                "\\$Recycle.Bin\n"
+                "\\System Volume Information\n"
+                "\\pagefile.sys\n"
+                "\\swapfile.sys\n"
+                "\\hiberfil.sys\n"
+                "\\DumpStack.log.tmp\n"
+                "\\DumpStack.log\n"
+            )
+            wim_config_ini.write_text(wim_config_content, encoding="ansi", errors="replace")
+
             dism_cmd = [
                 "dism.exe",
                 "/Capture-Image",
@@ -631,6 +696,7 @@ class DriveArchiveManager:
                 f"/CaptureDir:{source_capture_dir}",
                 f"/Name:BackupSystem_{source_drive[0]}_Insurance",
                 f"/Description:Insurance_Archive_VSN_{source_vsn}",
+                f"/ConfigFile:{wim_config_ini}",
                 f"/Compress:{compress}",
                 "/CheckIntegrity",
                 "/Verify"
@@ -639,6 +705,7 @@ class DriveArchiveManager:
             self.append_log(f"  - DISM 실행: {' '.join(dism_cmd[:4])} ...")
 
             start_ts = time.time()
+            last_logged_pct = [-1]
 
             def on_dism_line(line: str):
                 stripped = line.strip()
@@ -648,6 +715,10 @@ class DriveArchiveManager:
                     with self.state_lock:
                         self.progress_percent = round(10.0 + (pct * 0.7), 1)
                         self.current_phase = f"DISM 캡처 진행 중 ({pct}%)"
+                    int_pct = int(pct)
+                    if int_pct >= last_logged_pct[0] + 10 or (int_pct >= 99 and last_logged_pct[0] < 99):
+                        last_logged_pct[0] = int_pct
+                        self.append_log(f"  - DISM 캡처 진행률: {pct}%")
                 elif any(k in stripped for k in ("Error", "오류", "100.0%", "작업을 완료했습니다")):
                     self.append_log(f"    {stripped}")
 
@@ -656,6 +727,9 @@ class DriveArchiveManager:
                 log_callback=on_dism_line,
                 cancel_event=self._cancel_event
             )
+
+            # 임시 설정 폴더 정리
+            shutil.rmtree(wim_config_dir, ignore_errors=True)
 
             if rc != 0:
                 raise RuntimeError(f"DISM 캡처 실패 (Exit Code: {rc}). 관리자 권한 확인 필요.")
