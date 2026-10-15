@@ -3,7 +3,7 @@
 ; =========================================================================
 
 #define MyAppName "Kova"
-#define MyAppVersion "2.15.12"
+#define MyAppVersion "2.15.13"
 #define MyAppPublisher "kks3365550"
 #define MyAppURL "http://127.0.0.1:8765"
 #define MyAppExeName "Kova.exe"
@@ -100,7 +100,9 @@ begin
   CmdExe := ExpandConstant('{cmd}');
   PsExe := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
 
-  // 1. Windows cmd.exe를 통한 원초적이고 무조건적인 python.exe 및 pythonw.exe 전수 강제 사살
+  // 1. Windows cmd.exe 및 PowerShell을 통한 원초적이고 무조건적인 python.exe 및 pythonw.exe 전수 강제 사살
+  if FileExists(PsExe) then
+    Exec(PsExe, '-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-Process python*, pythonw*, kova*, backupsystem* -ErrorAction SilentlyContinue | Stop-Process -Force"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec(CmdExe, '/c taskkill.exe /F /T /IM pythonw.exe /IM python.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   if FileExists(TaskkillExe) then
     Exec(TaskkillExe, '/F /T /IM pythonw.exe /IM python.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);

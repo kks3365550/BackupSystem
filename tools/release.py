@@ -504,16 +504,19 @@ def restart_local_server():
     if hasattr(subprocess, 'CREATE_NO_WINDOW'):
         no_win = {'creationflags': subprocess.CREATE_NO_WINDOW}
 
-    # 1. Kill any process holding port 8765 unconditionally
+    # 1. Kill any process holding port 8765 or running pythonw unconditionally (including elevated zombies)
     try:
-        kill_port_cmd = (
-            "(Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue).OwningProcess | "
-            "Sort-Object -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }"
-        )
-        subprocess.run(['powershell', '-NoProfile', '-Command', kill_port_cmd], capture_output=True, timeout=8, **no_win)
+        subprocess.run(['powershell', '-NoProfile', '-Command', "Get-Process python*, pythonw*, kova*, backupsystem* -ErrorAction SilentlyContinue | Stop-Process -Force"], capture_output=True, timeout=8, **no_win)
         subprocess.run(['taskkill.exe', '/F', '/T', '/IM', 'pythonw.exe'], capture_output=True, timeout=8, **no_win)
         subprocess.run(['taskkill.exe', '/F', '/T', '/IM', 'Kova.exe'], capture_output=True, timeout=8, **no_win)
         subprocess.run(['taskkill.exe', '/F', '/T', '/IM', 'BackupSystem.exe'], capture_output=True, timeout=8, **no_win)
+        kill_elevated = (
+            "Start-Process powershell.exe -ArgumentList '-NoProfile -Command "
+            "\"Get-Process python*, pythonw*, kova*, backupsystem* -ErrorAction SilentlyContinue | Stop-Process -Force; "
+            "(Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue).OwningProcess | Sort-Object -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }\"' "
+            "-Verb RunAs -WindowStyle Hidden -Wait"
+        )
+        subprocess.run(['powershell', '-NoProfile', '-Command', kill_elevated], capture_output=True, timeout=10, **no_win)
         print("      Stopped existing processes on port 8765.")
     except Exception as e:
         print(f"      Stop warning (may be OK if nothing was running): {e}")
