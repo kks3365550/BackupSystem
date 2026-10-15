@@ -1801,5 +1801,39 @@ class DriveArchiveManager:
                     except Exception:
                         pass
 
+        # 3. 영구 아카이브 캐시 저장 및 폴백 (권한 부족/일시적 스캔 실패 대비)
+        cache_candidates = [
+            os.path.join(repo_dir, ".archives_cache.json"),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".ai", "archives_cache.json")
+        ]
+
+        # 캐시로부터 디스크에 실존하는 누락 아카이브 폴백 복원
+        for cp in cache_candidates:
+            if os.path.exists(cp):
+                try:
+                    with open(cp, "r", encoding="utf-8") as f_c:
+                        c_data = json.load(f_c)
+                        c_items = c_data.get("archives", []) if isinstance(c_data, dict) else c_data
+                        for item in c_items:
+                            item_p = item.get("path") or item.get("vhdx_path")
+                            if item_p and os.path.exists(item_p):
+                                norm_p = os.path.abspath(item_p).lower()
+                                if norm_p not in seen_paths:
+                                    archives.append(item)
+                                    seen_paths.add(norm_p)
+                except Exception:
+                    pass
+
+        # 발견된 아카이브가 있으면 캐시 갱신
+        if archives:
+            for cp in cache_candidates:
+                try:
+                    os.makedirs(os.path.dirname(cp), exist_ok=True)
+                    with open(cp, "w", encoding="utf-8") as f_c:
+                        json.dump({"archives": archives, "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")}, f_c, ensure_ascii=False, indent=2)
+                except Exception:
+                    pass
+
         archives.sort(key=lambda x: x["modified_at"], reverse=True)
         return archives
+

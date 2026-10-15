@@ -33,6 +33,7 @@ function switchTab(tabId) {
         loadSystemImageStatus();
         loadVhdxList();
         if (typeof loadMigrationDrives === 'function') loadMigrationDrives();
+        if (typeof loadArchiveList === 'function') loadArchiveList();
     }
 }
 
