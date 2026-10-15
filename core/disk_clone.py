@@ -121,7 +121,7 @@ def is_admin() -> bool:
         return False
 
 
-def run_elevated_command(cmd_args: List[str], timeout: int = 60) -> tuple[int, str, str]:
+def run_elevated_command(cmd_args: List[str], timeout: int = 60, cwd: Optional[str] = None) -> tuple[int, str, str]:
     """
     관리자 권한이 필요한 Windows 시스템 도구(diskpart, bcdboot 등)를 안전하게 실행.
     현재 프로세스가 관리자 권한이면 CREATE_NO_WINDOW로 즉시 실행하고,
@@ -134,6 +134,7 @@ def run_elevated_command(cmd_args: List[str], timeout: int = 60) -> tuple[int, s
         try:
             proc = subprocess.run(
                 cmd_args,
+                cwd=cwd,
                 capture_output=True,
                 text=True,
                 encoding="cp949",
@@ -160,11 +161,20 @@ def run_elevated_command(cmd_args: List[str], timeout: int = 60) -> tuple[int, s
     escaped_args = ["'" + str(a).replace("'", "''") + "'" for a in sub_args]
     args_array = "@(" + ", ".join(escaped_args) + ")"
 
+    cd_line = ""
+    env_line = ""
+    if cwd and os.path.exists(cwd):
+        escaped_cwd = str(cwd).replace("'", "''")
+        cd_line = f"Set-Location '{escaped_cwd}'\r\n"
+        env_line = f"$env:PYTHONPATH = '{escaped_cwd};' + $env:PYTHONPATH\r\n"
+
     ps1_content = (
         "$OutputEncoding = [System.Text.Encoding]::UTF8\r\n"
         "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\r\n"
         "$ErrorActionPreference = 'Continue'\r\n"
-        f"& '{escaped_exe}' {args_array} > '{out_file}' 2> '{err_file}'\r\n"
+        + cd_line
+        + env_line
+        + f"& '{escaped_exe}' {args_array} > '{out_file}' 2> '{err_file}'\r\n"
         f"$code = if ($LASTEXITCODE -ne $null) {{ $LASTEXITCODE }} else {{ 0 }}\r\n"
         f"Set-Content -Path '{code_file}' -Value $code -Encoding ASCII\r\n"
         f"exit $code\r\n"
@@ -704,7 +714,8 @@ class DiskCloneManager:
                 t_ipc.start()
 
                 try:
-                    rc, out, err = run_elevated_command(cmd, timeout=3600)
+                    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    rc, out, err = run_elevated_command(cmd, timeout=3600, cwd=project_root)
                     worker_done = True
                     t_ipc.join(timeout=3)
 

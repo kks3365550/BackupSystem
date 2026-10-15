@@ -4,10 +4,15 @@ core/clone_worker.py: 관리자 권한 격리 LBA 블록 스트리밍 복제 워
 - 비관리자 권한 웹서버 환경에서 WinError 5(볼륨 핸들 접근 거부)를 회피하기 위해 UAC 승격으로 단독 실행
 - 실시간 진행률 및 완료 결과를 IPC 로그 파일에 스트리밍
 """
+import os
 import sys
 import json
 import time
 import argparse
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 
 def main():
