@@ -38,6 +38,27 @@ ESSENTIAL_BOOT_ARTIFACTS = [
     (r"Windows\System32\spp\store\2.0\tokens.dat", "디지털 라이선스/정품 인증 토큰 DB"),
 ]
 
+# VHDX 마이그레이션 복원 시 불필요한 OS 가상 메모리 및 임시 파일/디렉토리 스마트 제외 목록
+DEFAULT_ARCHIVE_EXCLUDE_FILES = [
+    "pagefile.sys",
+    "hiberfil.sys",
+    "swapfile.sys",
+    "DumpStack.log",
+    "DumpStack.log.tmp",
+    "*.tmp"
+]
+
+DEFAULT_ARCHIVE_EXCLUDE_DIRS = [
+    "$RECYCLE.BIN",
+    "$Recycle.Bin",
+    "System Volume Information",
+    "WindowsImageBackup",
+    "MyBackup_Repository",
+    "backup_repository",
+    "Temp",
+    "PerfLogs"
+]
+
 
 def is_admin() -> bool:
     """현재 프로세스가 Windows 관리자(Administrator) 권한으로 실행 중인지 확인"""
@@ -1604,9 +1625,11 @@ class DriveArchiveManager:
                         "/NDL",
                         "/MT:16",
                         "/XD",
-                        "$Recycle.Bin",
-                        "System Volume Information"
+                        *DEFAULT_ARCHIVE_EXCLUDE_DIRS,
+                        "/XF",
+                        *DEFAULT_ARCHIVE_EXCLUDE_FILES
                     ]
+                    self.append_log(f"  - 스마트 제외 옵션 적용: /XD {len(DEFAULT_ARCHIVE_EXCLUDE_DIRS)}개, /XF {len(DEFAULT_ARCHIVE_EXCLUDE_FILES)}개 (pagefile, hiberfil, temp 등 제외)")
                     start_t = time.time()
                     rc, out = self._run_robocopy(robocopy_cmd)
                     if rc > 7:

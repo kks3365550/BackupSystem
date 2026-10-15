@@ -295,6 +295,14 @@ class TestDriveArchiveCore(unittest.TestCase):
         mock_dismount.assert_called_with(vhdx_path)
         mock_set_vsn.assert_called_with("E:", "5AEF-9960")
 
+        # Robocopy 스마트 제외 옵션(/XF, /XD) 검증
+        called_cmd = mock_popen.call_args[0][0]
+        self.assertIn("/XF", called_cmd)
+        self.assertIn("pagefile.sys", called_cmd)
+        self.assertIn("hiberfil.sys", called_cmd)
+        self.assertIn("/XD", called_cmd)
+        self.assertIn("System Volume Information", called_cmd)
+
         st = self.manager.get_status()
         self.assertEqual(st["status"], "completed")
         self.assertEqual(st["progress_percent"], 100.0)
