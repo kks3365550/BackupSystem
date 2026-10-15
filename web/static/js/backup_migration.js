@@ -387,10 +387,10 @@ async function loadArchiveList() {
                         </div>
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
-                        <button onclick="verifySingleArchive('${escapeHtml(a.path)}')" class="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-xs font-medium border border-zinc-700 transition flex items-center gap-1">
+                        <button onclick="verifySingleArchive('${encodeURIComponent(a.path)}')" class="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-xs font-medium border border-zinc-700 transition flex items-center gap-1">
                             <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i> 실측 검증
                         </button>
-                        <button onclick="openArchiveRestoreModal('${escapeHtml(a.path)}')" class="px-2.5 py-1.5 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1">
+                        <button onclick="openArchiveRestoreModal('${encodeURIComponent(a.path)}')" class="px-2.5 py-1.5 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1">
                             <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> 이 백업으로 복원
                         </button>
                     </div>
@@ -566,6 +566,9 @@ async function stopDriveArchiveBackup() {
 
 async function verifySingleArchive(wimPath) {
     if (!wimPath) return;
+    try {
+        if (wimPath.includes("%")) wimPath = decodeURIComponent(wimPath);
+    } catch (_) {}
     if (!confirm(`선택한 통백업 아카이브(VHDX/WIM)에 대해 4단계 실측 검증을 실행하시겠습니까?\n\n- 대상: ${wimPath}\n- 검증 내용: 가상 디스크 오프라인 마운트 + 5대 부팅/라이선스 아티팩트 전수 조사`)) {
         return;
     }
@@ -597,6 +600,9 @@ async function verifySingleArchive(wimPath) {
 let activeRestoreWimPath = "";
 
 function openArchiveRestoreModal(wimPath) {
+    try {
+        if (wimPath && wimPath.includes("%")) wimPath = decodeURIComponent(wimPath);
+    } catch (_) {}
     activeRestoreWimPath = wimPath;
     const modal = document.getElementById("archive-restore-modal");
     const targetText = document.getElementById("modal-archive-restore-wim");

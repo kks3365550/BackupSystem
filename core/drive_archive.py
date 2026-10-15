@@ -1169,6 +1169,14 @@ class DriveArchiveManager:
         }
 
         if not os.path.exists(wim_path):
+            norm_in = wim_path.replace("\\", "").replace("/", "").lower()
+            for arc in self.list_archives():
+                ap = arc.get("path") or arc.get("vhdx_path")
+                if ap and ap.replace("\\", "").replace("/", "").lower() == norm_in:
+                    wim_path = ap
+                    break
+
+        if not os.path.exists(wim_path):
             result["error"] = f"파일이 존재하지 않습니다: {wim_path}"
             return result
 
@@ -1422,6 +1430,13 @@ class DriveArchiveManager:
         with self.state_lock:
             if self.is_running:
                 return {"success": False, "error": "이미 다른 아카이브/복원 작업이 진행 중입니다."}
+            if not os.path.exists(wim_path):
+                norm_in = wim_path.replace("\\", "").replace("/", "").lower()
+                for arc in self.list_archives():
+                    ap = arc.get("path") or arc.get("vhdx_path")
+                    if ap and ap.replace("\\", "").replace("/", "").lower() == norm_in:
+                        wim_path = ap
+                        break
             if not os.path.exists(wim_path):
                 return {"success": False, "error": f"아카이브 파일이 없습니다: {wim_path}"}
             self.is_running = True
