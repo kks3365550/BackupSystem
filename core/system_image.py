@@ -379,6 +379,38 @@ class SystemImageManager:
                     except OSError:
                         continue
 
+        # 영구 캐시 저장 및 폴백 (권한 부족/일시적 스캔 실패 대비)
+        cache_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".ai", "vhdx_cache.json")
+        seen_vhdx = {os.path.normpath(r["path"]).lower() for r in results}
+
+        if os.path.exists(cache_path):
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f_c:
+                    cached_list = json.load(f_c)
+                    if isinstance(cached_list, list):
+                        for c_item in cached_list:
+                            cp = c_item.get("path")
+                            if cp:
+                                norm_p = os.path.normpath(cp).lower()
+                                drive_prefix = search_drive.lower()
+                                if norm_p.startswith(drive_prefix) and norm_p not in seen_vhdx:
+                                    mount_info = mounted_map.get(norm_p, None)
+                                    item_copy = dict(c_item)
+                                    item_copy["is_mounted"] = bool(mount_info and mount_info.get("attached"))
+                                    item_copy["mount_drive"] = mount_info.get("drive_letter") if mount_info else None
+                                    results.append(item_copy)
+                                    seen_vhdx.add(norm_p)
+            except Exception:
+                pass
+
+        if results:
+            try:
+                os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+                with open(cache_path, "w", encoding="utf-8") as f_c:
+                    json.dump(results, f_c, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+
         # 최신 파일 순으로 정렬
         results.sort(key=lambda x: x["modified_at"], reverse=True)
         return results

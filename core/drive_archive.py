@@ -1802,12 +1802,15 @@ class DriveArchiveManager:
                         pass
 
         # 3. 영구 아카이브 캐시 저장 및 폴백 (권한 부족/일시적 스캔 실패 대비)
-        cache_candidates = [
-            os.path.join(repo_dir, ".archives_cache.json"),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".ai", "archives_cache.json")
-        ]
+        if auto_discover_wib:
+            cache_candidates = [
+                os.path.join(repo_dir, ".archives_cache.json"),
+                os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".ai", "archives_cache.json")
+            ]
+        else:
+            cache_candidates = [os.path.join(repo_dir, ".archives_cache.json")]
 
-        # 캐시로부터 디스크에 실존하는 누락 아카이브 폴백 복원
+        # 캐시로부터 누락 아카이브 폴백 복원
         for cp in cache_candidates:
             if os.path.exists(cp):
                 try:
@@ -1816,11 +1819,22 @@ class DriveArchiveManager:
                         c_items = c_data.get("archives", []) if isinstance(c_data, dict) else c_data
                         for item in c_items:
                             item_p = item.get("path") or item.get("vhdx_path")
-                            if item_p and os.path.exists(item_p):
+                            if item_p:
                                 norm_p = os.path.abspath(item_p).lower()
+                                if not auto_discover_wib:
+                                    repo_norm = os.path.abspath(repo_dir).lower()
+                                    if not norm_p.startswith(repo_norm):
+                                        continue
                                 if norm_p not in seen_paths:
-                                    archives.append(item)
-                                    seen_paths.add(norm_p)
+                                    exists = False
+                                    try:
+                                        exists = os.path.exists(item_p)
+                                    except Exception:
+                                        exists = False
+                                    drive_part = os.path.splitdrive(item_p)[0]
+                                    if exists or (auto_discover_wib and drive_part and os.path.exists(drive_part + "\\") and "windowsimagebackup" in norm_p):
+                                        archives.append(item)
+                                        seen_paths.add(norm_p)
                 except Exception:
                     pass
 
