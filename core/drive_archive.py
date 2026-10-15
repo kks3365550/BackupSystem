@@ -711,6 +711,13 @@ class DriveArchiveManager:
                 "\\hiberfil.sys\n"
                 "\\DumpStack.log.tmp\n"
                 "\\DumpStack.log\n"
+                "\\Windows\\Temp\n"
+                "\\Users\\*\\AppData\\Local\\Temp\n"
+                "\\Windows\\SoftwareDistribution\\Download\n"
+                "\\Users\\*\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Cache\n"
+                "\\Users\\*\\AppData\\Local\\Microsoft\\Edge\\User Data\\Default\\Cache\n"
+                "\\Users\\*\\AppData\\Local\\npm-cache\n"
+                "\\Users\\*\\.cache\n"
             )
             wim_config_ini.write_text(wim_config_content, encoding="ansi", errors="replace")
 
@@ -723,8 +730,7 @@ class DriveArchiveManager:
                 f"/Description:Insurance_Archive_VSN_{source_vsn}",
                 f"/ConfigFile:{wim_config_ini}",
                 f"/Compress:{compress}",
-                "/CheckIntegrity",
-                "/Verify"
+                "/CheckIntegrity"
             ]
 
             self.append_log(f"  - DISM 실행: {' '.join(dism_cmd[:4])} ...")

@@ -34,6 +34,12 @@ def flush_sqlite_databases(paths: List[str]):
         try:
             if not os.path.exists(p):
                 continue
+            # 루트 드라이브 경로(예: 'C:\', 'C:', '/')인 경우 전체 드라이브 os.walk 순회 시
+            # 수십만 개 폴더 탐색으로 1~2분 정체되므로 루트는 전체 순회를 생략하고 통과
+            norm_p = os.path.abspath(p).rstrip("\\/")
+            if len(norm_p) <= 2 or norm_p.endswith(":"):
+                logger.info(f"[VSS Pre-Hook] 루트 볼륨({p}) 무차별 전체 디렉터리 순회를 건너뜁니다.")
+                continue
             if os.path.isfile(p):
                 _, ext = os.path.splitext(p)
                 if ext.lower() in sqlite_exts or p.lower().endswith("-wal"):
