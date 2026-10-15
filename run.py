@@ -26,6 +26,47 @@ if _server_log:
     sys.stderr = _server_log
 
 # ---------------------------------------------------------------------------
+# Preflight: Ensure Administrative Privileges (VSS / DISM / Disk Clone)
+# ---------------------------------------------------------------------------
+def _check_and_elevate():
+    """백업시스템은 VSS 스냅샷, 디스크 복제, DISM 이미지 캡처를 위해 관리자 권한이 필수입니다.
+    비관리자 권한으로 실행된 경우 Windows UAC(runas)를 통해 관리자 권한으로 자동 승격 재기동합니다."""
+    try:
+        import ctypes
+        if ctypes.windll.shell32.IsUserAnAdmin() != 0:
+            return True
+    except Exception:
+        return True
+
+    if "--elevated-attempt" in sys.argv:
+        print("[!] 관리자 권한 획득에 실패했습니다. 관리자 권한으로 실행해 주십시오.", file=sys.stderr)
+        return False
+
+    args = [arg for arg in sys.argv if arg != "--elevated-attempt"]
+    args.append("--elevated-attempt")
+    params = " ".join([f'"{a}"' if " " in a else a for a in args])
+
+    try:
+        import ctypes
+        show_cmd = 0 if "--silent" in sys.argv else 1
+        ret = ctypes.windll.shell32.ShellExecuteW(
+            None,
+            "runas",
+            sys.executable,
+            params,
+            os.path.dirname(os.path.abspath(__file__)),
+            show_cmd
+        )
+        if ret > 32:
+            sys.exit(0)
+    except Exception as e:
+        print(f"[!] 관리자 권한 승격 요청 실패: {e}", file=sys.stderr)
+    return False
+
+_check_and_elevate()
+
+
+# ---------------------------------------------------------------------------
 # Preflight: Check for interrupted OTA update transaction (Self-Healing)
 # ---------------------------------------------------------------------------
 _app_base_dir = os.path.dirname(os.path.abspath(__file__))

@@ -522,10 +522,10 @@ def restart_local_server():
     launched = False
     # Attempt 1: Direct pythonw.exe launch via PowerShell (Robust against VBS quote parsing issues)
     try:
-        ps_cmd = f"Start-Process -FilePath '{pyw_path}' -ArgumentList 'run.py --silent' -WorkingDirectory '{BASE_DIR}'"
+        ps_cmd = f"Start-Process -FilePath '{pyw_path}' -ArgumentList 'run.py --silent' -WorkingDirectory '{BASE_DIR}' -Verb RunAs"
         subprocess.run(['powershell', '-NoProfile', '-Command', ps_cmd], capture_output=True, timeout=10)
         launched = True
-        print("      pythonw.exe launched directly via Start-Process.")
+        print("      pythonw.exe launched directly via Start-Process (Elevated).")
     except Exception as e:
         print(f"      Direct pythonw launch failed: {e}. Falling back to VBS...")
 
