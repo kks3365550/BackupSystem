@@ -8,6 +8,7 @@ core/disk_clone.py: 라이브 SSD 마이그레이션 (Live Disk Clone & Bootable
 """
 
 import os
+import sys
 import re
 import time
 import shutil
@@ -549,14 +550,115 @@ class DiskCloneManager:
                     self.append_log(f"  - [LBA 블록 스트림] {pct}% 완료 ({proc_gb}/{tot_gb} GB, 전송속도: {speed_mb:.1f} MB/s)")
                     last_ui_log_time = now
 
-            stream_res = stream_volume_to_volume(
-                src_drive="C:",
-                dst_drive=target_drive,
-                progress_callback=on_block_progress,
-                cancel_event=self._cancel_event,
-                chunk_bytes=16 * 1024 * 1024,
-                src_shadow_path=shadow_device
-            )
+            def _run_stream():
+                # 1) 관리자 권한이면 즉시 인프로세스 실행
+                if is_admin():
+                    try:
+                        return stream_volume_to_volume(
+                            src_drive="C:",
+                            dst_drive=target_drive,
+                            progress_callback=on_block_progress,
+                            cancel_event=self._cancel_event,
+                            chunk_bytes=16 * 1024 * 1024,
+                            src_shadow_path=shadow_device
+                        )
+                    except (PermissionError, OSError) as e_perm:
+                        if getattr(e_perm, "winerror", None) != 5:
+                            raise
+                        self.append_log("  - [안내] 볼륨 핸들 권한 부족 감지 -> 관리자 권한 워커 프로세스로 승격 실행합니다.")
+
+                # 2) 비관리자 권한이거나 WinError 5 발생 시: UAC 승격 워커 프로세스 단독 실행
+                import tempfile
+                import json
+                ipc_file = tempfile.mktemp(suffix=".ipc")
+                worker_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "clone_worker.py")
+                cmd = [
+                    sys.executable,
+                    worker_script,
+                    "--src", "C:",
+                    "--dst", target_drive,
+                    "--ipc-file", ipc_file,
+                    "--chunk-mb", "16"
+                ]
+                if shadow_device:
+                    cmd.extend(["--shadow", shadow_device])
+
+                read_pos = 0
+                worker_done = False
+                worker_result = None
+                worker_error = None
+
+                def ipc_reader():
+                    nonlocal read_pos, worker_result, worker_error
+                    while not worker_done:
+                        if os.path.exists(ipc_file):
+                            try:
+                                with open(ipc_file, "r", encoding="utf-8", errors="ignore") as f:
+                                    f.seek(read_pos)
+                                    lines = f.readlines()
+                                    read_pos = f.tell()
+                                for line in lines:
+                                    line = line.strip()
+                                    if not line:
+                                        continue
+                                    try:
+                                        msg = json.loads(line)
+                                    except Exception:
+                                        continue
+                                    m_type = msg.get("type")
+                                    if m_type == "progress":
+                                        on_block_progress(msg.get("data", {}))
+                                    elif m_type == "status":
+                                        self.append_log(f"  - [승격 워커] {msg.get('message')}")
+                                    elif m_type == "done":
+                                        worker_result = msg.get("result")
+                                    elif m_type == "error":
+                                        worker_error = msg.get("error")
+                            except Exception:
+                                pass
+                        time.sleep(0.3)
+
+                t_ipc = threading.Thread(target=ipc_reader, daemon=True)
+                t_ipc.start()
+
+                try:
+                    rc, out, err = run_elevated_command(cmd, timeout=3600)
+                    worker_done = True
+                    t_ipc.join(timeout=3)
+
+                    if os.path.exists(ipc_file):
+                        try:
+                            with open(ipc_file, "r", encoding="utf-8", errors="ignore") as f:
+                                f.seek(read_pos)
+                                for line in f:
+                                    line = line.strip()
+                                    if not line:
+                                        continue
+                                    try:
+                                        msg = json.loads(line)
+                                    except Exception:
+                                        continue
+                                    if msg.get("type") == "done":
+                                        worker_result = msg.get("result")
+                                    elif msg.get("type") == "error":
+                                        worker_error = msg.get("error")
+                        except Exception:
+                            pass
+
+                    if rc != 0 or worker_error:
+                        raise RuntimeError(f"관리자 권한 복제 워커 실패 (Exit Code {rc}): {worker_error or err or out}")
+                    if not worker_result:
+                        raise RuntimeError("관리자 권한 복제 워커가 완료 결과를 반환하지 않았습니다.")
+                    return worker_result
+                finally:
+                    worker_done = True
+                    if os.path.exists(ipc_file):
+                        try:
+                            os.remove(ipc_file)
+                        except Exception:
+                            pass
+
+            stream_res = _run_stream()
 
             copied_gb = stream_res.get("copied_bytes", 0) / (1024 ** 3)
             avg_spd = stream_res.get("average_speed_mb_s", 0.0)

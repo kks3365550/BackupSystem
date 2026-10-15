@@ -343,6 +343,12 @@ class GoogleDriveOffsiteReplicator:
         if not GDRIVE_SDK_AVAILABLE:
             raise RuntimeError("google-api-python-client 및 google-auth 패키지가 필요합니다.")
 
+        if self.credentials_file and not os.path.exists(self.credentials_file):
+            raise FileNotFoundError(
+                f"지정된 구글 드라이브 인증 파일을 찾을 수 없습니다: {self.credentials_file}. "
+                "개인 계정 연동을 위한 'OAuth 클라이언트 ID JSON' 또는 '서비스 계정 JSON' 경로를 확인해 주십시오."
+            )
+
         creds = None
         base_data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
         token_path = os.path.join(base_data_dir, "gdrive_oauth_token.json")

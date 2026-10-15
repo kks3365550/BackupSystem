@@ -117,6 +117,7 @@ def test_disk_clone_manager_pipeline_execution_with_auto_esp():
          patch("core.disk_clone.get_physical_disk_number", side_effect=lambda d: 0 if "C" in str(d) else 1), \
          patch("core.disk_clone.prepare_target_disk_with_esp", return_value={"success": True}) as mock_part, \
          patch("core.disk_clone.remove_esp_drive_letter", return_value=True) as mock_rem, \
+         patch("core.disk_clone.is_admin", return_value=True), \
          patch("core.disk_clone.VSSContext") as mock_vss_cls, \
          patch("core.block_stream.stream_volume_to_volume") as mock_stream, \
          patch("core.disk_clone.run_elevated_command", return_value=(0, "부팅 파일이 성공적으로 만들어졌습니다.", "")), \
@@ -159,6 +160,7 @@ def test_disk_clone_manager_pipeline_cancel():
     mgr._init_state()
 
     with patch("core.disk_clone.shutil.disk_usage") as mock_usage, \
+         patch("core.disk_clone.is_admin", return_value=True), \
          patch("core.block_stream.stream_volume_to_volume", side_effect=RuntimeError("사용자에 의해 마이그레이션이 취소되었습니다.")), \
          patch("os.path.exists", return_value=True):
 
@@ -174,6 +176,53 @@ def test_disk_clone_manager_pipeline_cancel():
         status = mgr.get_status()
         assert status["status"] == "cancelled"
         assert "취소되었습니다" in status["error_message"]
+
+
+def test_disk_clone_manager_pipeline_elevated_worker_fallback():
+    mgr = DiskCloneManager.get_instance()
+    mgr._init_state()
+
+    def fake_elevated_cmd(cmd, timeout=3600):
+        if "--ipc-file" in cmd:
+            idx = cmd.index("--ipc-file")
+            ipc_f = cmd[idx + 1]
+            import json
+            with open(ipc_f, "w", encoding="utf-8") as f:
+                f.write(json.dumps({"type": "progress", "data": {"percent": 50.0, "speed_mb_s": 900.0, "processed_bytes": 25 * 1024**3, "total_bytes": 50 * 1024**3}}) + "\n")
+                f.write(json.dumps({"type": "done", "result": {"success": True, "copied_bytes": 50 * 1024**3, "average_speed_mb_s": 900.0}}) + "\n")
+        return (0, "", "")
+
+    with patch("core.disk_clone.shutil.disk_usage") as mock_usage, \
+         patch("core.disk_clone.get_physical_disk_number", side_effect=lambda d: 0 if "C" in str(d) else 1), \
+         patch("core.disk_clone.prepare_target_disk_with_esp", return_value={"success": True}) as mock_part, \
+         patch("core.disk_clone.remove_esp_drive_letter", return_value=True) as mock_rem, \
+         patch("core.disk_clone.is_admin", return_value=False), \
+         patch("core.disk_clone.VSSContext") as mock_vss_cls, \
+         patch("core.disk_clone.run_elevated_command", side_effect=fake_elevated_cmd), \
+         patch("os.path.exists", return_value=True), \
+         patch("time.sleep", return_value=None):
+
+        mock_usage.side_effect = lambda p: type("Usage", (), {
+            "total": 500 * (1024**3),
+            "used": 50 * (1024**3),
+            "free": 450 * (1024**3)
+        })()
+
+        vss_mock = MagicMock()
+        vss_mock.vss_active = True
+        vss_mock.shadows = {"C:": MagicMock(device_path="\\Device\\HarddiskVolumeShadowCopy1")}
+        mock_vss_cls.return_value = vss_mock
+
+        mgr._run_clone_pipeline("E:", auto_prepare_esp=True)
+
+        status = mgr.get_status()
+        assert status["status"] == "completed"
+        assert status["progress_percent"] == 100.0
+        assert status["is_running"] is False
+        assert mock_part.called
+        assert mock_rem.called
+        logs = mgr.get_logs()
+        assert any("마이그레이션이 완료되었습니다" in l for l in logs)
 
 
 def test_api_migration_fastapi_endpoints():
