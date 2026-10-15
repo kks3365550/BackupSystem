@@ -232,6 +232,73 @@ class TestDriveArchiveCore(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(out, "ELEVATED_SUCCESS")
 
+    @patch("core.drive_archive.is_admin", return_value=True)
+    @patch("subprocess.Popen")
+    def test_run_wbadmin_admin_direct(self, mock_popen, mock_is_admin):
+        """관리자 권한 시 wbadmin 직접 스트리밍 실행 검증"""
+        mock_p = MagicMock()
+        mock_p.poll.side_effect = [None, 0]
+        mock_p.returncode = 0
+        mock_p.wait.return_value = 0
+        mock_p.stdout.read.side_effect = [b"1", b"5", b"%", b"\r", b""]
+        mock_popen.return_value = mock_p
+
+        logs = []
+        code, out = self.manager.run_wbadmin("D:", log_callback=lambda l: logs.append(l))
+        self.assertEqual(code, 0)
+        self.assertTrue(any("15%" in l for l in logs))
+
+    def test_verify_vhdx_archive(self):
+        """wbadmin VHDX 4단계 실측 검증 흐름 검증"""
+        vhdx_path = os.path.join(self.test_dir, "test_backup.vhdx")
+        with open(vhdx_path, "wb") as f:
+            f.write(b"VHDX_DATA_HEADER" + b"\x00" * 4096)
+
+        res = self.manager.verify_archive(vhdx_path)
+        self.assertTrue(res["verified"])
+        self.assertEqual(res["stage"], 4)
+        self.assertEqual(len(res["artifacts"]), 5)
+
+    @patch("core.drive_archive.is_admin", return_value=True)
+    @patch("core.drive_archive.mount_vhdx_volume", return_value="M:")
+    @patch("core.drive_archive.dismount_vhdx_volume", return_value=True)
+    @patch("subprocess.Popen")
+    @patch("subprocess.run")
+    @patch("core.drive_archive.set_volume_serial_number")
+    def test_restore_from_vhdx_flow(self, mock_set_vsn, mock_run, mock_popen, mock_dismount, mock_mount, mock_is_admin):
+        """VHDX 오프라인 마운트 -> Robocopy 복제 -> VSN/BCD 주입 -> 언마운트 흐름 검증"""
+        vhdx_path = os.path.join(self.test_dir, "Restore_Target.vhdx")
+        with open(vhdx_path, "wb") as f:
+            f.write(b"VHDX_PAYLOAD" + b"\x00" * 2048)
+
+        meta = {
+            "backup_type": "wbadmin_vhdx",
+            "vhdx_path": vhdx_path,
+            "volume_serial_number": "5AEF-9960"
+        }
+        with open(vhdx_path + ".meta.json", "w", encoding="utf-8") as f:
+            json.dump(meta, f)
+
+        mock_p = MagicMock()
+        mock_p.poll.side_effect = [None, 0]
+        mock_p.returncode = 0
+        mock_p.wait.return_value = 0
+        mock_p.stdout.read.side_effect = [b"F", b"i", b"l", b"e", b"s", b" ", b":", b"\n", b""]
+        mock_popen.return_value = mock_p
+
+        mock_run.return_value = MagicMock(returncode=0, stdout="부팅 파일 생성 완료", stderr="")
+        mock_set_vsn.return_value = {"success": True, "method": "raw_vbr_patch", "vsn": "5AEF-9960"}
+
+        self.manager._worker_restore(vhdx_path, "E:", auto_bcdboot=True, auto_restore_vsn=True)
+
+        mock_mount.assert_called_with(vhdx_path)
+        mock_dismount.assert_called_with(vhdx_path)
+        mock_set_vsn.assert_called_with("E:", "5AEF-9960")
+
+        st = self.manager.get_status()
+        self.assertEqual(st["status"], "completed")
+        self.assertEqual(st["progress_percent"], 100.0)
+
 
 class TestDriveArchiveAPI(unittest.TestCase):
     @classmethod

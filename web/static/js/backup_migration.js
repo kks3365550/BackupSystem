@@ -361,7 +361,7 @@ async function loadArchiveList() {
         if (!data.success || !data.archives || data.archives.length === 0) {
             listEl.innerHTML = `
                 <div class="text-zinc-500 text-xs py-4 text-center border border-dashed border-zinc-800 rounded-xl">
-                    보관 중인 드라이브 통백업(WIM) 아카이브가 없습니다.
+                    보관 중인 드라이브 통백업(VHDX/WIM) 아카이브가 없습니다.
                 </div>
             `;
             return;
@@ -400,7 +400,7 @@ async function loadArchiveList() {
 
         if (window.lucide) window.lucide.createIcons();
     } catch (err) {
-        console.error("WIM 아카이브 목록 조회 실패:", err);
+        console.error("아카이브 목록 조회 실패:", err);
     }
 }
 
@@ -411,7 +411,7 @@ async function startDriveArchiveBackup() {
     const compress = compressEl ? compressEl.value : "fast";
     const autoVerify = autoVerifyEl ? autoVerifyEl.checked : true;
 
-    if (!confirm(`C: 드라이브 전체를 단일 압축 파일(.wim)로 통백업하시겠습니까?\n\n- 압축 모드: ${compress.toUpperCase()}\n- 4단계 실측 검증: ${autoVerify ? "포함 (권장)" : "미포함"}`)) {
+    if (!confirm(`C: 드라이브 전체를 wbadmin VHDX 블록 레벨로 통백업하시겠습니까?\n\n- 백업 엔진: Windows 공식 wbadmin (잠긴 파일 에러 0%, 5~8분 소요)\n- 4단계 실측 검증: ${autoVerify ? "포함 (권장)" : "미포함"}`)) {
         return;
     }
 
@@ -432,7 +432,7 @@ async function startDriveArchiveBackup() {
             return;
         }
 
-        appendArchiveConsoleLog(`[START] 보험용 드라이브 통백업이 시작되었습니다: ${data.target_wim}`);
+        appendArchiveConsoleLog(`[START] 보험용 wbadmin VHDX 통백업이 시작되었습니다: ${data.target_wim || data.target_vhdx || "wbadmin 진행 중"}`);
         startArchivePolling();
     } catch (err) {
         alert("네트워크 오류: " + err.message);
@@ -530,7 +530,7 @@ function renderArchiveLogs(logs) {
         let cls = "text-zinc-300";
         if (l.includes("ERROR") || l.includes("❌") || l.includes("실패")) cls = "text-rose-400 font-bold";
         else if (l.includes("🎉") || l.includes("성공") || l.includes("완료") || l.includes("✓")) cls = "text-emerald-400 font-bold";
-        else if (l.includes("DISM") || l.includes("VSN") || l.includes("검증")) cls = "text-cyan-300";
+        else if (l.includes("DISM") || l.includes("wbadmin") || l.includes("VHDX") || l.includes("Robocopy") || l.includes("VSN") || l.includes("검증")) cls = "text-cyan-300";
         else if (l.includes("경고") || l.includes("주의")) cls = "text-amber-300";
         return `<div class="${cls}">${escapeHtml(l)}</div>`;
     }).join("");
@@ -566,7 +566,7 @@ async function stopDriveArchiveBackup() {
 
 async function verifySingleArchive(wimPath) {
     if (!wimPath) return;
-    if (!confirm(`선택한 WIM 아카이브에 대해 4단계 실측 검증을 실행하시겠습니까?\n\n- 대상: ${wimPath}\n- 검증 내용: 헤더 무결성 + 가상 마운트 + 5대 부팅/라이선스 아티팩트 전수 조사`)) {
+    if (!confirm(`선택한 통백업 아카이브(VHDX/WIM)에 대해 4단계 실측 검증을 실행하시겠습니까?\n\n- 대상: ${wimPath}\n- 검증 내용: 가상 디스크 오프라인 마운트 + 5대 부팅/라이선스 아티팩트 전수 조사`)) {
         return;
     }
 
@@ -648,7 +648,7 @@ async function confirmAndRunArchiveRestore() {
             return;
         }
 
-        appendArchiveConsoleLog(`[START] ${targetDrive} 드라이브로 WIM 복원 시작: ${activeRestoreWimPath}`);
+        appendArchiveConsoleLog(`[START] ${targetDrive} 드라이브로 통백업 복원/마이그레이션 시작: ${activeRestoreWimPath}`);
         startArchivePolling();
     } catch (err) {
         alert("네트워크 오류: " + err.message);
