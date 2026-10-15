@@ -1474,6 +1474,10 @@ class DriveArchiveManager:
             vhdx_path = wim_path
             backup_type = "wbadmin_vhdx"
 
+        if backup_type == "block_stream" or wim_path.lower().endswith((".qblk", ".raw.zst")):
+            self._restore_from_block_stream(wim_path, target_drive, meta, auto_bcdboot, auto_restore_vsn)
+            return
+
         if backup_type == "wbadmin_vhdx" or (vhdx_path and os.path.exists(vhdx_path)):
             self._restore_from_vhdx(vhdx_path or wim_path, target_drive, meta, auto_bcdboot, auto_restore_vsn)
             return
@@ -1620,37 +1624,70 @@ class DriveArchiveManager:
                     raise RuntimeError(f"VHDX 가상 마운트 실패 또는 드라이브 할당 불가: {vhdx_path}")
 
             try:
-                # 2. 점유/락 없는 초고속 파일 복제 (Robocopy /MIR)
+                # 2. 삼성 매지션급 LBA 블록 직접 스트리밍 복제 우선 시도 (Robocopy 안전 폴백)
                 if mounted_drive:
                     self.append_log(f"  - ✓ VHDX 가상 드라이브 마운트 성공: {mounted_drive}")
-                    self.append_log(f"[2/4] 오프라인 VHDX({mounted_drive}) -> 타겟 SSD({target_root}) 무결점 마이그레이션 복제 중...")
-                    with self.state_lock:
-                        self.progress_percent = 15.0
-                        self.current_phase = "VHDX 무결점 마이그레이션 복제 중"
-
-                    robocopy_cmd = [
-                        "robocopy.exe",
-                        f"{mounted_drive}\\",
-                        target_root,
-                        "/MIR",
-                        "/R:1",
-                        "/W:1",
-                        "/NP",
-                        "/NFL",
-                        "/NDL",
-                        "/MT:16",
-                        "/XD",
-                        *DEFAULT_ARCHIVE_EXCLUDE_DIRS,
-                        "/XF",
-                        *DEFAULT_ARCHIVE_EXCLUDE_FILES
-                    ]
-                    self.append_log(f"  - 스마트 제외 옵션 적용: /XD {len(DEFAULT_ARCHIVE_EXCLUDE_DIRS)}개, /XF {len(DEFAULT_ARCHIVE_EXCLUDE_FILES)}개 (pagefile, hiberfil, temp 등 제외)")
+                    block_success = False
                     start_t = time.time()
-                    rc, out = self._run_robocopy(robocopy_cmd)
-                    if rc > 7:
-                        raise RuntimeError(f"Robocopy 복제 실패 (Exit Code: {rc})")
-                    elapsed = int(time.time() - start_t)
-                    self.append_log(f"  - ✓ SSD 마이그레이션 복제 완료! (소요 시간: {elapsed}초, Robocopy Code: {rc})")
+
+                    # 1차 시도: 삼성 매지션(WinClon) 방식의 볼륨 직결 LBA 블록 스트리밍
+                    try:
+                        from core.block_stream import stream_volume_to_volume
+                        self.append_log(f"[2/4] [삼성 매지션 LBA 가속] VHDX({mounted_drive}) -> 타겟 SSD({target_root}) NVMe 다이렉트 블록 스트리밍 복제 시도...")
+                        with self.state_lock:
+                            self.progress_percent = 15.0
+                            self.current_phase = "NVMe LBA 블록 직접 스트리밍 복제 중"
+
+                        def on_block_prog(info: Dict[str, Any]):
+                            pct = info.get("percent", 0.0)
+                            spd = info.get("speed_mb_s", 0.0)
+                            with self.state_lock:
+                                self.progress_percent = round(15.0 + (pct * 0.65), 1)
+                                self.current_phase = f"NVMe LBA 블록 직사 복제 중 ({pct}% - {spd} MB/s)"
+
+                        res_block = stream_volume_to_volume(
+                            mounted_drive,
+                            target_drive,
+                            progress_callback=on_block_prog,
+                            cancel_event=self._cancel_event
+                        )
+                        if res_block.get("success"):
+                            block_success = True
+                            elapsed = res_block.get("elapsed_seconds", 0)
+                            spd = res_block.get("average_speed_mb_s", 0)
+                            self.append_log(f"  - 🎉 [삼성 매지션급 LBA 복제 성공] 초고속 블록 복제 완료! (소요 시간: {elapsed}초, 평균 속도: {spd} MB/s)")
+                    except Exception as e_block:
+                        self.append_log(f"  - [안내] LBA 블록 직접 쓰기 모드 미진입 ({e_block}) -> Robocopy 스마트 고속 복제로 안전 자동 전환")
+
+                    # 2차 폴백: Robocopy 스마트 제외 고속 복제
+                    if not block_success:
+                        self.append_log(f"[2/4] 오프라인 VHDX({mounted_drive}) -> 타겟 SSD({target_root}) Robocopy 마이그레이션 복제 중...")
+                        with self.state_lock:
+                            self.progress_percent = 15.0
+                            self.current_phase = "VHDX 무결점 마이그레이션 복제 중"
+
+                        robocopy_cmd = [
+                            "robocopy.exe",
+                            f"{mounted_drive}\\",
+                            target_root,
+                            "/MIR",
+                            "/R:1",
+                            "/W:1",
+                            "/NP",
+                            "/NFL",
+                            "/NDL",
+                            "/MT:16",
+                            "/XD",
+                            *DEFAULT_ARCHIVE_EXCLUDE_DIRS,
+                            "/XF",
+                            *DEFAULT_ARCHIVE_EXCLUDE_FILES
+                        ]
+                        self.append_log(f"  - 스마트 제외 옵션 적용: /XD {len(DEFAULT_ARCHIVE_EXCLUDE_DIRS)}개, /XF {len(DEFAULT_ARCHIVE_EXCLUDE_FILES)}개 (pagefile, hiberfil, temp 등 제외)")
+                        rc, out = self._run_robocopy(robocopy_cmd)
+                        if rc > 7:
+                            raise RuntimeError(f"Robocopy 복제 실패 (Exit Code: {rc})")
+                        elapsed = int(time.time() - start_t)
+                        self.append_log(f"  - ✓ SSD 마이그레이션 복제 완료! (소요 시간: {elapsed}초, Robocopy Code: {rc})")
                 else:
                     self.append_log("[2/4] 테스트 환경 복제 단계 통과")
 
@@ -1722,8 +1759,68 @@ class DriveArchiveManager:
             with self.state_lock:
                 self.is_running = False
 
+    def _restore_from_block_stream(
+        self,
+        image_path: str,
+        target_drive: str,
+        meta: Dict[str, Any],
+        auto_bcdboot: bool,
+        auto_restore_vsn: bool
+    ):
+        target_root = f"{target_drive[0]}:\\"
+        try:
+            self.append_log("=" * 60)
+            self.append_log("🚀 [초고속 LBA 블록 역스트리밍 복원 엔진 시작 (삼성 매지션급)]")
+            self.append_log(f"  - 원본 이미지: {image_path}")
+            self.append_log(f"  - 복구 대상 새 SSD: {target_root}")
+            self.append_log(f"  - UEFI 부트로더(BCD) 자동 주입: {'예' if auto_bcdboot else '아니오'}")
+            self.append_log(f"  - 볼륨 시리얼(VSN) 자동 복원: {'예' if auto_restore_vsn else '아니오'}")
+
+            from core.block_stream import restore_block_stream
+
+            def on_restore_prog(info: Dict[str, Any]):
+                pct = info.get("percent", 0.0)
+                spd = info.get("speed_mb_s", 0.0)
+                with self.state_lock:
+                    self.progress_percent = pct
+                    self.current_phase = f"LBA 블록 역스트리밍 복원 중 ({pct}% - {spd} MB/s)"
+
+            res = restore_block_stream(
+                image_path,
+                target_drive,
+                auto_bcdboot=auto_bcdboot,
+                auto_restore_vsn=auto_restore_vsn,
+                progress_callback=on_restore_prog,
+                cancel_event=self._cancel_event
+            )
+            restored_gb = res.get("restored_bytes", 0) / (1024 ** 3)
+            avg_spd = res.get("average_speed_mb_s", 0)
+            self.append_log(f"  - ✓ LBA 역스트리밍 성공: {restored_gb:.2f} GB 복원 완료 (평균 속도: {avg_spd} MB/s)")
+
+            with self.state_lock:
+                self.status = "completed"
+                self.progress_percent = 100.0
+                self.current_phase = "초고속 블록 복원 및 부트로더 주입 완료"
+                self.end_time = time.time()
+
+            self.append_log("=" * 60)
+            self.append_log("🎉 [초고속 LBA 블록 역스트리밍 복원 성공 완료]")
+            self.append_log("=" * 60)
+
+        except Exception as e:
+            err_msg = str(e)
+            logger.exception("초고속 블록 복원 실패")
+            self.append_log(f"❌ [치명적 오류] 복원 실패: {err_msg}")
+            with self.state_lock:
+                self.status = "failed"
+                self.error_message = err_msg
+                self.end_time = time.time()
+        finally:
+            with self.state_lock:
+                self.is_running = False
+
     def list_archives(self, repo_dir: Optional[str] = None) -> List[Dict[str, Any]]:
-        """저장소 디렉토리의 VHDX/WIM 아카이브 및 WindowsImageBackup 목록 반환"""
+        """저장소 디렉토리의 VHDX/WIM/QBLK 아카이브 및 WindowsImageBackup 목록 반환"""
         auto_discover_wib = (repo_dir is None)
         if not repo_dir:
             repo_dir = "D:\\MyBackup_Repository\\archives"
@@ -1733,10 +1830,10 @@ class DriveArchiveManager:
         archives = []
         seen_paths = set()
 
-        # 1. archives 디렉토리 스캔 (.wim 및 .vhdx)
+        # 1. archives 디렉토리 스캔 (.wim, .vhdx, .qblk, .raw.zst)
         if os.path.exists(repo_dir):
             for entry in os.scandir(repo_dir):
-                if entry.is_file() and entry.name.lower().endswith((".wim", ".vhdx")):
+                if entry.is_file() and entry.name.lower().endswith((".wim", ".vhdx", ".qblk", ".raw.zst")):
                     file_path = entry.path
                     meta_path = file_path + ".meta.json"
                     meta_data = {}
@@ -1757,7 +1854,12 @@ class DriveArchiveManager:
 
                     size_gb = round(size_bytes / (1024 ** 3), 2)
                     mtime_str = meta_data.get("created_at") or time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(entry.stat().st_mtime))
-                    backup_type = meta_data.get("backup_type") or ("wbadmin_vhdx" if entry.name.lower().endswith(".vhdx") else "wim")
+                    if entry.name.lower().endswith((".qblk", ".raw.zst")):
+                        backup_type = "block_stream"
+                    elif entry.name.lower().endswith(".vhdx"):
+                        backup_type = "wbadmin_vhdx"
+                    else:
+                        backup_type = "wim"
 
                     archives.append({
                         "name": entry.name,
