@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import time
 import json
 import shutil
@@ -14,6 +15,9 @@ class SystemImageManager:
     _is_running = False
     _logs = []
     _process = None
+    _progress_percent = 0.0
+    _current_phase = "대기 중"
+    _status = "idle"
 
     @classmethod
     def is_admin(cls) -> bool:
@@ -47,10 +51,8 @@ class SystemImageManager:
 
         if has_backup:
             try:
-                # Fast calculation or folder mtime
                 mtime = os.path.getmtime(backup_folder)
                 last_modified = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
-                # Calculate size of top-level directory files
                 total_sz = 0
                 for root, dirs, files in os.walk(backup_folder):
                     for f in files:
@@ -63,10 +65,19 @@ class SystemImageManager:
             except Exception:
                 pass
 
+        with cls._lock:
+            progress_percent = cls._progress_percent
+            current_phase = cls._current_phase
+            status = cls._status
+            is_running = cls._is_running
+
         return {
             "target_drive": target_drive,
             "is_admin": cls.is_admin(),
-            "is_running": cls._is_running,
+            "is_running": is_running,
+            "progress_percent": progress_percent,
+            "current_phase": current_phase,
+            "status": status,
             "c_drive": {
                 "total_bytes": c_total,
                 "used_bytes": c_used,
@@ -106,6 +117,9 @@ class SystemImageManager:
         with cls._lock:
             return {
                 "is_running": cls._is_running,
+                "progress_percent": cls._progress_percent,
+                "current_phase": cls._current_phase,
+                "status": cls._status,
                 "logs": list(cls._logs)
             }
 
@@ -115,6 +129,9 @@ class SystemImageManager:
             if cls._is_running:
                 return {"success": False, "error": "이미 윈도우 시스템 이미지 백업이 진행 중입니다."}
             cls._is_running = True
+            cls._progress_percent = 0.0
+            cls._current_phase = "백업 준비 중..."
+            cls._status = "running"
             cls._logs.clear()
 
         target_drive = target_drive.rstrip("\\/")
@@ -123,6 +140,41 @@ class SystemImageManager:
 
         def _run_worker():
             t_start = time.time()
+            last_pct = -1
+
+            def _parse_and_log(raw_line: str):
+                nonlocal last_pct
+                line = raw_line.strip()
+                if not line:
+                    return
+
+                # Search for percentage: e.g. 15%, 15.5%
+                m = re.search(r"(\d{1,3}(?:\.\d+)?)\s*%", line)
+                if m:
+                    try:
+                        pct = float(m.group(1))
+                        if 0 <= pct <= 100:
+                            with cls._lock:
+                                cls._progress_percent = pct
+                                cls._current_phase = f"볼륨 데이터 복사 중 ({pct:.0f}%)"
+                            if int(pct) != last_pct and int(pct) % 2 == 0:
+                                last_pct = int(pct)
+                                cls.append_log(f"  - 볼륨 복사 진행률: {pct:.0f}%")
+                                if log_callback:
+                                    log_callback(f"  - 볼륨 복사 진행률: {pct:.0f}%")
+                    except Exception:
+                        pass
+                else:
+                    cls.append_log(line)
+                    if log_callback:
+                        log_callback(line)
+                    if "준비" in line or "prepar" in line.lower():
+                        with cls._lock:
+                            cls._current_phase = "볼륨 및 섀도 복사본(VSS) 준비 중"
+                    elif "검색" in line or "scan" in line.lower():
+                        with cls._lock:
+                            cls._current_phase = "볼륨 목록 검색 중"
+
             try:
                 cls.append_log(f"윈도우 베어메탈 시스템 이미지 백업을 시작합니다 (대상: {target_drive})...")
                 cls.append_log("부팅(EFI) 파티션, 복구 파티션 및 C: 드라이브 전체 캡처를 준비합니다.")
@@ -133,45 +185,75 @@ class SystemImageManager:
                 # Check admin elevation
                 if not cls.is_admin():
                     cls.append_log("관리자 권한 승격(UAC)을 요청하여 백업을 백그라운드에서 실행합니다...", level="WARNING")
-                    # Run via elevated PowerShell script that redirects output to log file
                     log_file = os.path.join(target_drive + "\\", "system_image_backup.log")
-                    ps_cmd = f"Start-Process cmd -ArgumentList '/c chcp 65001 >nul && wbadmin start backup -backupTarget:{target_drive} -include:C: -allCritical -quiet > \"{log_file}\" 2>&1' -WindowStyle Hidden -Verb RunAs -Wait"
+                    if os.path.exists(log_file):
+                        try:
+                            os.remove(log_file)
+                        except Exception:
+                            pass
+
+                    ps_cmd = f"Start-Process cmd -ArgumentList '/c wbadmin start backup -backupTarget:{target_drive} -include:C: -allCritical -quiet > \"{log_file}\" 2>&1' -WindowStyle Hidden -Verb RunAs -Wait"
                     
                     p_flags = 0
                     if sys.platform.startswith("win") and hasattr(subprocess, "CREATE_NO_WINDOW"):
                         p_flags = subprocess.CREATE_NO_WINDOW
                     p = subprocess.Popen(["powershell", "-NoProfile", "-Command", ps_cmd], creationflags=p_flags)
-                    cls._process = p
+                    with cls._lock:
+                        cls._process = p
                     
-                    # Monitor log file while running
+                    # Monitor log file while running (splitting on \r and \n)
                     last_pos = 0
+                    read_buf = bytearray()
                     while p.poll() is None:
-                        time.sleep(2)
+                        time.sleep(1)
                         if os.path.exists(log_file):
                             try:
-                                with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+                                with open(log_file, "rb") as f:
                                     f.seek(last_pos)
-                                    new_lines = f.readlines()
+                                    chunk = f.read()
                                     last_pos = f.tell()
-                                    for line in new_lines:
-                                        l = line.strip()
-                                        if l:
-                                            cls.append_log(l)
-                                            if log_callback:
-                                                log_callback(l)
+                                    for b in chunk:
+                                        if b in (10, 13):
+                                            if read_buf:
+                                                try:
+                                                    s = read_buf.decode("cp949", errors="replace")
+                                                except Exception:
+                                                    s = read_buf.decode("utf-8", errors="replace")
+                                                read_buf.clear()
+                                                _parse_and_log(s)
+                                        else:
+                                            read_buf.append(b)
                             except Exception:
                                 pass
+
+                    # Read remaining tail
+                    if os.path.exists(log_file):
+                        try:
+                            with open(log_file, "rb") as f:
+                                f.seek(last_pos)
+                                chunk = f.read()
+                                for b in chunk:
+                                    if b in (10, 13):
+                                        if read_buf:
+                                            try:
+                                                s = read_buf.decode("cp949", errors="replace")
+                                            except Exception:
+                                                s = read_buf.decode("utf-8", errors="replace")
+                                            read_buf.clear()
+                                            _parse_and_log(s)
+                                    else:
+                                        read_buf.append(b)
+                        except Exception:
+                            pass
 
                     ret_code = p.returncode
                     cls.append_log(f"백업 작업 프로세스 종료 코드: {ret_code}")
                 else:
-                    # Run directly
+                    # Run directly elevated with unbuffered byte stream reader
                     popen_kwargs = {
                         "stdout": subprocess.PIPE,
                         "stderr": subprocess.STDOUT,
-                        "text": True,
-                        "encoding": "utf-8",
-                        "errors": "replace"
+                        "bufsize": 0
                     }
                     if sys.platform.startswith("win") and hasattr(subprocess, "CREATE_NO_WINDOW"):
                         popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
@@ -179,24 +261,45 @@ class SystemImageManager:
                         ["wbadmin", "start", "backup", f"-backupTarget:{target_drive}", "-include:C:", "-allCritical", "-quiet"],
                         **popen_kwargs
                     )
-                    cls._process = p
-                    for line in p.stdout:
-                        line_str = line.strip()
-                        if line_str:
-                            cls.append_log(line_str)
-                            if log_callback:
-                                log_callback(line_str)
+                    with cls._lock:
+                        cls._process = p
+
+                    read_buf = bytearray()
+                    while True:
+                        b = p.stdout.read(1)
+                        if not b:
+                            break
+                        if b in (b'\r', b'\n'):
+                            if read_buf:
+                                try:
+                                    s = read_buf.decode("cp949", errors="replace")
+                                except Exception:
+                                    s = read_buf.decode("utf-8", errors="replace")
+                                read_buf.clear()
+                                _parse_and_log(s)
+                        else:
+                            read_buf.extend(b)
 
                     p.wait()
                     ret_code = p.returncode
 
                 if ret_code == 0:
                     elapsed_min = round((time.time() - t_start) / 60, 1)
+                    with cls._lock:
+                        cls._progress_percent = 100.0
+                        cls._current_phase = "백업 완료"
+                        cls._status = "completed"
                     cls.append_log(f"🎉 윈도우 전체 베어메탈 시스템 이미지 백업이 성공적으로 완료되었습니다! (소요 시간: {elapsed_min}분)", level="SUCCESS")
                 else:
+                    with cls._lock:
+                        cls._current_phase = f"백업 종료 (코드: {ret_code})"
+                        cls._status = "failed"
                     cls.append_log(f"백업이 종료되었습니다 (코드: {ret_code}). 로그를 확인하세요.", level="WARNING")
 
             except Exception as e:
+                with cls._lock:
+                    cls._current_phase = f"오류 발생: {str(e)}"
+                    cls._status = "failed"
                 cls.append_log(f"시스템 이미지 백업 중 오류 발생: {str(e)}", level="ERROR")
             finally:
                 with cls._lock:
@@ -230,6 +333,8 @@ class SystemImageManager:
                         cls._process.kill()
                         cls._process.wait()
                 cls._is_running = False
+                cls._status = "cancelled"
+                cls._current_phase = "백업 중단됨"
             cls.append_log("백업 작업이 중단되었습니다.", level="WARNING")
             return {"success": True, "message": "백업 작업 중단 요청 완료"}
         except Exception as e:

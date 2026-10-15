@@ -983,14 +983,30 @@
                         </div>
                     </div>
 
+                    <!-- Progress Status Bar -->
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center text-xs">
+                            <div class="flex items-center gap-2">
+                                <span class="text-slate-300 font-semibold">OS 백업 진행 상태:</span>
+                                <span id="sysimg-current-phase" class="text-emerald-400 font-mono font-medium">대기 중</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span id="sysimg-progress-percent" class="font-mono font-bold text-emerald-400">0.0%</span>
+                                <span id="sysimg-running-badge" class="text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                                    대기 중
+                                </span>
+                            </div>
+                        </div>
+                        <div class="w-full bg-slate-950 rounded-full h-3 overflow-hidden border border-slate-800">
+                            <div id="sysimg-progress-bar" class="bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-400 h-3 rounded-full transition-all duration-300 shadow-sm" style="width: 0%"></div>
+                        </div>
+                    </div>
+
                     <!-- Progress & Console Monitor -->
                     <div class="space-y-2">
                         <div class="flex justify-between items-center text-xs">
                             <span class="text-slate-300 font-semibold flex items-center gap-2">
                                 <i data-lucide="terminal" class="w-3.5 h-3.5 text-emerald-400"></i> 실시간 실행 콘솔 로그
-                            </span>
-                            <span id="sysimg-running-badge" class="text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400 border border-slate-700">
-                                대기 중
                             </span>
                         </div>
                         <div id="sysimg-console" class="bg-slate-950 rounded-xl p-4 font-mono text-xs text-slate-300 h-48 overflow-y-auto border border-slate-800/80 space-y-1 select-text">
@@ -1097,6 +1113,27 @@
                             <div class="text-zinc-500">[대기] 새 SSD를 선택하고 '지금 새 SSD로 마이그레이션 시작'을 누르면 실시간 복제가 시작됩니다.</div>
                         </div>
                     </div>
+                </div>
+
+                <!-- VHDX FAST BARE-METAL BACKUP BANNER (RECOMMENDED) -->
+                <div class="p-4 bg-gradient-to-r from-emerald-950/60 via-slate-900 to-teal-950/50 rounded-2xl border border-emerald-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-emerald-300 flex items-center gap-1.5 font-mono">
+                                <i data-lucide="zap" class="w-4 h-4 text-emerald-400"></i>
+                                <span>[최우선 추천] VHDX 베어메탈 디스크 전체 백업 (wbadmin)</span>
+                            </span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-900/80 text-emerald-200 font-bold border border-emerald-700/60">초고속 5~8분 완료</span>
+                        </div>
+                        <p class="text-xs text-zinc-300">
+                            WIM 파일 단위 압축(DISM)의 파일 잠금 교착 현상을 방지하는 <strong>Microsoft 공식 블록 스트림 엔진</strong>입니다.
+                            부팅(EFI) + 복구 파티션 + C: 전체를 초고속 통백업하여 SSD 고장 시 WinRE로 즉시 원상복구합니다.
+                        </p>
+                    </div>
+                    <button onclick="switchTab('system-image')" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-1.5 shrink-0">
+                        <i data-lucide="hard-drive" class="w-4 h-4"></i>
+                        <span>OS 전체 백업 시작하기</span> &rarr;
+                    </button>
                 </div>
 
                 <!-- INSURANCE DRIVE ARCHIVE (WIM) & 4-STAGE REAL VERIFICATION PANEL -->
