@@ -51,3 +51,18 @@ python tools/release.py --bump patch -m "{작업 내용 요약}"
   - **사용자의 명시적인 지시나 승인(예: "수정해", "리팩토링 진행해", "고쳐줘")이 없는 한, AI가 임의로 코드를 수정하거나 리팩토링을 진행하지 않습니다.**
   - 제안 및 보고 후 대기하며, 오직 사용자의 확정 지시가 떨어졌을 때만 코드 변경 및 릴리즈 작업을 착수합니다.
 
+---
+
+## 🚨 인스톨러 및 프로세스 라이프사이클 절대 수칙 (Installer Iron Law)
+> **⚠️ 절대 원칙: "인스톨러는 이전 프로세스들을 반드시 전수 사살(Kill)하고 설치해야 한다."**
+
+1. **인스톨러 사전 프로세스 전수 사살 의무**:
+   - 인스톨러(`BackupSystem.iss`)는 `InitializeSetup`, `PrepareToInstall`, `CurStepChanged(ssInstall)` 모든 진입점에서 기존 실행 중인 백업시스템/파이썬 프로세스(`pythonw.exe`, `python.exe`, 포트 8765 점유 프로세스)를 **무조건 강제 종료(taskkill /F /T)**해야 한다.
+   - 프로세스가 살아있는 상태에서 파일을 교체하려다 `DeleteFile 코드 5 (액세스 거부)`가 발생하는 사태를 원천 차단한다.
+2. **Python 임베디드 런타임 `onlyifdoesntexist` 플래그 영구 의무화**:
+   - `runtime\python\*` 바이너리는 업데이트 시 변경되지 않는 정적 런타임이므로, Inno Setup `[Files]` 섹션에서 **반드시 `Flags: onlyifdoesntexist recursesubdirs createallsubdirs`**를 적용한다.
+   - 이미 존재하는 `python/libcrypto-3.dll` 등 DLL/바이너리는 교체 시도를 100% 건너뛰어(Skip), DLL 잠금 충돌을 물리적으로 원천 차단한다.
+3. **릴리즈 파이프라인 좀비 프로세스 방지**:
+   - 릴리즈/빌드 스크립트(`tools/release.py`) 실행 시 백그라운드 서버 재시작 과정에서 관리자 권한 좀비 프로세스가 발생하지 않도록 철저히 통제한다.
+
+
