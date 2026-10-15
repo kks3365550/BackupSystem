@@ -3,7 +3,7 @@
 ; =========================================================================
 
 #define MyAppName "Kova"
-#define MyAppVersion "2.15.9"
+#define MyAppVersion "2.15.10"
 #define MyAppPublisher "kks3365550"
 #define MyAppURL "http://127.0.0.1:8765"
 #define MyAppExeName "Kova.exe"
@@ -100,19 +100,12 @@ begin
   CmdExe := ExpandConstant('{cmd}');
   PsExe := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
 
-  // 1. Windows taskkill.exe 직접 호출로 백그라운드 서버/트레이(pythonw.exe) 무조건 강제 사살
-  Exec('taskkill.exe', '/F /T /IM pythonw.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // 1. Windows cmd.exe를 통한 원초적이고 무조건적인 python.exe 및 pythonw.exe 전수 강제 사살
+  Exec('cmd.exe', '/c taskkill.exe /F /T /IM pythonw.exe /IM python.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if FileExists(TaskkillExe) then
+    Exec(TaskkillExe, '/F /T /IM pythonw.exe /IM python.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-  // 2. PowerShell을 통해 백업시스템 및 Kova 관련 모든 python.exe, pythonw.exe, 8765 포트 프로세스 전수 강제 사살
-  KillPsCmd :=
-    '-NoProfile -ExecutionPolicy Bypass -Command "' +
-    'Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue | ForEach-Object { if ($_.OwningProcess -ne 0) { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue } }; ' +
-    'Get-Process -Name python, pythonw -ErrorAction SilentlyContinue | Where-Object { ($_.Path -like ''*백업시스템*'' -or $_.Path -like ''*Kova*'' -or $_.Name -eq ''pythonw'') -and ($_.Name -notmatch ''(?i)(setup|is-)'') } | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }"';
-
-  if FileExists(PsExe) then
-    Exec(PsExe, KillPsCmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-
-  // 3. 8765 포트 점유 PID 전수 강제 사살 (netstat -> taskkill /PID)
+  // 2. 8765 포트 점유 PID 전수 강제 사살 (netstat -> taskkill /PID)
   Exec(CmdExe, '/c "for /f ""tokens=5"" %a in (''netstat -aon ^| findstr :8765 ^| findstr LISTENING'') do if not ""%a""==""0"" taskkill /F /PID %a"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
   // 4. 백업시스템 관련 예약 작업(Task Scheduler) 중단
