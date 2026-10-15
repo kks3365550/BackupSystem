@@ -3,7 +3,7 @@
 ; =========================================================================
 
 #define MyAppName "Kova"
-#define MyAppVersion "2.14.11"
+#define MyAppVersion "2.14.12"
 #define MyAppPublisher "kks3365550"
 #define MyAppURL "http://127.0.0.1:8765"
 #define MyAppExeName "Kova.exe"
@@ -91,28 +91,29 @@ Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Back
 
 [Code]
 // v2.14.1+: 설치 시작 시 기존 실행 중인 백업시스템 프로세스(트레이, 서버, 포트 8765) 선제 강제 종료 및 파일 잠금 해제 대기 루프
-function InitializeSetup(): Boolean;
+procedure KillExistingProcesses();
 var
   ResultCode: Integer;
-  AppDir, StopBat, KillPsCmd: String;
+  AppDir, StopBat, CmdExe, PsExe, KillPsCmd: String;
 begin
-  Result := True;
+  CmdExe := ExpandConstant('{cmd}');
+  PsExe := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
 
-  // 1. 기존 설치 경로별 stop_backup_system.bat 실행
+  // 1. 기존 설치 경로별 stop_backup_system.bat 실행 (cmd.exe /c 로 호출)
   AppDir := ExpandConstant('{localappdata}\Programs\백업시스템');
   StopBat := AppDir + '\stop_backup_system.bat';
   if FileExists(StopBat) then
-    Exec(StopBat, '', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec(CmdExe, '/c "' + StopBat + '"', AppDir, SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
   AppDir := ExpandConstant('{autopf}\{#MyAppName}');
   StopBat := AppDir + '\stop_backup_system.bat';
   if FileExists(StopBat) then
-    Exec(StopBat, '', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec(CmdExe, '/c "' + StopBat + '"', AppDir, SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
   AppDir := ExpandConstant('{localappdata}\Programs\{#MyAppName}');
   StopBat := AppDir + '\stop_backup_system.bat';
   if FileExists(StopBat) then
-    Exec(StopBat, '', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec(CmdExe, '/c "' + StopBat + '"', AppDir, SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
   // 2. PowerShell 원라이너로 8765 포트 점유 프로세스 및 run.py / tray_app.py 프로세스 전수 강제 종료 및 파일 락 해제 대기
   KillPsCmd := 
@@ -128,17 +129,30 @@ begin
     '  Start-Sleep -Milliseconds 500; ' +
     '}"';
 
-  Exec('powershell.exe', KillPsCmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Sleep(1000);
+  if FileExists(PsExe) then
+    Exec(PsExe, KillPsCmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  Sleep(500);
 end;
 
-// v2.14.1+: 설치 완료 즉시 최신 새 버전으로 무창 백그라운드 자동 재구동 (일반/무인 설치 무관)
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+  KillExistingProcesses();
+end;
+
+// v2.14.1+: 설치 시작 및 완료 시점 백업시스템 프로세스 라이프사이클 관리
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
   AppDir, SilentVbs, TrayVbs: String;
 begin
-  if CurStep = ssPostInstall then
+  if CurStep = ssInstall then
+  begin
+    // 파일 복사(추출) 직전 최종적으로 기존 프로세스 확실하게 종료하여 DLL 잠금 원천 방지
+    KillExistingProcesses();
+  end
+  else if CurStep = ssPostInstall then
   begin
     AppDir := ExpandConstant('{app}');
     SilentVbs := AppDir + '\start_silent.vbs';
