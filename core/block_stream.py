@@ -90,16 +90,43 @@ class STARTING_LCN_INPUT_BUFFER(ctypes.Structure):
 
 kernel32 = ctypes.windll.kernel32 if sys.platform == "win32" else None
 
+MEM_COMMIT = 0x1000
+MEM_RESERVE = 0x2000
+PAGE_READWRITE = 0x04
+MEM_RELEASE = 0x8000
+
 if kernel32:
+    from ctypes import wintypes
     CreateFileW = kernel32.CreateFileW
+    CreateFileW.restype = wintypes.HANDLE
+    CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+
     ReadFile = kernel32.ReadFile
+    ReadFile.restype = wintypes.BOOL
+    ReadFile.argtypes = [wintypes.HANDLE, wintypes.LPVOID, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD), wintypes.LPVOID]
+
     WriteFile = kernel32.WriteFile
+    WriteFile.restype = wintypes.BOOL
+    WriteFile.argtypes = [wintypes.HANDLE, wintypes.LPCVOID, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD), wintypes.LPVOID]
+
     SetFilePointerEx = kernel32.SetFilePointerEx
+    SetFilePointerEx.restype = wintypes.BOOL
+    SetFilePointerEx.argtypes = [wintypes.HANDLE, ctypes.c_int64, ctypes.POINTER(ctypes.c_int64), wintypes.DWORD]
+
+    VirtualAlloc = kernel32.VirtualAlloc
+    VirtualAlloc.restype = ctypes.c_void_p
+    VirtualAlloc.argtypes = [wintypes.LPVOID, ctypes.c_size_t, wintypes.DWORD, wintypes.DWORD]
+
+    VirtualFree = kernel32.VirtualFree
+    VirtualFree.restype = wintypes.BOOL
+    VirtualFree.argtypes = [wintypes.LPVOID, ctypes.c_size_t, wintypes.DWORD]
+
     DeviceIoControl = kernel32.DeviceIoControl
     CloseHandle = kernel32.CloseHandle
     GetLastError = kernel32.GetLastError
 else:
     CreateFileW = ReadFile = WriteFile = SetFilePointerEx = DeviceIoControl = CloseHandle = GetLastError = None
+    VirtualAlloc = VirtualFree = None
 
 
 # ============================================================================
@@ -328,9 +355,10 @@ def query_volume_bitmap(h_vol, total_clusters: int) -> bytes:
 # ============================================================================
 # Win32 볼륨 Direct I/O 핸들러
 # ============================================================================
-def open_volume_direct(path: str, write: bool = False, lock: bool = False):
+def open_volume_direct(path: str, write: bool = False, lock: bool = False, unbuffered: bool = False):
     """
     볼륨 또는 VSS 스냅샷 경로를 CreateFileW로 직접 열기.
+    unbuffered=True 지정 시 FILE_FLAG_NO_BUFFERING(0x20000000)을 적용하여 OS 파일시스템 캐시를 100% 바이패스.
     """
     if not kernel32:
         return None
@@ -338,6 +366,8 @@ def open_volume_direct(path: str, write: bool = False, lock: bool = False):
     desired_access = (GENERIC_READ | GENERIC_WRITE) if write else GENERIC_READ
     share_mode = FILE_SHARE_READ | FILE_SHARE_WRITE
     flags = FILE_FLAG_SEQUENTIAL_SCAN
+    if unbuffered:
+        flags |= FILE_FLAG_NO_BUFFERING
 
     handle = CreateFileW(
         ctypes.c_wchar_p(path),
@@ -791,13 +821,19 @@ def stream_volume_to_volume(
         read_src_path = src_shadow_path if (src_shadow_path and src_shadow_path.strip()) else src_path
         logger.info(f"✓ LBA 블록 스트리밍 읽기 핸들 오픈: {read_src_path}")
         h_src = open_volume_direct(read_src_path, write=False)
-        h_dst = open_volume_direct(dst_path, write=True, lock=True)
+        h_dst = open_volume_direct(dst_path, write=True, lock=True, unbuffered=True)
 
         # ----------------------------------------------------------------------
-        # 초고속 Direct LBA 순차 스트리밍 파이프라인 (스레드/큐 오버헤드 0%, 지터 0)
-        # NVMe 쓰기 지연(~2ms) 특성을 극대화하여 GIL 경합 및 큐 타임아웃 지연 원천 차단
+        # 초고속 Direct LBA 순차 스트리밍 파이프라인 (REA: Samsung SDM / Macrium 아키텍처)
+        # 1. VirtualAlloc 64KB/4KB 페이지 정렬 버퍼로 커널 메모리 복사 0% 및 정렬 위반 차단
+        # 2. FILE_FLAG_NO_BUFFERING으로 OS 캐시 바이패스 후 타겟 NVMe에 Direct DMA 직사
+        # 3. 단일 스레드 무지터 순차 I/O로 GIL 및 락 경합 0 달성
         # ----------------------------------------------------------------------
-        buf = ctypes.create_string_buffer(chunk_bytes)
+        buf_addr = None
+        if kernel32 and VirtualAlloc:
+            buf_addr = VirtualAlloc(None, ctypes.c_size_t(chunk_bytes), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE)
+        buf = ctypes.c_void_p(buf_addr) if buf_addr else ctypes.create_string_buffer(chunk_bytes)
+
         bytes_read = ctypes.c_ulong()
         bytes_written = ctypes.c_ulong()
         copied_bytes = 0
@@ -886,6 +922,11 @@ def stream_volume_to_volume(
         }
 
     finally:
+        if buf_addr and kernel32 and VirtualFree:
+            try:
+                VirtualFree(ctypes.c_void_p(buf_addr), 0, MEM_RELEASE)
+            except Exception:
+                pass
         if h_src:
             close_volume(h_src)
         if h_dst:

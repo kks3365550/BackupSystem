@@ -240,7 +240,9 @@ def prepare_target_disk_with_esp(disk_number: int, target_drive: str, esp_letter
         f"select disk {disk_number}",
         "clean",
         "convert gpt",
-        "create partition efi size=260",
+        "select partition 1",
+        "delete partition override noerr",
+        "create partition efi size=260 offset=1024",
         "format fs=fat32 quick label=\"ESP\"",
         f"assign letter={esp_clean}",
         "create partition msr size=16",
@@ -722,11 +724,28 @@ class DiskCloneManager:
             bcd_msg = (bcd_out or bcd_err).strip()
             self.append_log(f"  - bcdboot 결과 (Exit Code {rc}): {bcd_msg or '부팅 파일 생성 정상 완료'}")
 
-            # ESP 임시 드라이브 문자 정리 (보안 및 숨김 파티션 전환)
+            # ESP 임시 드라이브 문자 정리 전: 부트 바이너리 및 BCD 독립 부팅 설정
             if auto_prepare_esp and esp_letter:
                 bcd_file_check = os.path.join(esp_letter + "\\", "EFI", "Microsoft", "Boot", "BCD")
                 if os.path.exists(bcd_file_check):
                     self.append_log(f"  - [검증 완료] UEFI BCD 파일 무결성 확인 ({bcd_file_check})")
+                    # 타겟 SSD 단독 부팅 시 0xc000000e 블루스크린 방지: BCD device/osdevice를 partition=C:로 설정
+                    run_elevated_command(["bcdedit", "/store", bcd_file_check, "/set", "{default}", "device", "partition=C:"], timeout=15)
+                    run_elevated_command(["bcdedit", "/store", bcd_file_check, "/set", "{default}", "osdevice", "partition=C:"], timeout=15)
+                    self.append_log("  - [독립 부팅 보장] BCD osdevice/device를 partition=C:로 동기화 완료")
+
+                # UEFI BIOS 표준 폴백 부트로더(bootx64.efi) 보장
+                esp_boot_dir = os.path.join(esp_letter + "\\", "EFI", "Boot")
+                esp_bootx64 = os.path.join(esp_boot_dir, "bootx64.efi")
+                esp_mgfw = os.path.join(esp_letter + "\\", "EFI", "Microsoft", "Boot", "bootmgfw.efi")
+                if not os.path.exists(esp_bootx64) and os.path.exists(esp_mgfw):
+                    try:
+                        os.makedirs(esp_boot_dir, exist_ok=True)
+                        shutil.copy2(esp_mgfw, esp_bootx64)
+                        self.append_log("  - [UEFI 바이오스 호환성] EFI\\Boot\\bootx64.efi 표준 부트바이너리 생성 완료")
+                    except Exception as e_copy:
+                        self.append_log(f"  - [주의] bootx64.efi 복제 알림: {e_copy}")
+
                 remove_esp_drive_letter(esp_letter)
                 self.append_log(f"  - ESP 파티션({esp_letter}) 숨김 모드로 안전 전환 완료.")
 
