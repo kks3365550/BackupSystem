@@ -17,6 +17,7 @@ import tempfile
 import threading
 import subprocess
 import uuid
+import base64
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
@@ -227,39 +228,142 @@ def set_volume_serial_number(drive_letter: str, new_vsn: str) -> Dict[str, Any]:
 
 
 def mount_vhdx_volume(vhdx_path: str) -> Optional[str]:
-    """PowerShell Mount-DiskImage 실행 후 볼륨 드라이브 문자(예: 'M:') 반환"""
-    ps_script = (
-        f"$img = Mount-DiskImage -ImagePath '{vhdx_path}' -StorageType VHDX -Access ReadOnly -PassThru -ErrorAction SilentlyContinue; "
-        f"Start-Sleep -Milliseconds 500; "
-        f"$part = Get-DiskImage -ImagePath '{vhdx_path}' | Get-Disk | Get-Partition | Where-Object DriveLetter | Select-Object -First 1; "
-        f"if ($part -and $part.DriveLetter) {{ Write-Output ($part.DriveLetter + ':') }}"
-    )
+    """
+    Windows 11 최적화 VHDX 가상 마운트 및 드라이브 문자(예: 'M:') 획득.
+    - Base64 UTF-16LE 인코딩으로 한글/공백 경로 손상 원천 차단
+    - 비관리자 세션 시 UAC 승격(Start-Process -Verb RunAs) 자동 발동
+    - 디스크 오프라인 자동 해제 (Set-Disk -IsOffline $false)
+    - 드라이브 문자 미할당 시 최대 용량(OS) 파티션에 유휴 드라이브 문자 자동 할당
+    """
+    clean_path = os.path.abspath(vhdx_path)
+    out_file = os.path.join(tempfile.gettempdir(), f"vhdx_mnt_{uuid.uuid4().hex[:8]}.txt")
+
+    ps_code = f"""
+    $ErrorActionPreference = 'Continue'
+    $vhdx = '{clean_path}'
+    $out = '{out_file}'
+
+    try {{
+        $img = Get-DiskImage -ImagePath $vhdx -ErrorAction SilentlyContinue
+        if (-not $img -or -not $img.Attached) {{
+            $img = Mount-DiskImage -ImagePath $vhdx -StorageType VHDX -ErrorAction SilentlyContinue -PassThru
+        }}
+        Start-Sleep -Milliseconds 600
+
+        $disk = Get-DiskImage -ImagePath $vhdx -ErrorAction SilentlyContinue | Get-Disk -ErrorAction SilentlyContinue
+        if ($disk) {{
+            if ($disk.IsOffline) {{
+                Set-Disk -Number $disk.Number -IsOffline $false -ErrorAction SilentlyContinue
+                Start-Sleep -Milliseconds 300
+            }}
+            if ($disk.IsReadOnly) {{
+                Set-Disk -Number $disk.Number -IsReadOnly $false -ErrorAction SilentlyContinue
+            }}
+
+            $parts = Get-Partition -DiskNumber $disk.Number -ErrorAction SilentlyContinue
+            $target = $parts | Where-Object DriveLetter | Select-Object -First 1
+
+            if (-not $target) {{
+                $largest = $parts | Sort-Object Size -Descending | Select-Object -First 1
+                if ($largest) {{
+                    $used = (Get-Volume).DriveLetter
+                    $free = 90..77 | ForEach-Object {{ [char]$_ }} | Where-Object {{ $used -notcontains $_ }} | Select-Object -First 1
+                    if ($free) {{
+                        Set-Partition -DiskNumber $disk.Number -PartitionNumber $largest.PartitionNumber -NewDriveLetter $free -ErrorAction SilentlyContinue
+                        Start-Sleep -Milliseconds 500
+                        $target = Get-Partition -DiskNumber $disk.Number -PartitionNumber $largest.PartitionNumber -ErrorAction SilentlyContinue
+                    }}
+                }}
+            }}
+
+            if ($target -and $target.DriveLetter) {{
+                $letter = $target.DriveLetter + ':'
+                [System.IO.File]::WriteAllText($out, $letter)
+            }}
+        }}
+    }} catch {{
+    }}
+    """
+
+    encoded = base64.b64encode(ps_code.encode("utf-16le")).decode("ascii")
     p_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+    # 1차 시도: 현재 프로세스에서 직접 실행
     try:
-        res = subprocess.run(
-            ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+        subprocess.run(
+            ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded],
             capture_output=True,
             text=True,
             creationflags=p_flags,
-            timeout=60
+            timeout=30
         )
-        out = (res.stdout or "").strip()
-        lines = [l.strip() for l in out.splitlines() if l.strip()]
-        for l in lines:
-            if len(l) == 2 and l[1] == ":":
-                return l.upper()
+        if os.path.exists(out_file):
+            try:
+                with open(out_file, "r", encoding="utf-8") as f:
+                    dl = f.read().strip().upper()
+                if len(dl) == 2 and dl[1] == ":":
+                    return dl
+            finally:
+                try:
+                    os.remove(out_file)
+                except Exception:
+                    pass
     except Exception as e:
-        logger.warning(f"VHDX 마운트 실패: {e}")
+        logger.warning(f"VHDX 1차 마운트 예외: {e}")
+
+    # 2차 시도: UAC 승격 프록시(Start-Process -Verb RunAs)
+    try:
+        cmd = f"Start-Process powershell.exe -ArgumentList '-NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand {encoded}' -Verb RunAs -WindowStyle Hidden -Wait"
+        subprocess.run(
+            ["powershell.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd],
+            capture_output=True,
+            text=True,
+            creationflags=p_flags,
+            timeout=45
+        )
+        if os.path.exists(out_file):
+            try:
+                with open(out_file, "r", encoding="utf-8") as f:
+                    dl = f.read().strip().upper()
+                if len(dl) == 2 and dl[1] == ":":
+                    return dl
+            finally:
+                try:
+                    os.remove(out_file)
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.warning(f"VHDX 2차 UAC 승격 마운트 실패: {e}")
+
     return None
 
 
 def dismount_vhdx_volume(vhdx_path: str) -> bool:
-    """PowerShell Dismount-DiskImage 실행"""
-    ps_script = f"Dismount-DiskImage -ImagePath '{vhdx_path}' -ErrorAction SilentlyContinue"
+    """PowerShell Dismount-DiskImage 안전 실행 (EncodedCommand + UAC 승격 폴백)"""
+    clean_path = os.path.abspath(vhdx_path)
+    ps_code = f"""
+    $vhdx = '{clean_path}'
+    Dismount-DiskImage -ImagePath $vhdx -ErrorAction SilentlyContinue
+    """
+    encoded = base64.b64encode(ps_code.encode("utf-16le")).decode("ascii")
     p_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
     try:
         subprocess.run(
-            ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+            ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded],
+            capture_output=True,
+            text=True,
+            creationflags=p_flags,
+            timeout=20
+        )
+        return True
+    except Exception:
+        pass
+
+    try:
+        cmd = f"Start-Process powershell.exe -ArgumentList '-NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand {encoded}' -Verb RunAs -WindowStyle Hidden -Wait"
+        subprocess.run(
+            ["powershell.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd],
             capture_output=True,
             text=True,
             creationflags=p_flags,
