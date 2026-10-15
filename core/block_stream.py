@@ -200,22 +200,26 @@ def get_allocated_cluster_runs(
     bitmap_bytes: bytes,
     cluster_size: int = 4096,
     max_chunk_bytes: int = 16 * 1024 * 1024,
-    max_coalesce_gap_bytes: int = 0
+    max_coalesce_gap_bytes: int = 8 * 1024 * 1024,
+    min_chunk_bytes: int = 2 * 1024 * 1024
 ) -> List[Tuple[int, int]]:
     """
     NTFS $Bitmap 바이트 배열을 파싱하여, 실제 데이터가 있는 LCN 구간을
-    16MB 크기의 고속 연속 청크 (lcn, cluster_count) 목록으로 분할 반환.
-    - [고성능 Coalescing]: max_coalesce_gap_bytes(기본 1MB) 이하의 자잘한 빈틈은
+    대형 연속 청크 (lcn, cluster_count) 목록으로 분할 반환.
+    - [8MB Coalescing]: max_coalesce_gap_bytes(기본 8MB) 이하의 자잘한 빈틈은
       조각내지 않고 단일 대형 청크로 병합하여 수십만 번의 Seek 시스템 콜 오버헤드를 원천 차단.
-    - 대형 빈 공간(1MB 이상)은 100% 스킵하여 전송 대역폭 보존.
+    - [2MB Min Chunk Floor]: 단독 청크의 크기가 2MB 미만으로 떨어지지 않도록
+      인접 클러스터 및 갭을 흡수 병합하여 4KB~64KB 미세 I/O로 인한 속도 급감(25MB/s) 완전 차단.
+    - 대형 빈 공간(8MB 초과)은 100% 스킵하여 전송 대역폭 보존.
     """
     if not bitmap_bytes:
         return []
 
     max_clusters = max(1, max_chunk_bytes // cluster_size)
     max_gap_clusters = max(1, max_coalesce_gap_bytes // cluster_size)
-    runs: List[Tuple[int, int]] = []
+    min_chunk_clusters = max(1, min_chunk_bytes // cluster_size)
 
+    raw_runs: List[Tuple[int, int]] = []
     cur_run_start = None
     cur_run_end = None  # exclusive cluster index
 
@@ -229,16 +233,15 @@ def get_allocated_cluster_runs(
                     cur_run_start = lcn
                     cur_run_end = lcn + 1
                 else:
-                    # 갭이 허용 범위 내이고 총 크기가 max_clusters를 넘지 않으면 병합
+                    # 갭이 허용 범위(8MB) 내이고 총 크기가 max_clusters를 넘지 않으면 병합
                     if (lcn - cur_run_end) <= max_gap_clusters and (lcn + 1 - cur_run_start) <= max_clusters:
                         cur_run_end = lcn + 1
                     else:
-                        # 현재 런 확정 및 청크 분할 저장
                         rem = cur_run_end - cur_run_start
                         c_lcn = cur_run_start
                         while rem > 0:
                             take = min(rem, max_clusters)
-                            runs.append((c_lcn, take))
+                            raw_runs.append((c_lcn, take))
                             c_lcn += take
                             rem -= take
                         cur_run_start = lcn
@@ -249,11 +252,39 @@ def get_allocated_cluster_runs(
         c_lcn = cur_run_start
         while rem > 0:
             take = min(rem, max_clusters)
-            runs.append((c_lcn, take))
+            raw_runs.append((c_lcn, take))
             c_lcn += take
             rem -= take
 
-    return runs
+    # Min Chunk Floor (2MB) 2차 통합 패스
+    runs: List[Tuple[int, int]] = []
+    for lcn, count in raw_runs:
+        if not runs:
+            runs.append((lcn, count))
+            continue
+
+        prev_lcn, prev_count = runs[-1]
+        prev_end = prev_lcn + prev_count
+        gap_clusters = lcn - prev_end
+
+        if gap_clusters <= max_gap_clusters and (prev_count + gap_clusters + count) <= max_clusters:
+            runs[-1] = (prev_lcn, prev_count + gap_clusters + count)
+        elif prev_count < min_chunk_clusters and (prev_count + gap_clusters + count) <= max_clusters:
+            runs[-1] = (prev_lcn, prev_count + gap_clusters + count)
+        elif count < min_chunk_clusters and (prev_count + gap_clusters + count) <= max_clusters:
+            runs[-1] = (prev_lcn, prev_count + gap_clusters + count)
+        else:
+            runs.append((lcn, count))
+
+    # 잔여 초미세 청크 최종 플로어(Floor) 보장 (최소 2MB 확보)
+    final_runs: List[Tuple[int, int]] = []
+    total_clusters_limit = len(bitmap_bytes) * 8
+    for lcn, count in runs:
+        if count < min_chunk_clusters:
+            count = min(min_chunk_clusters, total_clusters_limit - lcn)
+        final_runs.append((lcn, count))
+
+    return final_runs
 
 
 def query_volume_bitmap(h_vol, total_clusters: int) -> bytes:
@@ -743,7 +774,13 @@ def stream_volume_to_volume(
         finally:
             close_volume(h_bmp)
 
-        runs = get_allocated_cluster_runs(bitmap_bytes, cluster_size, chunk_bytes, max_coalesce_gap_bytes=2 * 1024 * 1024)
+        runs = get_allocated_cluster_runs(
+            bitmap_bytes,
+            cluster_size,
+            chunk_bytes,
+            max_coalesce_gap_bytes=8 * 1024 * 1024,
+            min_chunk_bytes=2 * 1024 * 1024
+        )
 
         if not runs:
             raise RuntimeError(f"{src_vol} 볼륨의 유효 클러스터 비트맵이 비어 있습니다.")
