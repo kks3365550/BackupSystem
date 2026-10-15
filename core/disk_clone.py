@@ -293,62 +293,120 @@ def remove_esp_drive_letter(esp_letter: str) -> bool:
             pass
 
 
+def get_all_partition_info() -> Dict[str, Dict[str, Any]]:
+    """모든 드라이브의 드라이브 문자, 디스크 번호, 파티션 크기 일괄 조회 (RAW/초기화 디스크 100% 감지)"""
+    info = {}
+    ps_cmd = "Get-Partition -ErrorAction SilentlyContinue | Where-Object DriveLetter | Select-Object DriveLetter, DiskNumber, Size | ConvertTo-Json"
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        res = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ps_cmd],
+            capture_output=True, text=True, creationflags=creationflags, timeout=5
+        )
+        txt = res.stdout.strip()
+        if txt:
+            import json
+            data = json.loads(txt)
+            if isinstance(data, dict):
+                data = [data]
+            for item in data:
+                dl = str(item.get("DriveLetter", "")).upper()
+                if dl and len(dl) == 1:
+                    info[f"{dl}:"] = {
+                        "disk_number": item.get("DiskNumber"),
+                        "size_bytes": int(item.get("Size", 0))
+                    }
+    except Exception:
+        pass
+    return info
+
+
 def get_candidate_target_drives() -> List[Dict[str, Any]]:
     """
     마이그레이션 대상이 될 수 있는 후보 SSD/드라이브 목록 조회
     - 현재 부팅 드라이브(C:)는 타겟 대상에서 제외
     - 총 용량, 사용량, 여유공간 및 C: 드라이브 사용량 대비 수용 가능 여부 판정
     - 물리 디스크 번호 및 독립 디스크 여부(auto_esp 지원 여부) 판정
+    - 초기화(RAW), 미포맷, 또는 파일시스템 손상 상태의 새 SSD도 100% 정상 후보로 감지
     """
     c_usage = shutil.disk_usage("C:\\")
     c_used_gb = round(c_usage.used / (1024 ** 3), 1)
     c_disk_num = get_physical_disk_number("C:")
 
-    candidates = []
+    part_info = get_all_partition_info()
 
+    # 감지할 드라이브 목록 수집 (part_info + psutil)
+    drives_to_check = set(part_info.keys())
     if PSUTIL_AVAILABLE:
-        parts = psutil.disk_partitions(all=False)
-    else:
-        parts = []
-        for l in "DEFGHIJKLMNOPQRSTUVWXYZ":
-            root = f"{l}:\\"
-            if os.path.exists(root):
-                parts.append(type("Obj", (), {"mountpoint": root, "fstype": "NTFS", "device": f"{l}:"})())
-
-    for p in parts:
-        drv = normalize_drive(p.mountpoint)
-        if not drv or drv == "C:":
-            continue
-
         try:
-            usage = shutil.disk_usage(p.mountpoint)
-            total_gb = round(usage.total / (1024 ** 3), 1)
-            used_gb = round(usage.used / (1024 ** 3), 1)
-            free_gb = round(usage.free / (1024 ** 3), 1)
+            for p in psutil.disk_partitions(all=True):
+                d = normalize_drive(p.mountpoint)
+                if d and d != "C:":
+                    drives_to_check.add(d)
+        except Exception:
+            pass
 
-            # 수용 가능 여부: 타겟 총 용량이 C: 드라이브 실제 사용량보다 커야 함
-            is_acceptable = usage.total >= (c_usage.used * 1.05)
-            reason = "정상 선택 가능" if is_acceptable else f"용량 부족 (C: 사용량 {c_used_gb} GB 대비 타겟 총용량 {total_gb} GB)"
+    candidates = []
+    seen = set()
 
-            # 물리 디스크 번호 조회
-            t_disk_num = get_physical_disk_number(drv)
-            is_different_disk = (t_disk_num is not None and c_disk_num is not None and t_disk_num != c_disk_num)
-
-            candidates.append({
-                "drive": drv,
-                "mountpoint": p.mountpoint,
-                "fstype": getattr(p, "fstype", "NTFS"),
-                "total_gb": total_gb,
-                "used_gb": used_gb,
-                "free_gb": free_gb,
-                "acceptable": is_acceptable,
-                "reason": reason,
-                "c_used_gb": c_used_gb,
-                "disk_number": t_disk_num,
-                "can_auto_esp": is_different_disk
-            })
-        except (PermissionError, OSError):
+    for drv in sorted(drives_to_check):
+        if drv == "C:" or drv in seen:
             continue
+
+        root = f"{drv}\\"
+        total_bytes = 0
+        used_bytes = 0
+        free_bytes = 0
+        fstype = "NTFS"
+        t_disk_num = None
+
+        # 1. 일반 볼륨 용량 조회 (포맷된 정상 볼륨)
+        try:
+            usage = shutil.disk_usage(root)
+            total_bytes = usage.total
+            used_bytes = usage.used
+            free_bytes = usage.free
+            fstype = "NTFS"
+        except Exception:
+            # 2. 초기화/미포맷/RAW 드라이브 폴백 (PowerShell 파티션 정보 활용)
+            if drv in part_info:
+                p_entry = part_info[drv]
+                total_bytes = p_entry.get("size_bytes", 0)
+                used_bytes = 0
+                free_bytes = total_bytes
+                fstype = "RAW (초기화됨)"
+                t_disk_num = p_entry.get("disk_number")
+
+        if total_bytes <= 0:
+            continue
+
+        seen.add(drv)
+        total_gb = round(total_bytes / (1024 ** 3), 1)
+        used_gb = round(used_bytes / (1024 ** 3), 1)
+        free_gb = round(free_bytes / (1024 ** 3), 1)
+
+        # 수용 가능 여부: 타겟 총 용량이 C: 드라이브 실제 사용량보다 커야 함
+        is_acceptable = total_bytes >= (c_usage.used * 1.05)
+        reason = "정상 선택 가능" if is_acceptable else f"용량 부족 (C: 사용량 {c_used_gb} GB 대비 타겟 총용량 {total_gb} GB)"
+
+        # 물리 디스크 번호 조회 (미조회 시 폴백)
+        if t_disk_num is None:
+            t_disk_num = get_physical_disk_number(drv)
+        is_different_disk = (t_disk_num is not None and c_disk_num is not None and t_disk_num != c_disk_num)
+
+        candidates.append({
+            "drive": drv,
+            "mountpoint": root,
+            "fstype": fstype,
+            "total_gb": total_gb,
+            "used_gb": used_gb,
+            "free_gb": free_gb,
+            "acceptable": is_acceptable,
+            "reason": reason,
+            "c_used_gb": c_used_gb,
+            "disk_number": t_disk_num,
+            "can_auto_esp": is_different_disk
+        })
 
     return candidates
 
