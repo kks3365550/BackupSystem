@@ -188,9 +188,12 @@ def compile_inno_setup_installer(version: str):
 
 def sync_install_directories(installer_exe: str = None):
     print("[3/5] Synchronizing install distribution folders...")
+    local_app_dir = os.path.expandvars(r"%LOCALAPPDATA%\Programs\백업시스템")
     targets = [
         r'D:\백업시스템_설치용'
     ]
+    if os.path.exists(local_app_dir):
+        targets.append(local_app_dir)
     for target in targets:
         drive = os.path.splitdrive(target)[0]
         if drive and not os.path.exists(drive + '\\'):
@@ -501,42 +504,57 @@ def restart_local_server():
     if hasattr(subprocess, 'CREATE_NO_WINDOW'):
         no_win = {'creationflags': subprocess.CREATE_NO_WINDOW}
 
-    # 1. Kill running pythonw / BackupSystem processes unconditionally
+    # 1. Kill any process holding port 8765 unconditionally
     try:
+        kill_port_cmd = (
+            "(Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue).OwningProcess | "
+            "Sort-Object -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }"
+        )
+        subprocess.run(['powershell', '-NoProfile', '-Command', kill_port_cmd], capture_output=True, timeout=8, **no_win)
         subprocess.run(['taskkill.exe', '/F', '/T', '/IM', 'pythonw.exe'], capture_output=True, timeout=8, **no_win)
         subprocess.run(['taskkill.exe', '/F', '/T', '/IM', 'Kova.exe'], capture_output=True, timeout=8, **no_win)
         subprocess.run(['taskkill.exe', '/F', '/T', '/IM', 'BackupSystem.exe'], capture_output=True, timeout=8, **no_win)
-        subprocess.run(
-            ['cmd.exe', '/c', 'for /f "tokens=5" %a in (\'netstat -aon ^| findstr :8765 ^| findstr LISTENING\') do taskkill /F /PID %a'],
-            capture_output=True, timeout=8, **no_win
-        )
-        print("      Stopped existing pythonw and BackupSystem process(es).")
+        print("      Stopped existing processes on port 8765.")
     except Exception as e:
         print(f"      Stop warning (may be OK if nothing was running): {e}")
 
     time.sleep(1.5)
 
-    # 2. Restart server (Priority: pythonw.exe direct launch > start_silent.vbs fallback)
+    # 2. Restart server (Priority: local installed pythonw > venv pythonw > hermes pythonw)
+    local_app_dir = os.path.expandvars(r"%LOCALAPPDATA%\Programs\백업시스템")
+    local_pyw = os.path.join(local_app_dir, 'python', 'pythonw.exe')
     venv_pyw = os.path.join(BASE_DIR, '.venv', 'Scripts', 'pythonw.exe')
     hermes_pyw = os.path.expandvars(r"%USERPROFILE%\AppData\Local\hermes\hermes-agent\venv\Scripts\pythonw.exe")
-    pyw_path = venv_pyw if os.path.exists(venv_pyw) else (hermes_pyw if os.path.exists(hermes_pyw) else 'pythonw.exe')
+
+    if os.path.exists(local_app_dir) and os.path.exists(local_pyw):
+        run_dir = local_app_dir
+        pyw_path = local_pyw
+    elif os.path.exists(venv_pyw):
+        run_dir = BASE_DIR
+        pyw_path = venv_pyw
+    elif os.path.exists(hermes_pyw):
+        run_dir = BASE_DIR
+        pyw_path = hermes_pyw
+    else:
+        run_dir = BASE_DIR
+        pyw_path = 'pythonw.exe'
 
     launched = False
-    # Attempt 1: Direct pythonw.exe launch via PowerShell (Robust against VBS quote parsing issues)
+    # Attempt 1: Direct pythonw.exe launch via PowerShell
     try:
-        ps_cmd = f"Start-Process -FilePath '{pyw_path}' -ArgumentList 'run.py --silent' -WorkingDirectory '{BASE_DIR}' -Verb RunAs"
+        ps_cmd = f"Start-Process -FilePath '{pyw_path}' -ArgumentList 'run.py --silent' -WorkingDirectory '{run_dir}' -Verb RunAs"
         subprocess.run(['powershell', '-NoProfile', '-Command', ps_cmd], capture_output=True, timeout=10)
         launched = True
-        print("      pythonw.exe launched directly via Start-Process (Elevated).")
+        print(f"      pythonw.exe launched directly via Start-Process (Elevated) in {run_dir}.")
     except Exception as e:
         print(f"      Direct pythonw launch failed: {e}. Falling back to VBS...")
 
     # Attempt 2: Fallback to start_silent.vbs if pythonw failed
     if not launched:
-        vbs_path = os.path.join(BASE_DIR, 'start_silent.vbs')
+        vbs_path = os.path.join(run_dir, 'start_silent.vbs')
         if os.path.exists(vbs_path):
             try:
-                ps_cmd = f"Start-Process wscript.exe -ArgumentList '\"{vbs_path}\"' -WorkingDirectory '{BASE_DIR}'"
+                ps_cmd = f"Start-Process wscript.exe -ArgumentList '\"{vbs_path}\"' -WorkingDirectory '{run_dir}'"
                 subprocess.run(['powershell', '-NoProfile', '-Command', ps_cmd], capture_output=True, timeout=10)
                 print("      start_silent.vbs launched via detached Start-Process (Fallback).")
             except Exception as e:
