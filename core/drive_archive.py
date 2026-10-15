@@ -731,6 +731,7 @@ class DriveArchiveManager:
 
             start_ts = time.time()
             last_logged_pct = [-1]
+            last_logged_time = [time.time()]
 
             def on_dism_line(line: str):
                 stripped = line.strip()
@@ -741,9 +742,13 @@ class DriveArchiveManager:
                         self.progress_percent = round(10.0 + (pct * 0.7), 1)
                         self.current_phase = f"DISM 캡처 진행 중 ({pct}%)"
                     int_pct = int(pct)
-                    if int_pct >= last_logged_pct[0] + 10 or (int_pct >= 99 and last_logged_pct[0] < 99):
+                    now_ts = time.time()
+                    # 2% 단위 또는 15초 경과 시마다 UI 콘솔에 진행률 출력 (먹통 오인 원천 방지)
+                    if int_pct >= last_logged_pct[0] + 2 or (now_ts - last_logged_time[0] >= 15) or (int_pct >= 99 and last_logged_pct[0] < 99):
                         last_logged_pct[0] = int_pct
-                        self.append_log(f"  - DISM 캡처 진행률: {pct}%")
+                        last_logged_time[0] = now_ts
+                        elapsed_sec = int(now_ts - start_ts)
+                        self.append_log(f"  - DISM 캡처 진행률: {pct:.1f}% (경과: {elapsed_sec}초)")
                 elif any(k in stripped for k in ("Error", "오류", "100.0%", "작업을 완료했습니다")):
                     self.append_log(f"    {stripped}")
 

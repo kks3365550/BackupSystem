@@ -242,15 +242,53 @@ class VSSContext:
 
     @classmethod
     def _create_shadow(cls, drive: str) -> ShadowCopyRecord:
-        """vssadmin create shadow /for=C: 를 호출하여 섀도 복사본 생성."""
+        """
+        볼륨 섀도 복사본 생성.
+        1. Windows 10/11 Client: WMI Win32_ShadowCopy.Create (vssadmin create shadow가 없는 Windows Client OS 표준)
+        2. Windows Server: vssadmin create shadow 폴백
+        """
         vol_path = drive + '\\' if not drive.endswith('\\') else drive
+
+        # 1차 시도: WMI Win32_ShadowCopy (Windows 10/11 Client + Server 공통 정석 API)
+        try:
+            ps_code = (
+                f"$vol = '{vol_path}'; "
+                "$class = [wmiclass]'Win32_ShadowCopy'; "
+                "$result = $class.Create($vol, 'ClientAccessible'); "
+                "if ($result.ReturnValue -eq 0 -and $result.ShadowID) { "
+                "  $shadowId = $result.ShadowID; "
+                "  Start-Sleep -Milliseconds 300; "
+                "  $obj = Get-CimInstance Win32_ShadowCopy -Filter \"ID = '$shadowId'\" -ErrorAction SilentlyContinue; "
+                "  if (-not $obj) { $obj = Get-CimInstance Win32_ShadowCopy | Where-Object { $_.ID -eq $shadowId } }; "
+                "  $devPath = if ($obj) { $obj.DeviceObject } else { $null }; "
+                "  Write-Output ($shadowId + '|' + $devPath); "
+                "} else { "
+                "  Write-Output ('ERR|' + $result.ReturnValue); "
+                "}"
+            )
+            ps_cmd = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_code]
+            rc_wmi, stdout_wmi, stderr_wmi = cls._run_cmd(ps_cmd, timeout=90)
+            out_str = stdout_wmi.strip()
+            if rc_wmi == 0 and "|" in out_str and not out_str.startswith("ERR|"):
+                parts = out_str.split("|", 1)
+                shadow_id = parts[0].strip()
+                device_path = parts[1].strip()
+                if shadow_id and device_path:
+                    logger.info("WMI Win32_ShadowCopy 생성 성공: %s (ID: %s, Device: %s)", drive, shadow_id, device_path)
+                    return ShadowCopyRecord(drive=drive, shadow_id=shadow_id, device_path=device_path)
+            else:
+                logger.warning("WMI Win32_ShadowCopy 반환 이상 (rc=%s, out=%s, err=%s), vssadmin 폴백 시도", rc_wmi, out_str, stderr_wmi.strip())
+        except Exception as e_wmi:
+            logger.warning("WMI Win32_ShadowCopy 생성 예외 (%s), vssadmin 폴백 시도", e_wmi)
+
+        # 2차 시도: vssadmin create shadow (Windows Server 전용 폴백)
         cmd = ['vssadmin', 'create', 'shadow', f'/for={vol_path}']
 
         rc, stdout, stderr = cls._run_cmd(cmd, timeout=120)
         combined_output = stdout + "\n" + stderr
 
         if rc != 0:
-            raise VSSCreationError(f"vssadmin 종료 코드 {rc}: {combined_output.strip()}")
+            raise VSSCreationError(f"VSS 스냅샷 생성 실패 (WMI 및 vssadmin 모두 실패, vssadmin 종료 코드 {rc}): {combined_output.strip()}")
 
         shadow_id = None
         id_match = re.search(
