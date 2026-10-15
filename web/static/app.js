@@ -20,6 +20,20 @@ function switchTab(tabId) {
         view.classList.toggle('hidden', view.id !== `tab-${tabId}`);
     });
 
+    if (tabId === 'migration') {
+        document.querySelectorAll('.tab-content').forEach(view => {
+            view.classList.toggle('hidden', view.id !== 'tab-system-image');
+        });
+        loadSystemImageStatus();
+        loadVhdxList();
+        if (typeof loadMigrationDrives === 'function') loadMigrationDrives();
+        setTimeout(() => {
+            const el = document.getElementById('migration-target-select');
+            if (el) el.closest('.p-6')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 150);
+        return;
+    }
+
     if (tabId === 'snapshots') loadSnapshots();
     if (tabId === 'profiles') loadProfiles();
     if (tabId === 'dashboard') loadDashboard();

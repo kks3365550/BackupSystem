@@ -72,6 +72,9 @@
                 <button onclick="switchTab('system-image')" data-tab="system-image" class="tab-btn px-3 py-1.5 rounded-md text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/5 transition flex items-center gap-1.5">
                     <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-emerald-400"></i> OS 백업
                 </button>
+                <button onclick="switchTab('migration')" data-tab="migration" class="tab-btn px-3 py-1.5 rounded-md text-xs font-medium text-indigo-300 hover:text-white hover:bg-indigo-950/40 transition flex items-center gap-1.5 border border-indigo-500/30">
+                    <i data-lucide="cpu" class="w-3.5 h-3.5 text-indigo-400"></i> SSD 마이그레이션
+                </button>
             </nav>
 
             <!-- Header Utility Actions -->
@@ -1832,6 +1835,22 @@
                     <div>✓ 원본 볼륨: C:\ (현재 가동 중인 Windows OS)</div>
                     <div>✓ 실시간 정합성: VSS(볼륨 섀도 복사본) 무중단 스냅샷 적용</div>
                     <div>✓ 부트로더: bcdboot 자동 주입으로 즉시 단독 부팅 가능</div>
+                </div>
+
+                <!-- 100% 부팅 보장 옵션 -->
+                <div class="p-3 bg-purple-950/40 border border-purple-800/50 rounded-xl space-y-1.5">
+                    <label class="flex items-start gap-2.5 cursor-pointer select-none">
+                        <input type="checkbox" id="chk-migration-auto-esp" checked class="mt-0.5 rounded border-purple-700 text-purple-600 focus:ring-0">
+                        <div>
+                            <span class="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-purple-400"></i>
+                                <span>100% 부팅 보장: 새 SSD를 UEFI 표준(GPT + 260MB FAT32 ESP)으로 자동 파티셔닝</span>
+                            </span>
+                            <p class="text-[11px] text-zinc-400 mt-0.5">
+                                새 SSD 전체를 최신 메인보드 표준 규격으로 자동 분할하고 BCD를 독립 주입하여 100% 단독 부팅을 보장합니다. (체크 해제 시 기존 파티션 유지 모드)
+                            </p>
+                        </div>
+                    </label>
                 </div>
 
                 <label class="flex items-start gap-2.5 p-3 rounded-xl bg-zinc-950/80 border border-zinc-800 cursor-pointer select-none">

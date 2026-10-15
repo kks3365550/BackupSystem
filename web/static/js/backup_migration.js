@@ -65,10 +65,20 @@ function onMigrationDriveChange() {
     }
 
     if (drive.acceptable) {
+        const espTag = drive.can_auto_esp 
+            ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-950 text-purple-300 border border-purple-800">100% UEFI ESP 자동생성 지원</span>' 
+            : '<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-400">동일 디스크 (파티션 복제 모드)</span>';
         infoEl.innerHTML = `
-            <div class="flex items-center gap-2 text-emerald-400 font-medium">
-                <i data-lucide="check-circle" class="w-4 h-4"></i>
-                <span>마이그레이션 적합: 총 ${drive.total_gb} GB (C: 사용량 ${drive.c_used_gb} GB 완벽 수용 가능)</span>
+            <div class="space-y-1">
+                <div class="flex items-center gap-2 text-emerald-400 font-medium">
+                    <i data-lucide="check-circle" class="w-4 h-4"></i>
+                    <span>마이그레이션 적합: 총 ${drive.total_gb} GB (C: 사용량 ${drive.c_used_gb} GB 완벽 수용 가능)</span>
+                </div>
+                <div class="flex items-center gap-2 text-[11px] text-zinc-400">
+                    <span>물리 디스크: Disk ${drive.disk_number !== null ? drive.disk_number : '감지됨'}</span>
+                    <span>|</span>
+                    ${espTag}
+                </div>
             </div>
         `;
         if (btnStart) btnStart.disabled = false;
@@ -100,6 +110,18 @@ function openMigrationConfirmModal() {
         modalTargetText.textContent = targetDrive;
     }
 
+    const drive = migrationDrivesCache.find(d => d.drive === targetDrive);
+    const chkEsp = document.getElementById("chk-migration-auto-esp");
+    if (chkEsp) {
+        if (drive && drive.can_auto_esp) {
+            chkEsp.checked = true;
+            chkEsp.disabled = false;
+        } else {
+            chkEsp.checked = false;
+            chkEsp.disabled = true;
+        }
+    }
+
     const chk = document.getElementById("chk-migration-danger-confirm");
     if (chk) chk.checked = false;
 
@@ -123,13 +145,19 @@ async function confirmAndRunMigration() {
     const targetDrive = selectEl ? selectEl.value : "";
     if (!targetDrive) return;
 
+    const chkEsp = document.getElementById("chk-migration-auto-esp");
+    const autoPrepareEsp = chkEsp ? chkEsp.checked : true;
+
     closeModal("migration-confirm-modal");
 
     try {
         const res = await fetch("/api/migration/start", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ target_drive: targetDrive })
+            body: JSON.stringify({ 
+                target_drive: targetDrive,
+                auto_prepare_esp: autoPrepareEsp
+            })
         });
         const data = await res.json();
 

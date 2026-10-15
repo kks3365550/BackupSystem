@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api/migration", tags=["migration"])
 
 class StartMigrationRequest(BaseModel):
     target_drive: str
+    auto_prepare_esp: bool = True
 
 
 @router.get("/disks")
@@ -33,11 +34,11 @@ async def api_migration_start(req: StartMigrationRequest):
         raise HTTPException(status_code=400, detail="target_drive 필드는 필수입니다.")
 
     manager = DiskCloneManager.get_instance()
-    res = manager.start_clone(req.target_drive)
+    res = manager.start_clone(req.target_drive, auto_prepare_esp=req.auto_prepare_esp)
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "마이그레이션 시작 실패"))
 
-    return {"success": True, "message": res.get("message"), "target_drive": req.target_drive}
+    return {"success": True, "message": res.get("message"), "target_drive": req.target_drive, "auto_prepare_esp": req.auto_prepare_esp}
 
 
 @router.get("/status")
