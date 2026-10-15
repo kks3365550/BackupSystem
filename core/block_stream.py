@@ -199,63 +199,53 @@ def unpack_chunk_header(chunk_bytes: bytes) -> Tuple[int, int, int, int, int]:
 def get_allocated_cluster_runs(
     bitmap_bytes: bytes,
     cluster_size: int = 4096,
-    max_chunk_bytes: int = DEFAULT_CHUNK_BYTES
+    max_chunk_bytes: int = 16 * 1024 * 1024,
+    max_coalesce_gap_bytes: int = 0
 ) -> List[Tuple[int, int]]:
     """
     NTFS $Bitmap 바이트 배열을 파싱하여, 실제 데이터가 있는 LCN 구간을
-    4MB~8MB 크기의 연속된 청크 (lcn, cluster_count) 목록으로 분할 반환.
-    빈 공간(bit 0)은 100% 스킵. 바이트 단위 고속 스캔 적용.
+    16MB 크기의 고속 연속 청크 (lcn, cluster_count) 목록으로 분할 반환.
+    - [고성능 Coalescing]: max_coalesce_gap_bytes(기본 1MB) 이하의 자잘한 빈틈은
+      조각내지 않고 단일 대형 청크로 병합하여 수십만 번의 Seek 시스템 콜 오버헤드를 원천 차단.
+    - 대형 빈 공간(1MB 이상)은 100% 스킵하여 전송 대역폭 보존.
     """
     if not bitmap_bytes:
         return []
 
     max_clusters = max(1, max_chunk_bytes // cluster_size)
+    max_gap_clusters = max(1, max_coalesce_gap_bytes // cluster_size)
     runs: List[Tuple[int, int]] = []
 
     cur_run_start = None
-    cur_run_len = 0
+    cur_run_end = None  # exclusive cluster index
 
     for byte_idx, b in enumerate(bitmap_bytes):
         if b == 0:
-            if cur_run_start is not None:
-                rem = cur_run_len
-                c_lcn = cur_run_start
-                while rem > 0:
-                    take = min(rem, max_clusters)
-                    runs.append((c_lcn, take))
-                    c_lcn += take
-                    rem -= take
-                cur_run_start = None
-                cur_run_len = 0
-        elif b == 0xFF:
-            if cur_run_start is None:
-                cur_run_start = byte_idx * 8
-                cur_run_len = 8
-            else:
-                cur_run_len += 8
-        else:
-            # 부분 할당 바이트 (혼합 비트)
-            for bit in range(8):
-                if (b >> bit) & 1:
-                    if cur_run_start is None:
-                        cur_run_start = byte_idx * 8 + bit
-                        cur_run_len = 1
-                    else:
-                        cur_run_len += 1
+            continue
+        for bit in range(8):
+            if (b >> bit) & 1:
+                lcn = byte_idx * 8 + bit
+                if cur_run_start is None:
+                    cur_run_start = lcn
+                    cur_run_end = lcn + 1
                 else:
-                    if cur_run_start is not None:
-                        rem = cur_run_len
+                    # 갭이 허용 범위 내이고 총 크기가 max_clusters를 넘지 않으면 병합
+                    if (lcn - cur_run_end) <= max_gap_clusters and (lcn + 1 - cur_run_start) <= max_clusters:
+                        cur_run_end = lcn + 1
+                    else:
+                        # 현재 런 확정 및 청크 분할 저장
+                        rem = cur_run_end - cur_run_start
                         c_lcn = cur_run_start
                         while rem > 0:
                             take = min(rem, max_clusters)
                             runs.append((c_lcn, take))
                             c_lcn += take
                             rem -= take
-                        cur_run_start = None
-                        cur_run_len = 0
+                        cur_run_start = lcn
+                        cur_run_end = lcn + 1
 
     if cur_run_start is not None:
-        rem = cur_run_len
+        rem = cur_run_end - cur_run_start
         c_lcn = cur_run_start
         while rem > 0:
             take = min(rem, max_clusters)
@@ -753,7 +743,7 @@ def stream_volume_to_volume(
         finally:
             close_volume(h_bmp)
 
-        runs = get_allocated_cluster_runs(bitmap_bytes, cluster_size, chunk_bytes)
+        runs = get_allocated_cluster_runs(bitmap_bytes, cluster_size, chunk_bytes, max_coalesce_gap_bytes=2 * 1024 * 1024)
 
         if not runs:
             raise RuntimeError(f"{src_vol} 볼륨의 유효 클러스터 비트맵이 비어 있습니다.")
@@ -781,6 +771,7 @@ def stream_volume_to_volume(
         copied_bytes = 0
 
         def reader_worker():
+            last_src_offset = -1
             try:
                 for idx, (lcn, cluster_count) in enumerate(runs):
                     if stop_event.is_set():
@@ -801,12 +792,14 @@ def stream_volume_to_volume(
 
                     bytes_to_read = cluster_count * cluster_size
                     offset = lcn * cluster_size
-                    large_int = ctypes.c_int64(offset)
-                    new_ptr = ctypes.c_int64()
-                    if not SetFilePointerEx(h_src, large_int, ctypes.byref(new_ptr), FILE_BEGIN):
-                        err = GetLastError()
-                        pool_q.put(buf)
-                        raise OSError(f"SetFilePointerEx(LCN={lcn}) 이동 실패 (WinError: {err})")
+                    # 이전 청크의 끝과 현재 청크의 시작이 연속이면 SetFilePointerEx 생략 (순수 순차 I/O)
+                    if offset != last_src_offset:
+                        large_int = ctypes.c_int64(offset)
+                        new_ptr = ctypes.c_int64()
+                        if not SetFilePointerEx(h_src, large_int, ctypes.byref(new_ptr), FILE_BEGIN):
+                            err = GetLastError()
+                            pool_q.put(buf)
+                            raise OSError(f"SetFilePointerEx(LCN={lcn}) 이동 실패 (WinError: {err})")
 
                     bytes_read = ctypes.c_ulong()
                     if not ReadFile(h_src, buf, bytes_to_read, ctypes.byref(bytes_read), None):
@@ -815,6 +808,8 @@ def stream_volume_to_volume(
                         raise OSError(f"ReadFile(LCN={lcn}, Bytes={bytes_to_read}) 읽기 실패 (WinError: {err})")
 
                     actual_read = bytes_read.value
+                    last_src_offset = offset + actual_read
+
                     while not stop_event.is_set():
                         try:
                             ready_q.put((idx, lcn, cluster_count, buf, actual_read), timeout=0.2)
@@ -838,7 +833,12 @@ def stream_volume_to_volume(
 
         def writer_worker():
             nonlocal copied_bytes
+            last_dst_offset = -1
             last_log_time = time.time()
+            window_start_time = time.time()
+            window_start_bytes = 0
+            current_instant_speed = 0.0
+
             try:
                 while True:
                     if stop_event.is_set() and ready_q.empty():
@@ -863,11 +863,13 @@ def stream_volume_to_volume(
                     idx, lcn, cluster_count, buf, actual_read = item
                     try:
                         offset = lcn * cluster_size
-                        large_int = ctypes.c_int64(offset)
-                        new_ptr = ctypes.c_int64()
-                        if not SetFilePointerEx(h_dst, large_int, ctypes.byref(new_ptr), FILE_BEGIN):
-                            err = GetLastError()
-                            raise OSError(f"SetFilePointerEx(LCN={lcn}) 쓰기 포인터 이동 실패 (WinError: {err})")
+                        # 이전 쓰기 위치와 현재 위치가 연속이면 SetFilePointerEx 생략 (순수 순차 쓰기)
+                        if offset != last_dst_offset:
+                            large_int = ctypes.c_int64(offset)
+                            new_ptr = ctypes.c_int64()
+                            if not SetFilePointerEx(h_dst, large_int, ctypes.byref(new_ptr), FILE_BEGIN):
+                                err = GetLastError()
+                                raise OSError(f"SetFilePointerEx(LCN={lcn}) 쓰기 포인터 이동 실패 (WinError: {err})")
 
                         bytes_written = ctypes.c_ulong()
                         if not WriteFile(h_dst, buf, actual_read, ctypes.byref(bytes_written), None):
@@ -875,25 +877,32 @@ def stream_volume_to_volume(
                             raise OSError(f"WriteFile(LCN={lcn}, Bytes={actual_read}) 쓰기 실패 (WinError: {err})")
 
                         copied_bytes += actual_read
+                        last_dst_offset = offset + actual_read
                     finally:
                         # 버퍼 즉시 풀로 반납 (재사용)
                         pool_q.put(buf)
 
                     now = time.time()
+                    # 최근 1초 순간 속도 윈도우 계산
+                    if now - window_start_time >= 1.0:
+                        w_elapsed = max(0.01, now - window_start_time)
+                        current_instant_speed = ((copied_bytes - window_start_bytes) / (1024 * 1024)) / w_elapsed
+                        window_start_time = now
+                        window_start_bytes = copied_bytes
+
                     if now - last_log_time >= 0.5 or idx == len(runs) - 1:
-                        elapsed = max(0.1, now - start_time)
                         pct = min(100.0, round((copied_bytes / max(1, total_data_bytes)) * 100.0, 1))
-                        speed_mb = (copied_bytes / (1024 * 1024)) / elapsed
+                        display_speed = current_instant_speed if current_instant_speed > 0 else (copied_bytes / (1024 * 1024)) / max(0.1, now - start_time)
 
                         if progress_callback:
                             progress_callback({
                                 "percent": pct,
                                 "processed_bytes": copied_bytes,
                                 "total_bytes": total_data_bytes,
-                                "speed_mb_s": round(speed_mb, 1),
+                                "speed_mb_s": round(display_speed, 1),
                                 "chunk_index": idx + 1,
                                 "total_chunks": len(runs),
-                                "phase": f"NVMe 초고속 LBA 블록 직사 복제 중 ({pct}% - {speed_mb:.1f} MB/s)"
+                                "phase": f"NVMe 초고속 LBA 블록 직사 복제 중 ({pct}% - {display_speed:.1f} MB/s)"
                             })
                         last_log_time = now
 
