@@ -372,7 +372,14 @@ class DriveArchiveManager:
 
         escaped_args = []
         for a in args:
-            if " " in a and not a.startswith('"'):
+            if ":" in a and a.startswith("/"):
+                opt, val = a.split(":", 1)
+                if " " in val and not (val.startswith('"') and val.endswith('"')):
+                    clean_val = val.rstrip("\\")
+                    escaped_args.append(f'{opt}:"{clean_val}"')
+                else:
+                    escaped_args.append(a)
+            elif " " in a and not (a.startswith('"') and a.endswith('"')):
                 clean = a.rstrip("\\")
                 escaped_args.append(f'"{clean}"')
             else:
@@ -623,7 +630,7 @@ class DriveArchiveManager:
                 f"/ImageFile:{temp_wim}",
                 f"/CaptureDir:{source_capture_dir}",
                 f"/Name:BackupSystem_{source_drive[0]}_Insurance",
-                f"/Description:Insurance Archive VSN={source_vsn}",
+                f"/Description:Insurance_Archive_VSN_{source_vsn}",
                 f"/Compress:{compress}",
                 "/CheckIntegrity",
                 "/Verify"
