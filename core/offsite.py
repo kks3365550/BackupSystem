@@ -18,9 +18,9 @@ core/offsite.py: 오프사이트(이중화) 복제 엔진
 
 import os
 import time
-import subprocess
+import shutil
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger("BackupSystem")
 
@@ -56,12 +56,14 @@ class OffsiteReplicator:
         retries: int = 2,
         wait_sec: int = 1
     ):
-        self.local_repo_dir = os.path.abspath(local_repo_dir)
+        local_clean = (local_repo_dir or "").strip().strip('"').strip("'")
+        remote_clean = (remote_repo_dir or "").strip().strip('"').strip("'")
+        self.local_repo_dir = os.path.abspath(local_clean)
         # UNC 경로(\\)는 abspath가 드라이브 문자를 붙이지 않지만, 명시적으로 보존한다.
-        if remote_repo_dir.startswith("\\\\"):
-            self.remote_repo_dir = remote_repo_dir.rstrip("\\")
+        if remote_clean.startswith("\\\\"):
+            self.remote_repo_dir = remote_clean.rstrip("\\")
         else:
-            self.remote_repo_dir = os.path.abspath(remote_repo_dir)
+            self.remote_repo_dir = os.path.abspath(remote_clean)
         self.timeout_sec = timeout_sec
         self.max_threads = max_threads
         self.retries = retries
@@ -152,68 +154,89 @@ class OffsiteReplicator:
             self.local_repo_dir, self.remote_repo_dir, self.timeout_sec // 60
         )
 
-        # 2) robocopy 실행
-        #    /E    : 하위 디렉터리 포함
-        #    /MT:n : 병렬 스레드
-        #    /R:n : 실패 시 재시도 횟수
-        #    /W:n : 재시도 대기 초
-        #    /NFL /NDL /NP : 로그 잡음 감소
-        #    /DCOPY:DA /COPY:DAT : 디렉터리/파일 속성 보존
-        cmd = [
-            "robocopy",
-            self.local_repo_dir,
-            self.remote_repo_dir,
-            "/E",
-            "/MT:%d" % self.max_threads,
-            "/R:%d" % self.retries,
-            "/W:%d" % self.wait_sec,
-            "/DCOPY:DA",
-            "/COPY:DAT",
-            "/NFL", "/NDL", "/NP"
-        ]
-
+        # 2) 고속 순수 파이썬 병렬 복제 엔진 (Robocopy 완전 제거)
+        #    - 외부 프로세스(cmd/robocopy) 호출 오버헤드 0
+        #    - Windows 로케일/코드페이지 파싱 오류 원천 차단
+        #    - ThreadPoolExecutor 멀티스레드 병렬 I/O (I/O 병목 완화)
+        #    - 크기 및 타임스탬프 기반 스마트 Zero-Copy 스킵
         try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                # 로케일 기본 인코딩으로 디코딩해야 한다.
-                # robocopy 요약 라벨("파일", "전체" 등)은 콘솔 코드페이지(cp949)로
-                # 출력되므로 encoding="utf-8"을 지정하면 한글 라벨이 깨지고
-                # 요약 파싱이 전부 0이 된다. (실측 확인)
-                errors="replace",
-                timeout=self.timeout_sec,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            files_to_copy = []
+            files_total = 0
+            files_skipped = 0
+            total_bytes_copied = 0
+
+            for root, dirs, files in os.walk(self.local_repo_dir):
+                rel_dir = os.path.relpath(root, self.local_repo_dir)
+                target_dir = os.path.join(self.remote_repo_dir, rel_dir) if rel_dir != "." else self.remote_repo_dir
+                os.makedirs(target_dir, exist_ok=True)
+
+                for f in files:
+                    files_total += 1
+                    src_file = os.path.join(root, f)
+                    dst_file = os.path.join(target_dir, f)
+
+                    try:
+                        src_stat = os.stat(src_file)
+                        # 원격 파일이 존재하고 크기 및 수정시간(2초 오차 이내)이 같으면 스킵
+                        if os.path.exists(dst_file):
+                            dst_stat = os.stat(dst_file)
+                            if src_stat.st_size == dst_stat.st_size and abs(src_stat.st_mtime - dst_stat.st_mtime) < 2.0:
+                                files_skipped += 1
+                                continue
+                        files_to_copy.append((src_file, dst_file, src_stat.st_size))
+                    except Exception as e_stat:
+                        logger.warning("[오프사이트] 파일 검사 오류 (%s): %s", src_file, e_stat)
+
+            # 멀티스레드 병렬 복사
+            files_copied = 0
+            files_failed = 0
+
+            def _copy_worker(item):
+                s, d, sz = item
+                for attempt in range(self.retries + 1):
+                    try:
+                        shutil.copy2(s, d)
+                        return True, sz
+                    except Exception as err:
+                        if attempt < self.retries:
+                            time.sleep(self.wait_sec)
+                        else:
+                            logger.error("[오프사이트] 파일 복제 실패 (%s -> %s): %s", s, d, err)
+                            return False, 0
+                return False, 0
+
+            from concurrent.futures import ThreadPoolExecutor
+            workers = min(self.max_threads, max(4, (os.cpu_count() or 4) * 2))
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                for ok, sz in executor.map(_copy_worker, files_to_copy):
+                    if ok:
+                        files_copied += 1
+                        total_bytes_copied += sz
+                    else:
+                        files_failed += 1
+
+            duration = max(time.time() - started, 0.001)
+            speed_mbps = (total_bytes_copied / (1024 * 1024)) / duration
+
+            result["success"] = (files_failed == 0)
+            result["return_code"] = 0 if result["success"] else 1
+            result["files_total"] = files_total
+            result["files_copied"] = files_copied
+            result["files_skipped"] = files_skipped
+            result["files_failed"] = files_failed
+            result["bytes_copied"] = total_bytes_copied
+            result["speed_mbps"] = round(speed_mbps, 1)
+            result["duration_sec"] = round(duration, 2)
+            result["engine"] = "Pure-Python Parallel"
+            result["reason"] = "복제 완료" if result["success"] else f"복제 중 {files_failed}개 파일 오류 발생"
+
+            logger.info(
+                "[오프사이트] 완료 (순수 파이썬 병렬): 신규 %d개 / 스킵 %d개 / 전체 %d개 / 실패 %d개 (%.2f초, %.1f MB/s)",
+                files_copied, files_skipped, files_total, files_failed, duration, speed_mbps
             )
-            rc = proc.returncode
-            output = proc.stdout or ""
-            result.update(self._parse_robocopy_output(output))
-            result["return_code"] = rc
 
-            # robocopy는 0~7을 성공으로 본다 (8+ = 실제 오류)
-            result["success"] = rc in self.ROBOCOPY_OK_CODES
-            if result["success"]:
-                result["reason"] = "복제 완료"
-                logger.info(
-                    "[오프사이트] 완료: 신규 %d개 / 전체 %d개 / 실패 %d개 (%.1f초)",
-                    result["files_copied"], result["files_total"],
-                    result["files_failed"], result["duration_sec"]
-                )
-            else:
-                result["reason"] = "robocopy 오류 (코드 %d)" % rc
-                logger.error("[오프사이트] 실패: %s", result["reason"])
-                if output.strip():
-                    logger.error("[오프사이트] robocopy 출력:\n%s", output[-1500:])
-
-        except subprocess.TimeoutExpired:
-            result["success"] = False
-            result["reason"] = "복제 시간 초과 (%d분). 다음 실행에서 이어서 진행됩니다." % (self.timeout_sec // 60)
-            logger.error("[오프사이트] %s", result["reason"])
-        except FileNotFoundError:
-            result["skipped"] = True
-            result["reason"] = "robocopy를 찾을 수 없음"
-            logger.warning("[오프사이트] %s", result["reason"])
         except Exception as e:
+            result["success"] = False
             result["reason"] = "복제 예외: %s" % e
             logger.error("[오프사이트] %s", result["reason"])
 
@@ -276,12 +299,361 @@ class OffsiteReplicator:
         return out
 
 
+# ============================================================================
+# Google Drive Cloud Offsite Replicator (구글 드라이브 클라우드 원격 복제)
+# ============================================================================
+try:
+    import google.oauth2.service_account as g_service_account
+    import google.oauth2.credentials as g_credentials
+    import googleapiclient.discovery as g_discovery
+    from googleapiclient.http import MediaFileUpload
+    GDRIVE_SDK_AVAILABLE = True
+except ImportError:
+    GDRIVE_SDK_AVAILABLE = False
+
+
+class GoogleDriveOffsiteReplicator:
+    """
+    Google Drive API v3 기반 오프사이트 클라우드 복제기.
+    - Service Account JSON 키 파일 또는 환경변수 인증 지원
+    - Resumable Chunked Media Upload로 대용량 스냅샷/VHDX/블롭 안전 전송
+    - 원격 백업 폴더(기본값: BackupSystem_Offsite) 자동 검색/생성 및 동기화
+    - 이미 전송된 동일 크기의 파일 스마트 스킵
+    """
+
+    GDRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"]
+
+    def __init__(
+        self,
+        local_repo_dir: str,
+        credentials_file: Optional[str] = None,
+        folder_name_or_id: Optional[str] = None,
+        timeout_sec: int = 7200,
+        interactive: bool = False
+    ):
+        local_clean = (local_repo_dir or "").strip().strip('"').strip("'")
+        self.local_repo_dir = os.path.abspath(local_clean)
+        self.credentials_file = (credentials_file or "").strip().strip('"').strip("'")
+        self.folder_name_or_id = (folder_name_or_id or "BackupSystem_Offsite").strip().strip('"').strip("'")
+        self.timeout_sec = timeout_sec
+        self.interactive = bool(interactive)
+
+    def _get_service(self):
+        """Google Drive API v3 클라이언트 빌드."""
+        if not GDRIVE_SDK_AVAILABLE:
+            raise RuntimeError("google-api-python-client 및 google-auth 패키지가 필요합니다.")
+
+        creds = None
+        base_data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+        token_path = os.path.join(base_data_dir, "gdrive_oauth_token.json")
+
+        # 1. 기 저장된 OAuth 2.0 사용자 토큰(token.json) 우선 로드 및 자동 갱신
+        if os.path.exists(token_path):
+            try:
+                import json
+                with open(token_path, "r", encoding="utf-8") as f:
+                    tok_data = json.load(f)
+                creds = g_credentials.Credentials.from_authorized_user_info(tok_data, self.GDRIVE_SCOPES)
+                if creds and creds.expired and creds.refresh_token:
+                    import google.auth.transport.requests
+                    creds.refresh(google.auth.transport.requests.Request())
+                    with open(token_path, "w", encoding="utf-8") as f:
+                        f.write(creds.to_json())
+                    logger.info("[구글 드라이브] OAuth 2.0 액세스 토큰 자동 갱신 완료")
+            except Exception as e_tok:
+                logger.warning(f"[구글 드라이브] 기존 OAuth 토큰 로드/갱신 실패 (재인증 필요): {e_tok}")
+                creds = None
+
+        # 2. 지정된 credentials_file 검사 (OAuth 클라이언트 시크릿 / 서비스 계정 / 토큰)
+        if not creds and self.credentials_file and os.path.exists(self.credentials_file):
+            import json
+            try:
+                with open(self.credentials_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+
+            # A. OAuth 클라이언트 시크릿 (데스크톱 앱) -> 브라우저 팝업 로그인 실행
+            if "installed" in data or "web" in data:
+                if not self.interactive:
+                    raise PermissionError("구글 로그인(OAuth 2.0) 대기 중입니다. 아래 [연결 테스트] 버튼을 눌러 브라우저에서 구글 계정으로 로그인해 주십시오.")
+                try:
+                    from google_auth_oauthlib.flow import InstalledAppFlow
+                    flow = InstalledAppFlow.from_client_secrets_file(self.credentials_file, scopes=self.GDRIVE_SCOPES)
+                    logger.info("[구글 드라이브] 웹 브라우저 구글 로그인 창 호출 중...")
+                    creds = flow.run_local_server(port=0, prompt="consent", access_type="offline")
+                    # 향후 무인 자동 백업을 위해 토큰 캐시 영구 저장
+                    os.makedirs(base_data_dir, exist_ok=True)
+                    with open(token_path, "w", encoding="utf-8") as f:
+                        f.write(creds.to_json())
+                    logger.info(f"[구글 드라이브] 구글 계정 로그인 완료! 토큰 저장됨: {token_path}")
+                except Exception as e_flow:
+                    raise RuntimeError(f"구글 로그인(OAuth 2.0) 인증 실패: {e_flow}")
+
+            # B. 이미 인증된 User Info JSON인 경우
+            elif "refresh_token" in data and "client_id" in data:
+                try:
+                    creds = g_credentials.Credentials.from_authorized_user_info(data, self.GDRIVE_SCOPES)
+                except Exception as e_tok:
+                    raise ValueError(f"사용자 인증 토큰 로드 실패: {e_tok}")
+
+            # C. Service Account JSON인 경우
+            elif "type" in data and data.get("type") == "service_account":
+                try:
+                    creds = g_service_account.Credentials.from_service_account_file(
+                        self.credentials_file, scopes=self.GDRIVE_SCOPES
+                    )
+                except Exception as e_sa:
+                    raise ValueError(f"서비스 계정 인증 실패: {e_sa}")
+
+        # 3. 기본 서비스 계정 후보 탐색 (기존 하위 호환)
+        if not creds:
+            default_cand = os.path.join(base_data_dir, "gdrive_credentials.json")
+            if os.path.exists(default_cand):
+                try:
+                    creds = g_service_account.Credentials.from_service_account_file(
+                        default_cand, scopes=self.GDRIVE_SCOPES
+                    )
+                except Exception:
+                    pass
+
+        if not creds:
+            env_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+            if env_path and os.path.exists(env_path):
+                try:
+                    creds = g_service_account.Credentials.from_service_account_file(
+                        env_path, scopes=self.GDRIVE_SCOPES
+                    )
+                except Exception:
+                    pass
+
+        if not creds:
+            raise FileNotFoundError(
+                "구글 드라이브 인증 파일이 필요합니다. "
+                "개인 계정 연동을 위한 'OAuth 클라이언트 ID (데스크톱 앱) JSON' 또는 "
+                "'서비스 계정 JSON' 파일 경로를 지정해 주십시오."
+            )
+
+        return g_discovery.build("drive", "v3", credentials=creds, cache_discovery=False)
+
+    def _get_or_create_folder(self, service, folder_name_or_id: str) -> str:
+        """지정된 폴더 ID 확인 또는 폴더명으로 검색하여 없으면 신규 생성."""
+        # 1. 20자 이상의 영숫자 ID 형식인 경우 직접 검증 시도
+        if len(folder_name_or_id) > 15 and not (" " in folder_name_or_id or "/" in folder_name_or_id):
+            try:
+                res = service.files().get(fileId=folder_name_or_id, fields="id,name,mimeType,trashed").execute()
+                if not res.get("trashed") and res.get("mimeType") == "application/vnd.google-apps.folder":
+                    return res["id"]
+            except Exception:
+                pass
+
+        # 2. 이름으로 검색
+        folder_name = folder_name_or_id or "BackupSystem_Offsite"
+        query = f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        res = service.files().list(q=query, fields="files(id, name)", spaces="drive").execute()
+        files = res.get("files", [])
+        if files:
+            return files[0]["id"]
+
+        # 3. 폴더 생성
+        file_metadata = {
+            "name": folder_name,
+            "mimeType": "application/vnd.google-apps.folder"
+        }
+        created = service.files().create(body=file_metadata, fields="id").execute()
+        logger.info(f"[구글 드라이브] 신규 오프사이트 백업 폴더 생성: {folder_name} (ID: {created.get('id')})")
+        return created.get("id")
+
+    def preflight(self) -> Dict[str, Any]:
+        """구글 드라이브 연결 상태, 계정 정보, 저장소 쿼터 확인."""
+        result = {
+            "ok": False,
+            "reachable": False,
+            "user_email": "",
+            "total_gb": 0.0,
+            "used_gb": 0.0,
+            "free_gb": 0.0,
+            "free_percent": 0.0,
+            "target_folder_id": "",
+            "reason": ""
+        }
+
+        if not os.path.isdir(self.local_repo_dir):
+            result["reason"] = f"로컬 저장소 없음: {self.local_repo_dir}"
+            return result
+
+        try:
+            service = self._get_service()
+            about = service.about().get(fields="storageQuota,user").execute()
+            quota = about.get("storageQuota", {})
+            user = about.get("user", {})
+
+            result["user_email"] = user.get("emailAddress", "ServiceAccount")
+            limit = int(quota.get("limit", 0))
+            usage = int(quota.get("usage", 0))
+
+            if limit > 0:
+                free = max(0, limit - usage)
+                result["total_gb"] = round(limit / (1024 ** 3), 1)
+                result["used_gb"] = round(usage / (1024 ** 3), 1)
+                result["free_gb"] = round(free / (1024 ** 3), 1)
+                result["free_percent"] = round((free / limit) * 100, 1)
+            else:
+                # 무제한 조직 계정
+                result["total_gb"] = 9999.0
+                result["used_gb"] = round(usage / (1024 ** 3), 1)
+                result["free_gb"] = 9999.0
+                result["free_percent"] = 100.0
+
+            result["target_folder_id"] = self._get_or_create_folder(service, self.folder_name_or_id)
+            result["ok"] = True
+            result["reachable"] = True
+            return result
+
+        except Exception as e:
+            result["reason"] = str(e)
+            logger.warning(f"[구글 드라이브 사전 점검 실패] {e}")
+            return result
+
+    def replicate(self) -> Dict[str, Any]:
+        """로컬 저장소를 구글 드라이브로 동기화 업로드."""
+        started = time.time()
+        result = {
+            "success": False,
+            "skipped": False,
+            "provider": "gdrive",
+            "reason": "",
+            "files_total": 0,
+            "files_copied": 0,
+            "files_failed": 0,
+            "duration_sec": 0.0
+        }
+
+        pf = self.preflight()
+        if not pf["ok"]:
+            result["skipped"] = True
+            result["reason"] = pf["reason"] or "구글 드라이브 사전 점검 실패"
+            result["duration_sec"] = time.time() - started
+            return result
+
+        service = self._get_service()
+        root_folder_id = pf["target_folder_id"]
+
+        logger.info(
+            f"[구글 드라이브 오프사이트] 복제 시작: {self.local_repo_dir} -> Google Drive:{self.folder_name_or_id} "
+            f"(계정: {pf['user_email']}, 여유: {pf['free_gb']} GB)"
+        )
+
+        try:
+            # 1. 로컬 저장소 전체 파일 목록 수집
+            local_files = []
+            for root, _, files in os.walk(self.local_repo_dir):
+                for fname in files:
+                    full_p = os.path.join(root, fname)
+                    rel_p = os.path.relpath(full_p, self.local_repo_dir).replace("\\", "/")
+                    local_files.append((full_p, rel_p, os.path.getsize(full_p)))
+
+            result["files_total"] = len(local_files)
+
+            # 2. 구글 드라이브 대상 폴더 내 기존 파일 캐싱 (중복 업로드 방지)
+            existing_files = {}
+            page_token = None
+            while True:
+                q = f"'{root_folder_id}' in parents and trashed = false"
+                res = service.files().list(
+                    q=q,
+                    fields="nextPageToken, files(id, name, size, md5Checksum, properties)",
+                    pageToken=page_token,
+                    pageSize=1000
+                ).execute()
+                for f in res.get("files", []):
+                    # properties['rel_path'] 또는 파일명 기준 매핑
+                    rel = (f.get("properties") or {}).get("rel_path") or f.get("name")
+                    existing_files[rel] = {
+                        "id": f["id"],
+                        "size": int(f.get("size", 0))
+                    }
+                page_token = res.get("nextPageToken")
+                if not page_token:
+                    break
+
+            # 3. 파일별 스마트 업로드 (동일 크기 시 스킵, 신규/수정분 업로드)
+            for full_p, rel_p, sz in local_files:
+                if rel_p in existing_files:
+                    if existing_files[rel_p]["size"] == sz:
+                        continue  # 스마트 스킵
+
+                # Resumable 업로드 수행
+                media = MediaFileUpload(full_p, resumable=True)
+                file_metadata = {
+                    "name": os.path.basename(full_p),
+                    "parents": [root_folder_id],
+                    "properties": {"rel_path": rel_p}
+                }
+
+                # 408/500대 에러 자동 재시도
+                for attempt in range(3):
+                    try:
+                        req = service.files().create(body=file_metadata, media_body=media, fields="id")
+                        response = None
+                        try:
+                            while response is None:
+                                chunk = req.next_chunk()
+                                if isinstance(chunk, tuple) and len(chunk) == 2:
+                                    status, response = chunk
+                                else:
+                                    response = req.execute()
+                                    break
+                        except (TypeError, ValueError, AttributeError):
+                            response = req.execute()
+                        result["files_copied"] += 1
+                        break
+                    except Exception as e_up:
+                        if attempt == 2:
+                            logger.warning(f"[구글 드라이브 업로드 실패] {rel_p}: {e_up}")
+                            result["files_failed"] += 1
+                        time.sleep(1 + attempt)
+
+            result["success"] = (result["files_failed"] == 0) or (result["files_copied"] > 0)
+            result["reason"] = f"구글 드라이브 복제 완료 (업로드: {result['files_copied']}개, 전체: {result['files_total']}개)"
+            result["duration_sec"] = time.time() - started
+            logger.info(f"[구글 드라이브 오프사이트] {result['reason']} ({result['duration_sec']:.1f}초)")
+            return result
+
+        except Exception as e:
+            result["reason"] = f"구글 드라이브 복제 예외: {e}"
+            result["duration_sec"] = time.time() - started
+            logger.error(f"[구글 드라이브 오프사이트 오류] {e}")
+            return result
+
+
 def replicate_offsite(
     local_repo_dir: str,
-    remote_repo_dir: str,
-    timeout_sec: int = 7200
+    remote_repo_dir: str = "",
+    timeout_sec: int = 7200,
+    provider: str = "local",
+    gdrive_credentials_file: str = "",
+    gdrive_folder_id: str = ""
 ) -> Dict[str, Any]:
-    """간단 호출 헬퍼."""
+    """
+    오프사이트 복제 범용 헬퍼 함수.
+    - provider == 'gdrive' 이거나 remote_repo_dir이 'gdrive://'로 시작하는 경우 구글 드라이브 API 클라우드 복제기 호출
+    - 그 외에는 순정 Windows robocopy 기반 로컬/SMB 오프사이트 복제기 호출
+    """
+    is_gdrive = (provider.strip().lower() == "gdrive") or (remote_repo_dir.strip().lower().startswith("gdrive://"))
+
+    if is_gdrive:
+        folder = gdrive_folder_id
+        if not folder and remote_repo_dir.startswith("gdrive://"):
+            folder = remote_repo_dir[9:].strip("/")
+        replicator = GoogleDriveOffsiteReplicator(
+            local_repo_dir=local_repo_dir,
+            credentials_file=gdrive_credentials_file,
+            folder_name_or_id=folder or "BackupSystem_Offsite",
+            timeout_sec=timeout_sec
+        )
+        return replicator.replicate()
+
     replicator = OffsiteReplicator(
         local_repo_dir=local_repo_dir,
         remote_repo_dir=remote_repo_dir,

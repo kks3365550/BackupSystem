@@ -44,8 +44,11 @@ DEFAULT_SETTINGS = {
     "min_free_disk_gb": 10,
     "enable_ransomware_protection": True,
     "offsite_enabled": False,
+    "offsite_provider": "local",
     "offsite_remote_path": "",
-    "offsite_auto_sync": True
+    "offsite_auto_sync": True,
+    "offsite_gdrive_credentials_file": "",
+    "offsite_gdrive_folder_id": ""
 }
 
 class ConfigManager:
@@ -99,8 +102,11 @@ class ConfigManager:
         settings = cls.get_settings()
         return {
             "enabled": bool(settings.get("offsite_enabled", False)),
+            "provider": str(settings.get("offsite_provider", "local") or "local").strip().lower(),
             "remote_path": str(settings.get("offsite_remote_path", "") or "").strip(),
             "auto_sync": bool(settings.get("offsite_auto_sync", True)),
+            "gdrive_credentials_file": str(settings.get("offsite_gdrive_credentials_file", "") or "").strip(),
+            "gdrive_folder_id": str(settings.get("offsite_gdrive_folder_id", "") or "").strip(),
         }
 
     @classmethod
@@ -108,10 +114,16 @@ class ConfigManager:
         settings = cls.get_settings()
         if "enabled" in offsite_data:
             settings["offsite_enabled"] = bool(offsite_data["enabled"])
+        if "provider" in offsite_data:
+            settings["offsite_provider"] = str(offsite_data["provider"] or "local").strip().lower()
         if "remote_path" in offsite_data:
             settings["offsite_remote_path"] = str(offsite_data["remote_path"] or "").strip()
         if "auto_sync" in offsite_data:
             settings["offsite_auto_sync"] = bool(offsite_data["auto_sync"])
+        if "gdrive_credentials_file" in offsite_data:
+            settings["offsite_gdrive_credentials_file"] = str(offsite_data["gdrive_credentials_file"] or "").strip()
+        if "gdrive_folder_id" in offsite_data:
+            settings["offsite_gdrive_folder_id"] = str(offsite_data["gdrive_folder_id"] or "").strip()
         cls.save_settings(settings)
         return cls.get_offsite_config()
 

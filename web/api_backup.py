@@ -258,14 +258,38 @@ def _background_custom_backup_task(params: Dict[str, Any]):
         # 3-2-1 오프사이트 원격 복제 자동 실행
         try:
             offsite_cfg = ConfigManager.get_offsite_config()
-            if offsite_cfg.get("enabled") and offsite_cfg.get("auto_sync") and offsite_cfg.get("remote_path"):
-                append_task_log(f"[3-2-1 오프사이트] 원격 저장소({offsite_cfg['remote_path']})로 동기화 시작...")
+            if offsite_cfg.get("enabled") and offsite_cfg.get("auto_sync"):
+                provider = offsite_cfg.get("provider", "local")
                 from core.offsite import replicate_offsite
-                off_res = replicate_offsite(repo_dir, offsite_cfg["remote_path"])
-                if off_res.get("success"):
-                    append_task_log(f"[3-2-1 오프사이트] 동기화 성공: 복사 {off_res.get('files_copied', 0)}개 / 전체 {off_res.get('files_total', 0)}개 ({off_res.get('duration_sec', 0.0):.1f}초)")
-                elif not off_res.get("skipped"):
-                    append_task_log(f"[3-2-1 오프사이트] 동기화 실패: {off_res.get('reason', '원인 불명')}", level="WARNING")
+
+                if provider == "gdrive":
+                    creds = offsite_cfg.get("gdrive_credentials_file")
+                    folder = offsite_cfg.get("gdrive_folder_id") or "BackupSystem_Offsite"
+                    if creds:
+                        append_task_log(f"[3-2-1 오프사이트] 구글 드라이브(Google Drive/{folder})로 자동 복제 시작...")
+                        off_res = replicate_offsite(
+                            local_repo_dir=repo_dir,
+                            provider="gdrive",
+                            gdrive_credentials_file=creds,
+                            gdrive_folder_id=folder
+                        )
+                        if off_res.get("success"):
+                            append_task_log(f"[3-2-1 오프사이트] 구글 드라이브 동기화 성공: 복제 {off_res.get('files_copied', 0)}개 / 전체 {off_res.get('files_total', 0)}개 ({off_res.get('duration_sec', 0.0):.1f}초)")
+                        else:
+                            append_task_log(f"[3-2-1 오프사이트] 구글 드라이브 동기화 실패: {off_res.get('reason', '원인 불명')}", level="WARNING")
+                else:
+                    remote_path = offsite_cfg.get("remote_path")
+                    if remote_path:
+                        append_task_log(f"[3-2-1 오프사이트] 원격 저장소({remote_path})로 자동 복제 시작...")
+                        off_res = replicate_offsite(
+                            local_repo_dir=repo_dir,
+                            remote_repo_dir=remote_path,
+                            provider="local"
+                        )
+                        if off_res.get("success"):
+                            append_task_log(f"[3-2-1 오프사이트] 동기화 성공: 복사 {off_res.get('files_copied', 0)}개 / 스킵 {off_res.get('files_skipped', 0)}개 / 전체 {off_res.get('files_total', 0)}개 ({off_res.get('duration_sec', 0.0):.1f}초)")
+                        elif not off_res.get("skipped"):
+                            append_task_log(f"[3-2-1 오프사이트] 동기화 실패: {off_res.get('reason', '원인 불명')}", level="WARNING")
         except Exception as e_off:
             append_task_log(f"[3-2-1 오프사이트] 동기화 오류: {e_off}", level="WARNING")
 
@@ -432,14 +456,38 @@ def _background_backup_task(params: Dict[str, Any]):
         # 3-2-1 오프사이트 원격 복제 자동 실행
         try:
             offsite_cfg = ConfigManager.get_offsite_config()
-            if offsite_cfg.get("enabled") and offsite_cfg.get("auto_sync") and offsite_cfg.get("remote_path"):
-                append_task_log(f"[3-2-1 오프사이트] 원격 저장소({offsite_cfg['remote_path']})로 동기화 시작...")
+            if offsite_cfg.get("enabled") and offsite_cfg.get("auto_sync"):
+                provider = offsite_cfg.get("provider", "local")
                 from core.offsite import replicate_offsite
-                off_res = replicate_offsite(repo_dir, offsite_cfg["remote_path"])
-                if off_res.get("success"):
-                    append_task_log(f"[3-2-1 오프사이트] 동기화 성공: 복사 {off_res.get('files_copied', 0)}개 / 전체 {off_res.get('files_total', 0)}개 ({off_res.get('duration_sec', 0.0):.1f}초)")
-                elif not off_res.get("skipped"):
-                    append_task_log(f"[3-2-1 오프사이트] 동기화 실패: {off_res.get('reason', '원인 불명')}", level="WARNING")
+
+                if provider == "gdrive":
+                    creds = offsite_cfg.get("gdrive_credentials_file")
+                    folder = offsite_cfg.get("gdrive_folder_id") or "BackupSystem_Offsite"
+                    if creds:
+                        append_task_log(f"[3-2-1 오프사이트] 구글 드라이브(Google Drive/{folder})로 자동 복제 시작...")
+                        off_res = replicate_offsite(
+                            local_repo_dir=repo_dir,
+                            provider="gdrive",
+                            gdrive_credentials_file=creds,
+                            gdrive_folder_id=folder
+                        )
+                        if off_res.get("success"):
+                            append_task_log(f"[3-2-1 오프사이트] 구글 드라이브 동기화 성공: 복제 {off_res.get('files_copied', 0)}개 / 전체 {off_res.get('files_total', 0)}개 ({off_res.get('duration_sec', 0.0):.1f}초)")
+                        else:
+                            append_task_log(f"[3-2-1 오프사이트] 구글 드라이브 동기화 실패: {off_res.get('reason', '원인 불명')}", level="WARNING")
+                else:
+                    remote_path = offsite_cfg.get("remote_path")
+                    if remote_path:
+                        append_task_log(f"[3-2-1 오프사이트] 원격 저장소({remote_path})로 자동 복제 시작...")
+                        off_res = replicate_offsite(
+                            local_repo_dir=repo_dir,
+                            remote_repo_dir=remote_path,
+                            provider="local"
+                        )
+                        if off_res.get("success"):
+                            append_task_log(f"[3-2-1 오프사이트] 동기화 성공: 복사 {off_res.get('files_copied', 0)}개 / 스킵 {off_res.get('files_skipped', 0)}개 / 전체 {off_res.get('files_total', 0)}개 ({off_res.get('duration_sec', 0.0):.1f}초)")
+                        elif not off_res.get("skipped"):
+                            append_task_log(f"[3-2-1 오프사이트] 동기화 실패: {off_res.get('reason', '원인 불명')}", level="WARNING")
         except Exception as e_off:
             append_task_log(f"[3-2-1 오프사이트] 동기화 오류: {e_off}", level="WARNING")
 

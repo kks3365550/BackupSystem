@@ -3,7 +3,7 @@
 ; =========================================================================
 
 #define MyAppName "Kova"
-#define MyAppVersion "2.15.1"
+#define MyAppVersion "2.15.2"
 #define MyAppPublisher "kks3365550"
 #define MyAppURL "http://127.0.0.1:8765"
 #define MyAppExeName "Kova.exe"
@@ -90,58 +90,55 @@ Filename: "schtasks.exe"; Parameters: "/delete /tn ""BackupSystem_Server_Daemon"
 Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""BackupSystem"""; Flags: runhidden; Check: IsAdminInstallMode
 
 [Code]
-// v2.14.1+: 설치 시작 시 기존 실행 중인 백업시스템 프로세스(트레이, 서버, 포트 8765) 선제 강제 종료 및 파일 잠금 해제 대기 루프
+// v2.15.1+: 파일 복사 직전(ssInstall) 또는 언인스톨 시 기존 백업 프로세스(pythonw.exe, 8765 포트) 무조건 강제 사살 및 DLL 잠금 해제 대기
 procedure KillExistingProcesses();
 var
   ResultCode: Integer;
-  AppDir, StopBat, CmdExe, PsExe, KillPsCmd: String;
+  TaskkillExe, CmdExe, PsExe, KillPsCmd: String;
 begin
+  TaskkillExe := ExpandConstant('{sys}\taskkill.exe');
   CmdExe := ExpandConstant('{cmd}');
   PsExe := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
 
-  // 1. 기존 설치 경로별 stop_backup_system.bat 실행 (cmd.exe /c 로 호출)
-  AppDir := ExpandConstant('{localappdata}\Programs\백업시스템');
-  StopBat := AppDir + '\stop_backup_system.bat';
-  if FileExists(StopBat) then
-    Exec(CmdExe, '/c "' + StopBat + '"', AppDir, SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // 1. Windows taskkill.exe 직접 호출로 백그라운드 서버/트레이(pythonw.exe) 무조건 강제 사살
+  // 주의: 설치 프로그램 자신(Setup, Kova_Setup_*.exe)은 절대로 죽이지 않도록 오직 pythonw.exe만 정확히 타겟
+  if FileExists(TaskkillExe) then
+  begin
+    Exec(TaskkillExe, '/F /T /IM pythonw.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end
+  else
+  begin
+    Exec('taskkill.exe', '/F /T /IM pythonw.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end;
 
-  AppDir := ExpandConstant('{autopf}\{#MyAppName}');
-  StopBat := AppDir + '\stop_backup_system.bat';
-  if FileExists(StopBat) then
-    Exec(CmdExe, '/c "' + StopBat + '"', AppDir, SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // 2. 8765 포트 점유 PID 전수 강제 사살 (netstat -> taskkill /PID)
+  Exec(CmdExe, '/c "for /f ""tokens=5"" %a in (''netstat -aon ^| findstr :8765 ^| findstr LISTENING'') do if not ""%a""==""0"" taskkill /F /PID %a"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-  AppDir := ExpandConstant('{localappdata}\Programs\{#MyAppName}');
-  StopBat := AppDir + '\stop_backup_system.bat';
-  if FileExists(StopBat) then
-    Exec(CmdExe, '/c "' + StopBat + '"', AppDir, SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // 3. 백업시스템 관련 예약 작업(Task Scheduler) 중단
+  Exec('schtasks.exe', '/End /TN "BackupSystem_AutoBackup"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('schtasks.exe', '/End /TN "BackupSystem_WebServer"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('schtasks.exe', '/End /TN "BackupSystem_Server"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('schtasks.exe', '/End /TN "BackupSystem_Server_Daemon"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-  // 2. PowerShell 원라이너로 8765 포트 점유 프로세스 및 run.py / tray_app.py 프로세스 전수 강제 종료 및 파일 락 해제 대기
-  KillPsCmd := 
+  // 4. PowerShell 2차 안전망: 인스톨러 자신(setup, is-*.tmp) 및 PID는 절대 제외하고 8765 포트 및 pythonw 잔여 프로세스 사살
+  KillPsCmd :=
     '-NoProfile -ExecutionPolicy Bypass -Command "' +
-    '$ports = @(8765); ' +
-    'Get-NetTCPConnection -LocalPort $ports -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; ' +
-    'Get-CimInstance Win32_Process | Where-Object { ' +
-    '  ($_.Name -in ''python.exe'',''pythonw.exe'') -and ($_.CommandLine -match ''(run\.py|tray_app\.py|백업시스템|Kova)'') ' +
-    '} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; ' +
-    'for ($i=0; $i -lt 10; $i++) { ' +
-    '  $left = Get-CimInstance Win32_Process | Where-Object { ($_.Name -in ''python.exe'',''pythonw.exe'') -and ($_.CommandLine -match ''(run\.py|tray_app\.py|백업시스템|Kova)'') }; ' +
-    '  if (-not $left) { break }; ' +
-    '  Start-Sleep -Milliseconds 500; ' +
-    '}"';
+    'Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue | ForEach-Object { if ($_.OwningProcess -ne 0) { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue } }; ' +
+    'Get-Process -ErrorAction SilentlyContinue | Where-Object { ($_.Name -eq ''pythonw'') -and ($_.Name -notmatch ''(?i)(setup|is-)'') } | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }"';
 
   if FileExists(PsExe) then
     Exec(PsExe, KillPsCmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-  Sleep(500);
+  // 5. Windows 파일 핸들 / DLL 락(libcrypto-3.dll 등) 완전 해제 보장 대기 (1.5초)
+  Sleep(1500);
 end;
 
 function InitializeSetup(): Boolean;
 begin
   Result := True;
-  KillExistingProcesses();
 end;
 
-// v2.14.1+: 설치 시작 및 완료 시점 백업시스템 프로세스 라이프사이클 관리
+// v2.15.1+: 설치 시작 및 완료 시점 백업시스템 프로세스 라이프사이클 관리
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
@@ -169,19 +166,11 @@ begin
   end;
 end;
 
-// v2.10.4: 언인스톨 시작 즉시 백업시스템 프로세스(트레이, 서버) 안전 종료 및 파일 잠금 선제 해제
+// v2.15.1+: 언인스톨 시작 즉시 백업시스템 프로세스 전수 사살 및 파일 잠금 선제 해제
 function InitializeUninstall(): Boolean;
-var
-  ResultCode: Integer;
-  StopBat: String;
 begin
   Result := True;
-  StopBat := ExpandConstant('{app}\stop_backup_system.bat');
-  if FileExists(StopBat) then
-  begin
-    Exec(StopBat, '', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Sleep(1000);
-  end;
+  KillExistingProcesses();
 end;
 
 

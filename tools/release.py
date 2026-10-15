@@ -501,18 +501,20 @@ def restart_local_server():
     if hasattr(subprocess, 'CREATE_NO_WINDOW'):
         no_win = {'creationflags': subprocess.CREATE_NO_WINDOW}
 
-    # 1. Kill running pythonw processes
+    # 1. Kill running pythonw / BackupSystem processes unconditionally
     try:
+        subprocess.run(['taskkill.exe', '/F', '/T', '/IM', 'pythonw.exe'], capture_output=True, timeout=8, **no_win)
+        subprocess.run(['taskkill.exe', '/F', '/T', '/IM', 'Kova.exe'], capture_output=True, timeout=8, **no_win)
+        subprocess.run(['taskkill.exe', '/F', '/T', '/IM', 'BackupSystem.exe'], capture_output=True, timeout=8, **no_win)
         subprocess.run(
-            ['powershell', '-NoProfile', '-Command',
-             'Get-Process -Name pythonw -ErrorAction SilentlyContinue | Stop-Process -Force'],
+            ['cmd.exe', '/c', 'for /f "tokens=5" %a in (\'netstat -aon ^| findstr :8765 ^| findstr LISTENING\') do taskkill /F /PID %a'],
             capture_output=True, timeout=8, **no_win
         )
-        print("      Stopped existing pythonw process(es).")
+        print("      Stopped existing pythonw and BackupSystem process(es).")
     except Exception as e:
         print(f"      Stop warning (may be OK if nothing was running): {e}")
 
-    time.sleep(1)
+    time.sleep(1.5)
 
     # 2. Restart server (Priority: pythonw.exe direct launch > start_silent.vbs fallback)
     venv_pyw = os.path.join(BASE_DIR, '.venv', 'Scripts', 'pythonw.exe')

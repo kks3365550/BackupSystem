@@ -330,12 +330,18 @@ def download_installer():
     import glob
     import json
     
-    # 1. 로컬 배포본 / 빌드본 탐색 (dist 및 D:\백업시스템_설치용)
-    search_dirs = [
-        os.path.join(BASE_DIR, "dist"),
-        r"D:\백업시스템_설치용",
-        r"D:\MyBackup_Repository"
-    ]
+    # 1. 로컬 배포본 / 빌드본 탐색 (dist 및 설정된 백업 저장소)
+    search_dirs = [os.path.join(BASE_DIR, "dist")]
+    try:
+        from core.config import ConfigManager
+        for p in ConfigManager.get_profiles():
+            rd = p.get("repo_dir")
+            if rd and os.path.exists(rd) and rd not in search_dirs:
+                search_dirs.append(rd)
+    except Exception:
+        pass
+    if os.path.exists(r"D:\백업시스템_설치용"):
+        search_dirs.append(r"D:\백업시스템_설치용")
     for d in search_dirs:
         if os.path.exists(d):
             exe_files = glob.glob(os.path.join(d, "*Setup*.exe"))

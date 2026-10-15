@@ -6,7 +6,29 @@ let sysImageLogTimer = null;
 
 async function loadSystemImageStatus() {
     const driveSelect = document.getElementById('sysimg-drive-select');
-    const targetDrive = driveSelect ? driveSelect.value : 'D:';
+    
+    // Dynamically populate available target drives (excluding C:)
+    if (driveSelect && (driveSelect.options.length <= 1 || driveSelect.options[0].disabled)) {
+        try {
+            const sysInfo = (typeof state !== 'undefined' && state.systemInfo) ? state.systemInfo : await fetchAPI('/api/system-info');
+            const availableDrives = (sysInfo?.drives || []).filter(d => !d.device.toUpperCase().startsWith('C:'));
+            if (availableDrives.length > 0) {
+                const currentVal = driveSelect.value;
+                driveSelect.innerHTML = availableDrives.map(d => {
+                    const ltr = d.device.substring(0, 2).toUpperCase();
+                    const freeGb = Math.round(d.free / (1024**3));
+                    return `<option value="${ltr}">${ltr} 드라이브 (${freeGb} GB 여유)</option>`;
+                }).join('');
+                if (currentVal && availableDrives.some(d => d.device.toUpperCase().startsWith(currentVal))) {
+                    driveSelect.value = currentVal;
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to populate drives dynamically:', e);
+        }
+    }
+
+    const targetDrive = (driveSelect && driveSelect.value) ? driveSelect.value : 'D:';
 
     try {
         const data = await fetchAPI(`/api/system-image/status?target_drive=${targetDrive}`);

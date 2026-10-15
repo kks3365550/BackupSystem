@@ -374,13 +374,13 @@
 
                             <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
                                 <div class="p-2.5 rounded-lg bg-zinc-950/80 border border-zinc-800/80">
-                                    <span class="text-[10px] text-zinc-500 block uppercase">1. Local Vault (D:)</span>
+                                    <span class="text-[10px] text-zinc-500 block uppercase">1. Local Vault</span>
                                     <span class="text-zinc-200 font-bold block mt-0.5">WORM Immutable</span>
                                     <span class="text-[10px] text-emerald-400">Write-Once / Lock</span>
                                 </div>
                                 <div class="p-2.5 rounded-lg bg-zinc-950/80 border border-zinc-800/80">
                                     <span class="text-[10px] text-zinc-500 block uppercase">2. Remote Mirror</span>
-                                    <span class="text-zinc-200 font-bold block mt-0.5">Desktop R2 / Offsite</span>
+                                    <span class="text-zinc-200 font-bold block mt-0.5">Cloud / NAS / Offsite</span>
                                     <span class="text-[10px] text-cyan-400">Encrypted Transport</span>
                                 </div>
                             </div>
@@ -614,10 +614,10 @@
                             <div>
                                 <label class="block text-xs font-semibold text-zinc-300 mb-1">백업 저장소 (Repository)</label>
                                 <div class="flex gap-2">
-                                    <input type="text" id="custom-repo-dir" value="D:\MyBackup_Repository" class="flex-1 bg-zinc-950/80 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 font-mono focus:outline-none focus:border-blue-500">
+                                    <input type="text" id="custom-repo-dir" placeholder="예: D:\MyBackup_Repository 또는 E:\BackupRepository" class="flex-1 bg-zinc-950/80 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 font-mono focus:outline-none focus:border-blue-500">
                                     <button onclick="openDirectoryPicker('custom-repo-dir')" class="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-medium border border-zinc-700 shrink-0">선택</button>
                                 </div>
-                                <p class="text-[11px] text-zinc-400 mt-1">D: 드라이브 (여유: 908 GB 넉넉함)</p>
+                                <p id="custom-repo-space-hint" class="text-[11px] text-zinc-400 mt-1">백업 아카이브와 블롭이 안전하게 저장될 로컬 드라이브 폴더입니다.</p>
                             </div>
 
                             <div>
@@ -848,7 +848,7 @@
                                 </span>
                             </div>
                             <p class="text-xs text-slate-300">
-                                로컬 저장소(D:)에 1차 백업 완료 시, Tailscale 네트워크 PC(<strong class="text-cyan-400">100.90.20.59</strong> 데스크탑) 또는 NAS로 <strong class="text-emerald-400">초고속 멀티스레드(robocopy /MT:32)</strong> 자동 동기화하여 3-2-1 백업을 완성합니다.
+                                로컬 저장소에 1차 백업 완료 시, 사내 다른 PC/NAS 또는 <strong class="text-cyan-400">구글 드라이브(Google Drive)</strong> 클라우드로 자동 복제하여 랜섬웨어·화재 등 재난으로부터 데이터를 완벽히 보호합니다.
                             </p>
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
@@ -858,33 +858,61 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-slate-800/80 items-end">
-                        <div class="md:col-span-6 space-y-1">
-                            <label class="block text-[11px] font-semibold text-slate-300">원격 대상 저장소 경로 (UNC 네트워크 공유 또는 드라이브)</label>
-                            <div class="flex gap-2">
-                                <input type="text" id="offsite-remote-path" placeholder="예: \\100.90.20.59\BackupShare 또는 Z:\RemoteBackup" class="flex-1 bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
-                                <button onclick="openDirectoryPicker('offsite-remote-path')" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-medium shrink-0">폴더 선택</button>
+                    <!-- 오프사이트 대상 공급자 선택 (Local vs Google Drive) -->
+                    <div class="pt-2 border-t border-slate-800/80">
+                        <div class="flex flex-wrap items-center gap-4 mb-3">
+                            <span class="text-[11px] font-semibold text-slate-300">원격 복제 대상:</span>
+                            <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-200">
+                                <input type="radio" name="offsite-provider" value="local" id="offsite-provider-local" onchange="toggleOffsiteProviderUI('local')" checked class="text-cyan-500 bg-slate-800 border-slate-700 focus:ring-0">
+                                <span class="font-medium">🖥️ 로컬 / SMB 네트워크 공유 (UNC)</span>
+                            </label>
+                            <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-200">
+                                <input type="radio" name="offsite-provider" value="gdrive" id="offsite-provider-gdrive" onchange="toggleOffsiteProviderUI('gdrive')" class="text-cyan-500 bg-slate-800 border-slate-700 focus:ring-0">
+                                <span class="font-medium">☁️ 구글 드라이브 클라우드 (Google Drive)</span>
+                            </label>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                            <!-- 로컬 / SMB 설정 필드 -->
+                            <div id="offsite-local-fields" class="md:col-span-6 space-y-1">
+                                <label class="block text-[11px] font-semibold text-slate-300">원격 대상 저장소 경로 (UNC 네트워크 공유 또는 드라이브)</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="offsite-remote-path" placeholder="예: \\192.168.1.100\BackupShare 또는 Z:\RemoteBackup" class="flex-1 bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+                                    <button onclick="openDirectoryPicker('offsite-remote-path')" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-medium shrink-0">폴더 선택</button>
+                                </div>
                             </div>
-                        </div>
 
-                        <div class="md:col-span-3 space-y-2">
-                            <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
-                                <input type="checkbox" id="offsite-enabled" class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0">
-                                <span class="font-semibold">3-2-1 복제 활성화</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-400">
-                                <input type="checkbox" id="offsite-auto-sync" class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0">
-                                <span>로컬 백업 완료 후 자동 동기화</span>
-                            </label>
-                        </div>
+                            <!-- 구글 드라이브 설정 필드 -->
+                            <div id="offsite-gdrive-fields" class="md:col-span-6 space-y-2 hidden">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-300">구글 서비스 계정 키 파일 (.json 경로)</label>
+                                    <input type="text" id="offsite-gdrive-credentials" placeholder="예: C:\keys\gdrive-service-account.json" class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-300">구글 드라이브 대상 폴더명 또는 Folder ID</label>
+                                    <input type="text" id="offsite-gdrive-folder" placeholder="기본값: BackupSystem_Offsite" class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+                                </div>
+                            </div>
 
-                        <div class="md:col-span-3 flex items-center justify-end gap-2">
-                            <button onclick="testOffsiteFromUI()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-800/60 rounded-xl text-xs font-medium transition flex items-center gap-1">
-                                <i data-lucide="network" class="w-3.5 h-3.5"></i> 연결 테스트
-                            </button>
-                            <button onclick="saveOffsiteConfigFromUI()" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-md flex items-center gap-1">
-                                <i data-lucide="save" class="w-3.5 h-3.5"></i> 설정 저장
-                            </button>
+                            <div class="md:col-span-3 space-y-2">
+                                <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                                    <input type="checkbox" id="offsite-enabled" class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0">
+                                    <span class="font-semibold">3-2-1 복제 활성화</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-400">
+                                    <input type="checkbox" id="offsite-auto-sync" class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0">
+                                    <span>로컬 백업 완료 후 자동 동기화</span>
+                                </label>
+                            </div>
+
+                            <div class="md:col-span-3 flex items-center justify-end gap-2">
+                                <button onclick="testOffsiteFromUI()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-800/60 rounded-xl text-xs font-medium transition flex items-center gap-1">
+                                    <i data-lucide="network" class="w-3.5 h-3.5"></i> 연결 테스트
+                                </button>
+                                <button onclick="saveOffsiteConfigFromUI()" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-md flex items-center gap-1">
+                                    <i data-lucide="save" class="w-3.5 h-3.5"></i> 설정 저장
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -933,7 +961,7 @@
                     <!-- Target Drive Status -->
                     <div class="p-4 rounded-2xl glass-card border border-slate-700/60 space-y-1">
                         <div class="flex justify-between items-center text-slate-400 text-xs font-medium">
-                            <span id="sysimg-target-title">백업 저장 드라이브 (D:)</span>
+                            <span id="sysimg-target-title">백업 저장 드라이브</span>
                             <i data-lucide="database" class="w-4 h-4 text-emerald-400"></i>
                         </div>
                         <div id="sysimg-d-free" class="text-2xl font-black text-emerald-400 font-mono">0 GB</div>
@@ -966,9 +994,7 @@
                             <div class="flex items-center gap-2">
                                 <label class="text-xs text-slate-300 font-medium">저장 대상 드라이브:</label>
                                 <select id="sysimg-drive-select" class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:border-blue-500">
-                                    <option value="D:" selected>D: 드라이브 (권장)</option>
-                                    <option value="E:">E: 드라이브</option>
-                                    <option value="F:">F: 드라이브</option>
+                                    <option value="" disabled selected>드라이브 검색 중...</option>
                                 </select>
                             </div>
                             <button id="btn-start-sysimg" onclick="startSystemImageBackup()" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-emerald-600/20 flex items-center gap-2">
@@ -1391,7 +1417,7 @@
                         </label>
                         <span id="onboard-drive-badge" class="text-[10px] text-blue-400 bg-blue-950/70 border border-blue-800/60 px-2 py-0.5 rounded-full font-mono">드라이브 탐색 중...</span>
                     </div>
-                    <input type="text" id="onboard-repo-dir" value="D:\BackupRepository" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 text-xs font-mono focus:border-blue-500 focus:outline-none">
+                    <input type="text" id="onboard-repo-dir" placeholder="자동 추천 드라이브 검색 중..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 text-xs font-mono focus:border-blue-500 focus:outline-none">
                     <div id="onboard-drive-chips" class="flex flex-wrap gap-1.5 mt-2"></div>
                     <p class="text-[10px] text-slate-400 mt-1">시스템에서 여유 공간이 충분한 최적의 드라이브를 자동으로 추천합니다.</p>
                 </div>

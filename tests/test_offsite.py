@@ -132,5 +132,96 @@ class TestOffsiteReplication(unittest.TestCase):
         self.assertFalse(pf["ok"])
 
 
+class TestGoogleDriveOffsite(unittest.TestCase):
+    """Google Drive 오프사이트 복제 엔진 테스트"""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="gdrive_offsite_test_")
+        self.src = os.path.join(self.tmp, "src")
+        os.makedirs(os.path.join(self.src, "blobs", "bb"), exist_ok=True)
+        with open(os.path.join(self.src, "blobs", "bb", "sample.blob"), "wb") as f:
+            f.write(b"data" * 50)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_gdrive_missing_credentials(self):
+        from core.offsite import GoogleDriveOffsiteReplicator
+        rep = GoogleDriveOffsiteReplicator(self.src, credentials_file="C:\\nonexistent\\key.json")
+        pf = rep.preflight()
+        self.assertFalse(pf["ok"])
+        self.assertTrue("Service Account" in pf["reason"] or "JSON" in pf["reason"])
+
+    def test_gdrive_preflight_and_replication_mocked(self):
+        from unittest.mock import patch, MagicMock
+        from core.offsite import GoogleDriveOffsiteReplicator
+
+        # Dummy credentials file
+        cred_path = os.path.join(self.tmp, "creds.json")
+        with open(cred_path, "w", encoding="utf-8") as f:
+            f.write('{"client_email": "backup-bot@gdrive.iam.gserviceaccount.com"}')
+
+        with patch("core.offsite.g_service_account") as mock_sa, \
+             patch("core.offsite.g_discovery") as mock_disc:
+            
+            mock_creds = MagicMock()
+            mock_sa.Credentials.from_service_account_file.return_value = mock_creds
+            
+            mock_service = MagicMock()
+            mock_disc.build.return_value = mock_service
+
+            # Mock about().get()
+            mock_about = MagicMock()
+            mock_about.execute.return_value = {
+                "storageQuota": {"limit": "10737418240", "usage": "1073741824"},
+                "user": {"emailAddress": "backup-bot@gdrive.iam.gserviceaccount.com"}
+            }
+            mock_service.about().get.return_value = mock_about
+
+            # Mock files().list()
+            mock_files_list = MagicMock()
+            mock_files_list.execute.return_value = {
+                "files": [{"id": "folder_123", "name": "BackupSystem_Offsite"}]
+            }
+            mock_service.files().list.return_value = mock_files_list
+
+            # Mock files().create()
+            mock_create = MagicMock()
+            mock_create.next_chunk.return_value = (None, {"id": "file_new_999"})
+            mock_create.execute.return_value = {"id": "file_new_999"}
+            mock_service.files().create.return_value = mock_create
+
+            rep = GoogleDriveOffsiteReplicator(self.src, credentials_file=cred_path, folder_name_or_id="BackupSystem_Offsite")
+            pf = rep.preflight()
+            self.assertTrue(pf["ok"])
+            self.assertEqual(pf["user_email"], "backup-bot@gdrive.iam.gserviceaccount.com")
+            self.assertEqual(pf["free_gb"], 9.0)
+
+            res = rep.replicate()
+            self.assertTrue(res["success"])
+            self.assertEqual(res["provider"], "gdrive")
+            self.assertEqual(res["files_copied"], 1)
+
+    def test_gdrive_quoted_credentials_path(self):
+        from core.offsite import GoogleDriveOffsiteReplicator
+        cred_path = os.path.join(self.src, "creds.json")
+        with open(cred_path, "w", encoding="utf-8") as f:
+            f.write('{"type": "service_account"}')
+
+        # Test with surrounding double quotes (as copied from Windows Explorer)
+        quoted_path = f'"{cred_path}"'
+        rep = GoogleDriveOffsiteReplicator(self.src, credentials_file=quoted_path)
+        self.assertEqual(rep.credentials_file, cred_path)
+        self.assertTrue(os.path.exists(rep.credentials_file))
+
+        # Test with surrounding single quotes
+        single_quoted = f"'{cred_path}'"
+        rep2 = GoogleDriveOffsiteReplicator(self.src, credentials_file=single_quoted)
+        self.assertEqual(rep2.credentials_file, cred_path)
+        self.assertTrue(os.path.exists(rep2.credentials_file))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+

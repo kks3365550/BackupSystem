@@ -425,15 +425,24 @@ def dismount_system_image_vhdx(req: VhdxDismountRequest):
 # --- 3-2-1 Offsite Remote Replication API ---
 class OffsiteSaveRequest(BaseModel):
     enabled: bool = False
+    provider: Optional[str] = "local"
     remote_path: Optional[str] = ""
     auto_sync: bool = True
+    gdrive_credentials_file: Optional[str] = ""
+    gdrive_folder_id: Optional[str] = ""
 
 class OffsiteTestRequest(BaseModel):
+    provider: Optional[str] = None
     remote_path: Optional[str] = None
+    gdrive_credentials_file: Optional[str] = None
+    gdrive_folder_id: Optional[str] = None
 
 class OffsiteSyncRequest(BaseModel):
+    provider: Optional[str] = None
     remote_path: Optional[str] = None
     source_repo_dir: Optional[str] = None
+    gdrive_credentials_file: Optional[str] = None
+    gdrive_folder_id: Optional[str] = None
 
 def _check_remote_path(remote_path: Optional[str]):
     path = (remote_path or "").strip()
@@ -486,46 +495,176 @@ def _check_remote_path(remote_path: Optional[str]):
             "error": str(e)
         }
 
+def _check_gdrive_connection(credentials_file: Optional[str], folder_id: Optional[str], interactive: bool = False):
+    try:
+        from core.offsite import GoogleDriveOffsiteReplicator
+        cands = _get_all_candidate_repos()
+        repo = cands[0] if cands else os.getcwd()
+        creds_clean = (credentials_file or "").strip().strip('"').strip("'")
+        folder_clean = (folder_id or "BackupSystem_Offsite").strip().strip('"').strip("'")
+        rep = GoogleDriveOffsiteReplicator(
+            local_repo_dir=repo,
+            credentials_file=creds_clean,
+            folder_name_or_id=folder_clean or "BackupSystem_Offsite",
+            interactive=interactive
+        )
+        pf = rep.preflight()
+        return {
+            "reachable": bool(pf.get("reachable")),
+            "exists": True,
+            "user_email": pf.get("user_email", ""),
+            "target_folder_id": pf.get("target_folder_id", ""),
+            "total_gb": pf.get("total_gb", 0.0),
+            "used_gb": pf.get("used_gb", 0.0),
+            "free_gb": pf.get("free_gb", 0.0),
+            "free_percent": pf.get("free_percent", 0.0),
+            "error": pf.get("reason") if not pf.get("ok") else None
+        }
+    except Exception as e:
+        return {
+            "reachable": False,
+            "exists": False,
+            "total_gb": 0.0,
+            "used_gb": 0.0,
+            "free_gb": 0.0,
+            "free_percent": 0.0,
+            "error": str(e)
+        }
+
 @app.get("/api/offsite")
 def get_offsite_status():
     cfg = ConfigManager.get_offsite_config()
-    remote = cfg.get("remote_path", "")
-    status = _check_remote_path(remote)
+    provider = cfg.get("provider", "local")
+    remote = (cfg.get("remote_path", "") or "").strip().strip('"').strip("'")
+    gdrive_creds = (cfg.get("gdrive_credentials_file", "") or "").strip().strip('"').strip("'")
+    gdrive_folder = (cfg.get("gdrive_folder_id", "") or "").strip().strip('"').strip("'")
+
+    if provider == "gdrive":
+        status = _check_gdrive_connection(gdrive_creds, gdrive_folder, interactive=False)
+    else:
+        status = _check_remote_path(remote)
+
     return {
         "success": True,
         "enabled": cfg.get("enabled", False),
+        "provider": provider,
         "remote_path": remote,
+        "gdrive_credentials_file": gdrive_creds,
+        "gdrive_folder_id": gdrive_folder,
         "auto_sync": cfg.get("auto_sync", True),
         "status": status
     }
 
 @app.post("/api/offsite")
 def save_offsite_settings(req: OffsiteSaveRequest):
+    remote_clean = (req.remote_path or "").strip().strip('"').strip("'")
+    creds_clean = (req.gdrive_credentials_file or "").strip().strip('"').strip("'")
+    folder_clean = (req.gdrive_folder_id or "").strip().strip('"').strip("'")
     saved = ConfigManager.save_offsite_config({
         "enabled": req.enabled,
-        "remote_path": req.remote_path,
-        "auto_sync": req.auto_sync
+        "provider": (req.provider or "local").strip().lower(),
+        "remote_path": remote_clean,
+        "auto_sync": req.auto_sync,
+        "gdrive_credentials_file": creds_clean,
+        "gdrive_folder_id": folder_clean
     })
-    append_task_log(f"[3-2-1 설정] 오프사이트 원격 복제 설정 저장: 활성={saved['enabled']}, 경로={saved['remote_path']}, 자동동기화={saved['auto_sync']}")
+    append_task_log(f"[3-2-1 설정] 오프사이트 원격 복제 설정 저장: 제공자={saved['provider']}, 활성={saved['enabled']}, 경로={saved['remote_path']}, GoogleDrive키={saved['gdrive_credentials_file']}")
     return {"success": True, "data": saved}
 
 @app.post("/api/offsite/test")
 def test_offsite_connection(req: OffsiteTestRequest):
-    target = req.remote_path
-    if not target:
-        target = ConfigManager.get_offsite_config().get("remote_path", "")
-    status = _check_remote_path(target)
-    return {
-        "success": bool(status.get("reachable")),
-        "remote_path": target,
-        "status": status
-    }
+    cfg = ConfigManager.get_offsite_config()
+    provider = req.provider or cfg.get("provider", "local")
+
+    if provider == "gdrive":
+        creds = req.gdrive_credentials_file if req.gdrive_credentials_file is not None else cfg.get("gdrive_credentials_file", "")
+        folder = req.gdrive_folder_id if req.gdrive_folder_id is not None else cfg.get("gdrive_folder_id", "")
+        creds = (creds or "").strip().strip('"').strip("'")
+        folder = (folder or "").strip().strip('"').strip("'")
+
+        # 1. 기 저장된 OAuth 토큰 유무 확인
+        base_data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+        token_path = os.path.join(base_data_dir, "gdrive_oauth_token.json")
+
+        needs_oauth = False
+        if creds and os.path.exists(creds) and not os.path.exists(token_path):
+            try:
+                import json
+                with open(creds, "r", encoding="utf-8") as f_cred:
+                    cdata = json.load(f_cred)
+                if "installed" in cdata or "web" in cdata:
+                    needs_oauth = True
+            except Exception:
+                pass
+
+        if needs_oauth:
+            # 백그라운드 프로세스가 브라우저를 띄우지 않고, 포트 8766 수신 대기 시작
+            # 생성된 auth_url을 프론트엔드로 반환하여 사용자의 브라우저에서 직접 팝업 창을 띄움
+            from google_auth_oauthlib.flow import InstalledAppFlow
+            flow = InstalledAppFlow.from_client_secrets_file(
+                creds, scopes=["https://www.googleapis.com/auth/drive"]
+            )
+            flow.redirect_uri = "http://localhost:8766/"
+            auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
+
+            def _oauth_listener():
+                try:
+                    logger.info("[Google OAuth] 포트 8766에서 구글 로그인 콜백 대기 시작...")
+                    tok = flow.run_local_server(port=8766, open_browser=False, prompt="consent", access_type="offline")
+                    os.makedirs(base_data_dir, exist_ok=True)
+                    with open(token_path, "w", encoding="utf-8") as tf:
+                        tf.write(tok.to_json())
+                    logger.info(f"[Google OAuth] 토큰 저장 성공: {token_path}")
+                    # 설치 및 배포 디렉터리 동기화
+                    for target_dir in [r"D:\백업시스템_설치용\data", r"C:\Users\kksjmj\AppData\Local\Programs\백업시스템\data"]:
+                        try:
+                            os.makedirs(target_dir, exist_ok=True)
+                            with open(os.path.join(target_dir, "gdrive_oauth_token.json"), "w", encoding="utf-8") as tf:
+                                tf.write(tok.to_json())
+                        except Exception:
+                            pass
+                except Exception as ex:
+                    logger.error(f"[Google OAuth] 리스너 오류: {ex}")
+
+            import threading
+            threading.Thread(target=_oauth_listener, daemon=True).start()
+
+            return {
+                "success": True,
+                "needs_oauth": True,
+                "auth_url": auth_url,
+                "provider": "gdrive",
+                "message": "사용자 브라우저에서 구글 로그인 팝업 창이 열립니다."
+            }
+
+        # 이미 토큰이 있거나 서비스 계정인 경우 정상 연결 검증 수행
+        status = _check_gdrive_connection(creds, folder, interactive=False)
+        return {
+            "success": bool(status.get("reachable")),
+            "provider": "gdrive",
+            "needs_oauth": False,
+            "status": status
+        }
+    else:
+        target = req.remote_path if req.remote_path is not None else cfg.get("remote_path", "")
+        target = (target or "").strip().strip('"').strip("'")
+        status = _check_remote_path(target)
+        return {
+            "success": bool(status.get("reachable")),
+            "provider": "local",
+            "remote_path": target,
+            "status": status
+        }
 
 @app.post("/api/offsite/sync")
 def trigger_manual_offsite_sync(req: OffsiteSyncRequest):
     cfg = ConfigManager.get_offsite_config()
-    remote = (req.remote_path or cfg.get("remote_path", "")).strip()
-    if not remote:
+    provider = req.provider or cfg.get("provider", "local")
+    remote = (req.remote_path or cfg.get("remote_path", "")).strip().strip('"').strip("'")
+    gdrive_creds = (req.gdrive_credentials_file or cfg.get("gdrive_credentials_file", "")).strip().strip('"').strip("'")
+    gdrive_folder = (req.gdrive_folder_id or cfg.get("gdrive_folder_id", "")).strip().strip('"').strip("'")
+
+    if provider != "gdrive" and not remote:
         raise HTTPException(status_code=400, detail="오프사이트 원격 경로가 지정되지 않았습니다.")
 
     source_repo = req.source_repo_dir
@@ -540,14 +679,21 @@ def trigger_manual_offsite_sync(req: OffsiteSyncRequest):
     if not source_repo or not os.path.isdir(source_repo):
         raise HTTPException(status_code=400, detail="로컬 백업 저장소(Source Repo)를 찾을 수 없습니다.")
 
+    dest_desc = f"Google Drive ({gdrive_folder or 'BackupSystem_Offsite'})" if provider == "gdrive" else remote
+
     def _async_sync():
         try:
-            append_task_log(f"[3-2-1 오프사이트] 수동 동기화 시작: {source_repo} -> {remote}")
-            from core.offsite import OffsiteReplicator
-            replicator = OffsiteReplicator(source_repo, remote)
-            res = replicator.replicate()
+            append_task_log(f"[3-2-1 오프사이트] 수동 동기화 시작: {source_repo} -> {dest_desc}")
+            from core.offsite import replicate_offsite
+            res = replicate_offsite(
+                local_repo_dir=source_repo,
+                remote_repo_dir=remote,
+                provider=provider,
+                gdrive_credentials_file=gdrive_creds,
+                gdrive_folder_id=gdrive_folder
+            )
             if res.get("success"):
-                append_task_log(f"[3-2-1 오프사이트] 동기화 성공: 복사 {res.get('files_copied', 0)}개 / 전체 {res.get('files_total', 0)}개 ({res.get('duration_sec', 0.0):.1f}초)")
+                append_task_log(f"[3-2-1 오프사이트] 동기화 성공: 복사/업로드 {res.get('files_copied', 0)}개 / 전체 {res.get('files_total', 0)}개 ({res.get('duration_sec', 0.0):.1f}초)")
             else:
                 append_task_log(f"[3-2-1 오프사이트] 동기화 실패: {res.get('reason', '알 수 없음')}", level="WARNING")
         except Exception as e_sync:
@@ -556,8 +702,9 @@ def trigger_manual_offsite_sync(req: OffsiteSyncRequest):
     threading.Thread(target=_async_sync, daemon=True).start()
     return {
         "success": True,
-        "message": f"오프사이트 복제가 백그라운드에서 시작되었습니다. ({source_repo} -> {remote})",
+        "message": f"오프사이트 복제가 백그라운드에서 시작되었습니다. ({source_repo} -> {dest_desc})",
         "source_repo": source_repo,
+        "provider": provider,
         "remote_path": remote
     }
 

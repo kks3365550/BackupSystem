@@ -262,11 +262,12 @@ class TestDriveArchiveCore(unittest.TestCase):
     @patch("core.drive_archive.is_admin", return_value=True)
     @patch("core.drive_archive.mount_vhdx_volume", return_value="M:")
     @patch("core.drive_archive.dismount_vhdx_volume", return_value=True)
+    @patch("core.block_stream.stream_volume_to_volume", return_value={"success": True, "elapsed_seconds": 1.2, "average_speed_mb_s": 2500.0, "copied_bytes": 1073741824})
     @patch("subprocess.Popen")
     @patch("subprocess.run")
     @patch("core.drive_archive.set_volume_serial_number")
-    def test_restore_from_vhdx_flow(self, mock_set_vsn, mock_run, mock_popen, mock_dismount, mock_mount, mock_is_admin):
-        """VHDX 오프라인 마운트 -> Robocopy 복제 -> VSN/BCD 주입 -> 언마운트 흐름 검증"""
+    def test_restore_from_vhdx_flow(self, mock_set_vsn, mock_run, mock_popen, mock_stream, mock_dismount, mock_mount, mock_is_admin):
+        """VHDX 오프라인 마운트 -> LBA 블록 스트리밍 복제(Robocopy 배제) -> VSN/BCD 주입 -> 언마운트 흐름 검증"""
         vhdx_path = os.path.join(self.test_dir, "Restore_Target.vhdx")
         with open(vhdx_path, "wb") as f:
             f.write(b"VHDX_PAYLOAD" + b"\x00" * 2048)
@@ -279,13 +280,6 @@ class TestDriveArchiveCore(unittest.TestCase):
         with open(vhdx_path + ".meta.json", "w", encoding="utf-8") as f:
             json.dump(meta, f)
 
-        mock_p = MagicMock()
-        mock_p.poll.side_effect = [None, 0]
-        mock_p.returncode = 0
-        mock_p.wait.return_value = 0
-        mock_p.stdout.read.side_effect = [b"F", b"i", b"l", b"e", b"s", b" ", b":", b"\n", b""]
-        mock_popen.return_value = mock_p
-
         mock_run.return_value = MagicMock(returncode=0, stdout="부팅 파일 생성 완료", stderr="")
         mock_set_vsn.return_value = {"success": True, "method": "raw_vbr_patch", "vsn": "5AEF-9960"}
 
@@ -295,13 +289,9 @@ class TestDriveArchiveCore(unittest.TestCase):
         mock_dismount.assert_called_with(vhdx_path)
         mock_set_vsn.assert_called_with("E:", "5AEF-9960")
 
-        # Robocopy 스마트 제외 옵션(/XF, /XD) 검증
-        called_cmd = mock_popen.call_args[0][0]
-        self.assertIn("/XF", called_cmd)
-        self.assertIn("pagefile.sys", called_cmd)
-        self.assertIn("hiberfil.sys", called_cmd)
-        self.assertIn("/XD", called_cmd)
-        self.assertIn("System Volume Information", called_cmd)
+        # LBA 블록 스트리밍 복제가 100% 호출되고 Robocopy(subprocess.Popen)는 호출되지 않았음을 검증
+        mock_stream.assert_called_once()
+        mock_popen.assert_not_called()
 
         st = self.manager.get_status()
         self.assertEqual(st["status"], "completed")

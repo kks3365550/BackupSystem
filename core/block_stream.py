@@ -17,6 +17,8 @@ import zlib
 import ctypes
 import logging
 import subprocess
+import queue
+import threading
 from typing import Optional, Callable, List, Tuple, Dict, Any
 
 try:
@@ -202,49 +204,64 @@ def get_allocated_cluster_runs(
     """
     NTFS $Bitmap 바이트 배열을 파싱하여, 실제 데이터가 있는 LCN 구간을
     4MB~8MB 크기의 연속된 청크 (lcn, cluster_count) 목록으로 분할 반환.
-    빈 공간(bit 0)은 100% 스킵.
+    빈 공간(bit 0)은 100% 스킵. 바이트 단위 고속 스캔 적용.
     """
     if not bitmap_bytes:
         return []
 
-    max_clusters_per_chunk = max(1, max_chunk_bytes // cluster_size)
+    max_clusters = max(1, max_chunk_bytes // cluster_size)
     runs: List[Tuple[int, int]] = []
-    total_bits = len(bitmap_bytes) * 8
-    lcn = 0
 
-    while lcn < total_bits:
-        byte_idx = lcn >> 3
-        bit_idx = lcn & 7
-        b_val = bitmap_bytes[byte_idx]
+    cur_run_start = None
+    cur_run_len = 0
 
-        # 사용 중인 클러스터 비트(1) 발견
-        if (b_val >> bit_idx) & 1:
-            run_start = lcn
-            run_len = 0
-
-            # 연속된 1 비트 스캔
-            while lcn < total_bits:
-                cur_byte = bitmap_bytes[lcn >> 3]
-                cur_bit = lcn & 7
-                if not ((cur_byte >> cur_bit) & 1):
-                    break
-                run_len += 1
-                lcn += 1
-
-            # 청크 단위로 분할하여 추가
-            rem = run_len
-            cur_lcn = run_start
-            while rem > 0:
-                take = min(rem, max_clusters_per_chunk)
-                runs.append((cur_lcn, take))
-                cur_lcn += take
-                rem -= take
-        else:
-            # 0인 바이트는 한 번에 8비트씩 초고속 스킵
-            if b_val == 0 and bit_idx == 0:
-                lcn += 8
+    for byte_idx, b in enumerate(bitmap_bytes):
+        if b == 0:
+            if cur_run_start is not None:
+                rem = cur_run_len
+                c_lcn = cur_run_start
+                while rem > 0:
+                    take = min(rem, max_clusters)
+                    runs.append((c_lcn, take))
+                    c_lcn += take
+                    rem -= take
+                cur_run_start = None
+                cur_run_len = 0
+        elif b == 0xFF:
+            if cur_run_start is None:
+                cur_run_start = byte_idx * 8
+                cur_run_len = 8
             else:
-                lcn += 1
+                cur_run_len += 8
+        else:
+            # 부분 할당 바이트 (혼합 비트)
+            for bit in range(8):
+                if (b >> bit) & 1:
+                    if cur_run_start is None:
+                        cur_run_start = byte_idx * 8 + bit
+                        cur_run_len = 1
+                    else:
+                        cur_run_len += 1
+                else:
+                    if cur_run_start is not None:
+                        rem = cur_run_len
+                        c_lcn = cur_run_start
+                        while rem > 0:
+                            take = min(rem, max_clusters)
+                            runs.append((c_lcn, take))
+                            c_lcn += take
+                            rem -= take
+                        cur_run_start = None
+                        cur_run_len = 0
+
+    if cur_run_start is not None:
+        rem = cur_run_len
+        c_lcn = cur_run_start
+        while rem > 0:
+            take = min(rem, max_clusters)
+            runs.append((c_lcn, take))
+            c_lcn += take
+            rem -= take
 
     return runs
 
@@ -703,17 +720,21 @@ def stream_volume_to_volume(
     src_drive: str,
     dst_drive: str,
     progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
-    cancel_event = None
+    cancel_event = None,
+    chunk_bytes: int = 16 * 1024 * 1024,
+    queue_depth: int = 6
 ) -> Dict[str, Any]:
     """
     삼성 매지션(WinClon) 방식의 볼륨 직결 LBA 블록 스트리밍 복제.
-    VHDX 가상 마운트 볼륨(예: H:) 또는 원본 볼륨에서 타겟 SSD(예: E:)로
-    파일 단위 복사(Robocopy) 없이 순차 블록(4MB~8MB) 다이렉트 I/O 스트리밍.
+    [고성능 최적화]:
+    1. 생산자-소비자(Producer-Consumer) 듀얼 스레드 파이프라인 (Reader/Writer 동시 병렬 I/O)
+    2. 사전 할당된 버퍼 풀 (Zero-Allocation Buffer Pool)로 파이썬 메모리 복사 및 GC 오버헤드 0 제거
+    3. 16MB 대형 청크로 커널 I/O 컨텍스트 스위칭 최소화
     """
     src_vol = src_drive.strip().rstrip("\\")[:2].upper()
     dst_vol = dst_drive.strip().rstrip("\\")[:2].upper()
     start_time = time.time()
-    logger.info(f"🚀 [볼륨 직결 LBA 블록 스트리밍 시작] {src_vol} -> {dst_vol}")
+    logger.info(f"🚀 [볼륨 직결 듀얼 파이프라인 LBA 블록 스트리밍 시작] {src_vol} -> {dst_vol} (청크={chunk_bytes // (1024*1024)}MB, 큐깊이={queue_depth})")
 
     cluster_size, total_clusters, _ = get_volume_geometry(src_vol)
     src_path = f"\\\\.\\{src_vol}"
@@ -725,46 +746,161 @@ def stream_volume_to_volume(
     try:
         h_src = open_volume_direct(src_path, write=False)
         bitmap_bytes = query_volume_bitmap(h_src, total_clusters)
-        runs = get_allocated_cluster_runs(bitmap_bytes, cluster_size, DEFAULT_CHUNK_BYTES)
+        runs = get_allocated_cluster_runs(bitmap_bytes, cluster_size, chunk_bytes)
 
         if not runs:
             raise RuntimeError(f"{src_vol} 볼륨의 유효 클러스터 비트맵이 비어 있습니다.")
 
         total_used_clusters = sum(cnt for _, cnt in runs)
         total_data_bytes = total_used_clusters * cluster_size
-        logger.info(f"✓ {src_vol} 사용 클러스터: {total_used_clusters:,}개 ({total_data_bytes / (1024**3):.2f} GB)")
+        logger.info(f"✓ {src_vol} 사용 클러스터: {total_used_clusters:,}개 ({total_data_bytes / (1024**3):.2f} GB, 총 {len(runs):,} 청크)")
 
         h_dst = open_volume_direct(dst_path, write=True, lock=True)
 
+        # ----------------------------------------------------------------------
+        # 생산자-소비자 듀얼 스레드 파이프라인 & Zero-Allocation 버퍼 풀
+        # ----------------------------------------------------------------------
+        pool_q = queue.Queue(maxsize=queue_depth)
+        for _ in range(queue_depth):
+            pool_q.put(ctypes.create_string_buffer(chunk_bytes))
+
+        ready_q = queue.Queue(maxsize=queue_depth)
+        stop_event = threading.Event()
+        error_holder = []
         copied_bytes = 0
-        last_log_time = time.time()
 
-        for idx, (lcn, cluster_count) in enumerate(runs):
-            if cancel_event and cancel_event.is_set():
-                raise InterruptedError("사용자에 의해 볼륨 스트리밍 복제가 취소되었습니다.")
+        def reader_worker():
+            try:
+                for idx, (lcn, cluster_count) in enumerate(runs):
+                    if stop_event.is_set():
+                        break
+                    if cancel_event and cancel_event.is_set():
+                        raise InterruptedError("사용자에 의해 볼륨 스트리밍 복제가 취소되었습니다.")
 
-            raw_data = read_volume_lcn_chunk(h_src, lcn, cluster_count, cluster_size)
-            write_volume_lcn_chunk(h_dst, lcn, cluster_size, raw_data)
+                    # 버퍼 풀에서 사전 할당된 버퍼 획득
+                    while not stop_event.is_set():
+                        try:
+                            buf = pool_q.get(timeout=0.2)
+                            break
+                        except queue.Empty:
+                            if cancel_event and cancel_event.is_set():
+                                raise InterruptedError("사용자에 의해 볼륨 스트리밍 복제가 취소되었습니다.")
+                    else:
+                        break
 
-            copied_bytes += len(raw_data)
+                    bytes_to_read = cluster_count * cluster_size
+                    offset = lcn * cluster_size
+                    large_int = ctypes.c_int64(offset)
+                    new_ptr = ctypes.c_int64()
+                    if not SetFilePointerEx(h_src, large_int, ctypes.byref(new_ptr), FILE_BEGIN):
+                        err = GetLastError()
+                        pool_q.put(buf)
+                        raise OSError(f"SetFilePointerEx(LCN={lcn}) 이동 실패 (WinError: {err})")
 
-            now = time.time()
-            if now - last_log_time >= 0.5 or idx == len(runs) - 1:
-                elapsed = max(0.1, now - start_time)
-                pct = min(100.0, round((copied_bytes / max(1, total_data_bytes)) * 100.0, 1))
-                speed_mb = (copied_bytes / (1024 * 1024)) / elapsed
+                    bytes_read = ctypes.c_ulong()
+                    if not ReadFile(h_src, buf, bytes_to_read, ctypes.byref(bytes_read), None):
+                        err = GetLastError()
+                        pool_q.put(buf)
+                        raise OSError(f"ReadFile(LCN={lcn}, Bytes={bytes_to_read}) 읽기 실패 (WinError: {err})")
 
-                if progress_callback:
-                    progress_callback({
-                        "percent": pct,
-                        "processed_bytes": copied_bytes,
-                        "total_bytes": total_data_bytes,
-                        "speed_mb_s": round(speed_mb, 1),
-                        "chunk_index": idx + 1,
-                        "total_chunks": len(runs),
-                        "phase": f"NVMe 초고속 LBA 블록 직사 복제 중 ({pct}%)"
-                    })
-                last_log_time = now
+                    actual_read = bytes_read.value
+                    while not stop_event.is_set():
+                        try:
+                            ready_q.put((idx, lcn, cluster_count, buf, actual_read), timeout=0.2)
+                            break
+                        except queue.Full:
+                            if cancel_event and cancel_event.is_set():
+                                pool_q.put(buf)
+                                raise InterruptedError("사용자에 의해 볼륨 스트리밍 복제가 취소되었습니다.")
+
+                # 정상 완료 센티넬(None) 전송
+                if not stop_event.is_set():
+                    ready_q.put(None)
+
+            except Exception as e:
+                error_holder.append(e)
+                stop_event.set()
+                try:
+                    ready_q.put_nowait(None)
+                except Exception:
+                    pass
+
+        def writer_worker():
+            nonlocal copied_bytes
+            last_log_time = time.time()
+            try:
+                while True:
+                    if stop_event.is_set() and ready_q.empty():
+                        break
+
+                    while not stop_event.is_set():
+                        try:
+                            item = ready_q.get(timeout=0.2)
+                            break
+                        except queue.Empty:
+                            if cancel_event and cancel_event.is_set():
+                                raise InterruptedError("사용자에 의해 볼륨 스트리밍 복제가 취소되었습니다.")
+                    else:
+                        if ready_q.empty():
+                            break
+                        item = ready_q.get_nowait()
+
+                    if item is None:
+                        # 정상 종료
+                        break
+
+                    idx, lcn, cluster_count, buf, actual_read = item
+                    try:
+                        offset = lcn * cluster_size
+                        large_int = ctypes.c_int64(offset)
+                        new_ptr = ctypes.c_int64()
+                        if not SetFilePointerEx(h_dst, large_int, ctypes.byref(new_ptr), FILE_BEGIN):
+                            err = GetLastError()
+                            raise OSError(f"SetFilePointerEx(LCN={lcn}) 쓰기 포인터 이동 실패 (WinError: {err})")
+
+                        bytes_written = ctypes.c_ulong()
+                        if not WriteFile(h_dst, buf, actual_read, ctypes.byref(bytes_written), None):
+                            err = GetLastError()
+                            raise OSError(f"WriteFile(LCN={lcn}, Bytes={actual_read}) 쓰기 실패 (WinError: {err})")
+
+                        copied_bytes += actual_read
+                    finally:
+                        # 버퍼 즉시 풀로 반납 (재사용)
+                        pool_q.put(buf)
+
+                    now = time.time()
+                    if now - last_log_time >= 0.5 or idx == len(runs) - 1:
+                        elapsed = max(0.1, now - start_time)
+                        pct = min(100.0, round((copied_bytes / max(1, total_data_bytes)) * 100.0, 1))
+                        speed_mb = (copied_bytes / (1024 * 1024)) / elapsed
+
+                        if progress_callback:
+                            progress_callback({
+                                "percent": pct,
+                                "processed_bytes": copied_bytes,
+                                "total_bytes": total_data_bytes,
+                                "speed_mb_s": round(speed_mb, 1),
+                                "chunk_index": idx + 1,
+                                "total_chunks": len(runs),
+                                "phase": f"NVMe 초고속 LBA 블록 직사 복제 중 ({pct}% - {speed_mb:.1f} MB/s)"
+                            })
+                        last_log_time = now
+
+            except Exception as e:
+                error_holder.append(e)
+                stop_event.set()
+
+        t_reader = threading.Thread(target=reader_worker, name="BlockStreamReader", daemon=True)
+        t_writer = threading.Thread(target=writer_worker, name="BlockStreamWriter", daemon=True)
+
+        t_reader.start()
+        t_writer.start()
+
+        t_reader.join()
+        t_writer.join()
+
+        if error_holder:
+            raise error_holder[0]
 
         elapsed_total = time.time() - start_time
         avg_speed = (copied_bytes / (1024 * 1024)) / max(0.1, elapsed_total)

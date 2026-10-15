@@ -1083,12 +1083,31 @@ class DriveArchiveManager:
             self._cancel_event.clear()
             self.last_verification_result = {}
 
-        # 기본 타겟 경로 생성 (D:\MyBackup_Repository\archives\System_Drive_C_YYYYMMDD_HHMMSS.wim)
+        # 기본 타겟 경로 생성 (설정된 저장소 또는 비-C 최적 드라이브 하위 archives)
         if not target_wim_path:
             now_str = time.strftime("%Y%m%d_%H%M%S")
-            repo_base = "D:\\MyBackup_Repository\\archives"
-            if not os.path.exists("D:\\"):
+            repo_base = None
+            try:
+                from core.config import ConfigManager
+                profiles = ConfigManager.get_profiles()
+                if profiles and profiles[0].get("repo_dir"):
+                    repo_base = os.path.join(profiles[0]["repo_dir"], "archives")
+            except Exception:
+                pass
+
+            if not repo_base:
+                try:
+                    import psutil
+                    for part in psutil.disk_partitions(all=False):
+                        if not part.device.upper().startswith("C:") and os.path.exists(part.mountpoint):
+                            repo_base = os.path.join(part.mountpoint, "MyBackup_Repository", "archives")
+                            break
+                except Exception:
+                    pass
+
+            if not repo_base:
                 repo_base = os.path.join(tempfile.gettempdir(), "BackupSystem_Archives")
+
             os.makedirs(repo_base, exist_ok=True)
             target_wim_path = os.path.join(repo_base, f"System_Drive_{source_drive[0]}_{now_str}.wim")
 
@@ -1257,6 +1276,42 @@ class DriveArchiveManager:
             with self.state_lock:
                 self.is_running = False
 
+    def _resolve_archive_path(self, target_path: str) -> tuple[bool, str]:
+        """
+        아카이브 파일 경로 해석 및 존재 여부 검증 (WindowsImageBackup ACL 및 권한 부족 대응)
+        - 경로 정규화 및 list_archives() 캐시 조회
+        - PermissionError(액세스 거부) 또는 WindowsImageBackup 경로인 경우 실제 파일 존재로 인정
+        - (성공 여부, 보정된 실제 경로) 튜플 반환
+        """
+        resolved_path = target_path
+        found_in_cache = False
+
+        if not os.path.exists(resolved_path):
+            norm_in = resolved_path.replace("\\", "").replace("/", "").lower()
+            for arc in self.list_archives():
+                ap = arc.get("path") or arc.get("vhdx_path")
+                if ap and ap.replace("\\", "").replace("/", "").lower() == norm_in:
+                    resolved_path = ap
+                    found_in_cache = True
+                    break
+
+        if os.path.exists(resolved_path) or found_in_cache:
+            return True, resolved_path
+
+        # 비관리자 세션에서 WindowsImageBackup 접근 시 PermissionError(WinError 5) 검증
+        try:
+            os.stat(resolved_path)
+            return True, resolved_path
+        except PermissionError:
+            return True, resolved_path
+        except OSError as e:
+            if getattr(e, "winerror", None) == 5:
+                return True, resolved_path
+        except Exception:
+            pass
+
+        return False, resolved_path
+
     def verify_archive(self, wim_path: str) -> Dict[str, Any]:
         """
         슈뢰딩거의 백업 방지: 4단계 실측 검증 프로토콜
@@ -1272,17 +1327,11 @@ class DriveArchiveManager:
             "error": None
         }
 
-        if not os.path.exists(wim_path):
-            norm_in = wim_path.replace("\\", "").replace("/", "").lower()
-            for arc in self.list_archives():
-                ap = arc.get("path") or arc.get("vhdx_path")
-                if ap and ap.replace("\\", "").replace("/", "").lower() == norm_in:
-                    wim_path = ap
-                    break
-
-        if not os.path.exists(wim_path):
+        ok, resolved_path = self._resolve_archive_path(wim_path)
+        if not ok:
             result["error"] = f"파일이 존재하지 않습니다: {wim_path}"
             return result
+        wim_path = resolved_path
 
         meta_path = wim_path + ".meta.json" if not wim_path.endswith(".meta.json") else wim_path
         meta: Dict[str, Any] = {}
@@ -1534,15 +1583,10 @@ class DriveArchiveManager:
         with self.state_lock:
             if self.is_running:
                 return {"success": False, "error": "이미 다른 아카이브/복원 작업이 진행 중입니다."}
-            if not os.path.exists(wim_path):
-                norm_in = wim_path.replace("\\", "").replace("/", "").lower()
-                for arc in self.list_archives():
-                    ap = arc.get("path") or arc.get("vhdx_path")
-                    if ap and ap.replace("\\", "").replace("/", "").lower() == norm_in:
-                        wim_path = ap
-                        break
-            if not os.path.exists(wim_path):
+            ok, resolved_path = self._resolve_archive_path(wim_path)
+            if not ok:
                 return {"success": False, "error": f"아카이브 파일이 없습니다: {wim_path}"}
+            wim_path = resolved_path
             self.is_running = True
             self.status = "restoring"
             self.current_phase = "드라이브 복원 사전 준비 중"
@@ -1728,70 +1772,35 @@ class DriveArchiveManager:
                     raise RuntimeError(f"VHDX 가상 마운트 실패 또는 드라이브 할당 불가: {vhdx_path}")
 
             try:
-                # 2. 삼성 매지션급 LBA 블록 직접 스트리밍 복제 우선 시도 (Robocopy 안전 폴백)
+                # 2. 삼성 매지션급 LBA 블록 직접 스트리밍 복제 (100% 순수 블록 직사 복제)
                 if mounted_drive:
                     self.append_log(f"  - ✓ VHDX 가상 드라이브 마운트 성공: {mounted_drive}")
-                    block_success = False
-                    start_t = time.time()
+                    from core.block_stream import stream_volume_to_volume
+                    self.append_log(f"[2/4] [삼성 매지션 LBA 가속] VHDX({mounted_drive}) -> 타겟 SSD({target_root}) NVMe 다이렉트 블록 스트리밍 복제 시작...")
+                    with self.state_lock:
+                        self.progress_percent = 15.0
+                        self.current_phase = "NVMe LBA 블록 직접 스트리밍 복제 중"
 
-                    # 1차 시도: 삼성 매지션(WinClon) 방식의 볼륨 직결 LBA 블록 스트리밍
-                    try:
-                        from core.block_stream import stream_volume_to_volume
-                        self.append_log(f"[2/4] [삼성 매지션 LBA 가속] VHDX({mounted_drive}) -> 타겟 SSD({target_root}) NVMe 다이렉트 블록 스트리밍 복제 시도...")
+                    def on_block_prog(info: Dict[str, Any]):
+                        pct = info.get("percent", 0.0)
+                        spd = info.get("speed_mb_s", 0.0)
                         with self.state_lock:
-                            self.progress_percent = 15.0
-                            self.current_phase = "NVMe LBA 블록 직접 스트리밍 복제 중"
+                            self.progress_percent = round(15.0 + (pct * 0.65), 1)
+                            self.current_phase = f"NVMe LBA 블록 직사 복제 중 ({pct}% - {spd} MB/s)"
 
-                        def on_block_prog(info: Dict[str, Any]):
-                            pct = info.get("percent", 0.0)
-                            spd = info.get("speed_mb_s", 0.0)
-                            with self.state_lock:
-                                self.progress_percent = round(15.0 + (pct * 0.65), 1)
-                                self.current_phase = f"NVMe LBA 블록 직사 복제 중 ({pct}% - {spd} MB/s)"
+                    res_block = stream_volume_to_volume(
+                        mounted_drive,
+                        target_drive,
+                        progress_callback=on_block_prog,
+                        cancel_event=self._cancel_event
+                    )
+                    if not res_block.get("success"):
+                        raise RuntimeError(f"LBA 블록 스트리밍 복제 실패: {res_block.get('error', '알 수 없는 오류')}")
 
-                        res_block = stream_volume_to_volume(
-                            mounted_drive,
-                            target_drive,
-                            progress_callback=on_block_prog,
-                            cancel_event=self._cancel_event
-                        )
-                        if res_block.get("success"):
-                            block_success = True
-                            elapsed = res_block.get("elapsed_seconds", 0)
-                            spd = res_block.get("average_speed_mb_s", 0)
-                            self.append_log(f"  - 🎉 [삼성 매지션급 LBA 복제 성공] 초고속 블록 복제 완료! (소요 시간: {elapsed}초, 평균 속도: {spd} MB/s)")
-                    except Exception as e_block:
-                        self.append_log(f"  - [안내] LBA 블록 직접 쓰기 모드 미진입 ({e_block}) -> Robocopy 스마트 고속 복제로 안전 자동 전환")
-
-                    # 2차 폴백: Robocopy 스마트 제외 고속 복제
-                    if not block_success:
-                        self.append_log(f"[2/4] 오프라인 VHDX({mounted_drive}) -> 타겟 SSD({target_root}) Robocopy 마이그레이션 복제 중...")
-                        with self.state_lock:
-                            self.progress_percent = 15.0
-                            self.current_phase = "VHDX 무결점 마이그레이션 복제 중"
-
-                        robocopy_cmd = [
-                            "robocopy.exe",
-                            f"{mounted_drive}\\",
-                            target_root,
-                            "/MIR",
-                            "/R:1",
-                            "/W:1",
-                            "/NP",
-                            "/NFL",
-                            "/NDL",
-                            "/MT:16",
-                            "/XD",
-                            *DEFAULT_ARCHIVE_EXCLUDE_DIRS,
-                            "/XF",
-                            *DEFAULT_ARCHIVE_EXCLUDE_FILES
-                        ]
-                        self.append_log(f"  - 스마트 제외 옵션 적용: /XD {len(DEFAULT_ARCHIVE_EXCLUDE_DIRS)}개, /XF {len(DEFAULT_ARCHIVE_EXCLUDE_FILES)}개 (pagefile, hiberfil, temp 등 제외)")
-                        rc, out = self._run_robocopy(robocopy_cmd)
-                        if rc > 7:
-                            raise RuntimeError(f"Robocopy 복제 실패 (Exit Code: {rc})")
-                        elapsed = int(time.time() - start_t)
-                        self.append_log(f"  - ✓ SSD 마이그레이션 복제 완료! (소요 시간: {elapsed}초, Robocopy Code: {rc})")
+                    elapsed = res_block.get("elapsed_seconds", 0)
+                    spd = res_block.get("average_speed_mb_s", 0)
+                    copied_gb = res_block.get("copied_bytes", 0) / (1024**3)
+                    self.append_log(f"  - 🎉 [삼성 매지션급 LBA 복제 성공] 초고속 블록 복제 완료! (복제 용량: {copied_gb:.2f} GB, 소요 시간: {elapsed}초, 평균 속도: {spd} MB/s)")
                 else:
                     self.append_log("[2/4] 테스트 환경 복제 단계 통과")
 

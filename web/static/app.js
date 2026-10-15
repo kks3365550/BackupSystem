@@ -82,10 +82,10 @@ function renderOffsiteStatusWidget() {
     // Update Local Repo Name in Hero
     if (heroLocalRepo) {
         const activeProf = (state.profiles || []).find(p => p.auto_backup_enabled) || (state.profiles || [])[0];
-        const rPath = activeProf?.repo_dir || 'D:\\MyBackup_Repository';
-        const parts = rPath.split(/[\\/]/).filter(Boolean);
+        const rPath = activeProf?.repo_dir || '';
+        const parts = rPath ? rPath.split(/[\\/]/).filter(Boolean) : [];
         heroLocalRepo.innerText = parts[parts.length - 1] || '로컬 저장소';
-        heroLocalRepo.title = rPath;
+        heroLocalRepo.title = rPath || '로컬 저장소';
     }
 
     // Node C: Topology Offsite Pipeline Binding & Fluent Dash Pill
@@ -136,8 +136,15 @@ function renderOffsiteStatusWidget() {
         return;
     }
 
-    const modeText = off.replication_type === 'robocopy' ? 'Robocopy (LAN/NAS)' : (off.replication_type === 'rclone' ? 'Rclone (Cloud/S3)' : (off.replication_type || '원격'));
-    const targetText = off.remote_path || '-';
+    let modeText = '원격';
+    let targetText = '-';
+    if (off.provider === 'gdrive') {
+        modeText = '구글 드라이브 (Cloud)';
+        targetText = `GDrive: ${off.gdrive_folder_id || 'BackupSystem_Offsite'}`;
+    } else {
+        modeText = off.replication_type === 'robocopy' ? 'Robocopy (LAN/NAS)' : (off.replication_type === 'rclone' ? 'Rclone (Cloud/S3)' : (off.replication_type || '원격'));
+        targetText = off.remote_path || '-';
+    }
 
     if (sidebarStatus) {
         sidebarStatus.innerText = '3-2-1 보호중';
@@ -720,12 +727,24 @@ function onScheduleTypeChange() {
     }
 }
 
+function getDefaultRepoDir() {
+    if (state.config && state.config.repository_dir) {
+        return state.config.repository_dir;
+    }
+    const nonCDrive = (state.systemInfo?.drives || []).find(d => !d.device.toUpperCase().startsWith('C:'));
+    if (nonCDrive) {
+        const dev = nonCDrive.device.endsWith('\\') ? nonCDrive.device : nonCDrive.device + '\\';
+        return dev + 'MyBackup_Repository';
+    }
+    return 'C:\\BackupRepository';
+}
+
 function openCreateProfileModal() {
     document.getElementById('profile-modal-title').innerText = '새 백업 프로필 생성';
     document.getElementById('prof-id').value = '';
     document.getElementById('prof-name').value = '새 백업 프로필';
     document.getElementById('prof-sources').value = '';
-    document.getElementById('prof-repo').value = 'D:\\MyBackup_Repository';
+    document.getElementById('prof-repo').value = getDefaultRepoDir();
     document.getElementById('prof-excludes').value = '*.tmp, *.log, .git, __pycache__, node_modules';
     document.getElementById('prof-schedule-type').value = 'interval_hours';
     document.getElementById('prof-interval').value = '24';
@@ -745,7 +764,7 @@ function editProfile(profileId) {
     document.getElementById('prof-id').value = prof.id;
     document.getElementById('prof-name').value = prof.name;
     document.getElementById('prof-sources').value = (prof.sources || []).join('\n');
-    document.getElementById('prof-repo').value = prof.repo_dir || 'D:\\MyBackup_Repository';
+    document.getElementById('prof-repo').value = prof.repo_dir || getDefaultRepoDir();
     document.getElementById('prof-excludes').value = (prof.exclude_patterns || []).join(', ');
     
     const schedType = prof.schedule_type || 'interval_hours';
@@ -898,39 +917,80 @@ async function unregisterWindowsTaskFromUI() {
 // 3-2-1 오프사이트 원격 복제 UI 핸들러
 // =========================================================================
 
+function toggleOffsiteProviderUI(provider) {
+    const localFields = document.getElementById('offsite-local-fields');
+    const gdriveFields = document.getElementById('offsite-gdrive-fields');
+    const isGdrive = provider === 'gdrive';
+    if (localFields) localFields.classList.toggle('hidden', isGdrive);
+    if (gdriveFields) gdriveFields.classList.toggle('hidden', !isGdrive);
+    const radLocal = document.getElementById('offsite-provider-local');
+    const radGdrive = document.getElementById('offsite-provider-gdrive');
+    if (radLocal) radLocal.checked = !isGdrive;
+    if (radGdrive) radGdrive.checked = isGdrive;
+}
+
 async function loadOffsiteStatus() {
     try {
         const res = await fetchAPI('/api/offsite');
         const badge = document.getElementById('offsite-status-badge');
         const pathInput = document.getElementById('offsite-remote-path');
+        const gdriveCreds = document.getElementById('offsite-gdrive-credentials');
+        const gdriveFolder = document.getElementById('offsite-gdrive-folder');
         const enabledCheck = document.getElementById('offsite-enabled');
         const autoCheck = document.getElementById('offsite-auto-sync');
         const detailInfo = document.getElementById('offsite-detail-info');
 
+        const provider = res.provider || 'local';
+        toggleOffsiteProviderUI(provider);
+
         if (pathInput) pathInput.value = res.remote_path || '';
+        if (gdriveCreds) gdriveCreds.value = res.gdrive_credentials_file || '';
+        if (gdriveFolder) gdriveFolder.value = res.gdrive_folder_id || 'BackupSystem_Offsite';
         if (enabledCheck) enabledCheck.checked = !!res.enabled;
         if (autoCheck) autoCheck.checked = res.auto_sync !== false;
 
         if (!badge) return;
 
         const st = res.status || {};
-        if (!res.remote_path) {
-            badge.className = 'text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400 border border-slate-700';
-            badge.innerText = '미설정 (로컬 전용)';
-            if (detailInfo) detailInfo.classList.add('hidden');
-        } else if (st.reachable) {
-            badge.className = 'text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 flex items-center gap-1';
-            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> 정상 연결 (여유: ${st.free_gb} GB / ${st.free_percent}%)`;
-            if (detailInfo) {
-                detailInfo.classList.remove('hidden');
-                detailInfo.innerHTML = `원격 저장소 상태: 정상 접근 가능 | 전체 ${st.total_gb} GB 중 ${st.used_gb} GB 사용 (${st.free_gb} GB 여유)`;
+        if (provider === 'gdrive') {
+            if (!res.gdrive_credentials_file) {
+                badge.className = 'text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400 border border-slate-700';
+                badge.innerText = '미설정 (서비스 계정 키 필요)';
+                if (detailInfo) detailInfo.classList.add('hidden');
+            } else if (st.reachable) {
+                badge.className = 'text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 flex items-center gap-1';
+                badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Google Drive 연결됨 (여유: ${st.free_gb || 0} GB)`;
+                if (detailInfo) {
+                    detailInfo.classList.remove('hidden');
+                    detailInfo.innerHTML = `구글 드라이브 계정: <span class="text-cyan-400 font-semibold">${st.user_email || 'Service Account'}</span> | 전체 ${st.total_gb || 0} GB 중 ${st.used_gb || 0} GB 사용 (${st.free_gb || 0} GB 여유) | 폴더 ID: <span class="text-slate-300 font-mono">${st.folder_id || '-'}</span>`;
+                }
+            } else {
+                badge.className = 'text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-amber-950/80 text-amber-300 border border-amber-700/60 flex items-center gap-1';
+                badge.innerText = '구글 드라이브 연결 확인 필요';
+                if (detailInfo) {
+                    detailInfo.classList.remove('hidden');
+                    detailInfo.innerHTML = `<span class="text-amber-400">알림: ${st.error || '구글 드라이브 인증에 실패했습니다.'}</span>`;
+                }
             }
         } else {
-            badge.className = 'text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-amber-950/80 text-amber-300 border border-amber-700/60 flex items-center gap-1';
-            badge.innerText = '원격지 접근 대기 중';
-            if (detailInfo) {
-                detailInfo.classList.remove('hidden');
-                detailInfo.innerHTML = `<span class="text-amber-400">알림: ${st.error || '원격 경로에 접근할 수 없습니다.'}</span>`;
+            if (!res.remote_path) {
+                badge.className = 'text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400 border border-slate-700';
+                badge.innerText = '미설정 (로컬 전용)';
+                if (detailInfo) detailInfo.classList.add('hidden');
+            } else if (st.reachable) {
+                badge.className = 'text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 flex items-center gap-1';
+                badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> 정상 연결 (여유: ${st.free_gb} GB / ${st.free_percent}%)`;
+                if (detailInfo) {
+                    detailInfo.classList.remove('hidden');
+                    detailInfo.innerHTML = `원격 저장소 상태: 정상 접근 가능 | 전체 ${st.total_gb} GB 중 ${st.used_gb} GB 사용 (${st.free_gb} GB 여유)`;
+                }
+            } else {
+                badge.className = 'text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-amber-950/80 text-amber-300 border border-amber-700/60 flex items-center gap-1';
+                badge.innerText = '원격지 접근 대기 중';
+                if (detailInfo) {
+                    detailInfo.classList.remove('hidden');
+                    detailInfo.innerHTML = `<span class="text-amber-400">알림: ${st.error || '원격 경로에 접근할 수 없습니다.'}</span>`;
+                }
             }
         }
     } catch (e) {
@@ -939,18 +999,31 @@ async function loadOffsiteStatus() {
 }
 
 async function saveOffsiteConfigFromUI() {
+    const isGdrive = document.getElementById('offsite-provider-gdrive')?.checked;
+    const provider = isGdrive ? 'gdrive' : 'local';
     const pathInput = document.getElementById('offsite-remote-path');
+    const gdriveCreds = document.getElementById('offsite-gdrive-credentials');
+    const gdriveFolder = document.getElementById('offsite-gdrive-folder');
     const enabledCheck = document.getElementById('offsite-enabled');
     const autoCheck = document.getElementById('offsite-auto-sync');
 
-    const remote_path = (pathInput ? pathInput.value : '').trim();
+    const remote_path = (pathInput ? pathInput.value : '').trim().replace(/^["']|["']$/g, '');
+    const gdrive_credentials_file = (gdriveCreds ? gdriveCreds.value : '').trim().replace(/^["']|["']$/g, '');
+    const gdrive_folder_id = (gdriveFolder ? gdriveFolder.value : '').trim().replace(/^["']|["']$/g, '');
     const enabled = enabledCheck ? enabledCheck.checked : false;
     const auto_sync = autoCheck ? autoCheck.checked : true;
 
     try {
         const res = await fetchAPI('/api/offsite', {
             method: 'POST',
-            body: JSON.stringify({ enabled, remote_path, auto_sync })
+            body: JSON.stringify({
+                provider,
+                remote_path,
+                gdrive_credentials_file,
+                gdrive_folder_id,
+                enabled,
+                auto_sync
+            })
         });
         if (res.success) {
             alert('🎉 3-2-1 오프사이트 복제 설정이 성공적으로 저장되었습니다.');
@@ -964,26 +1037,78 @@ async function saveOffsiteConfigFromUI() {
 }
 
 async function testOffsiteFromUI() {
+    const isGdrive = document.getElementById('offsite-provider-gdrive')?.checked;
+    const provider = isGdrive ? 'gdrive' : 'local';
     const pathInput = document.getElementById('offsite-remote-path');
-    const remote_path = (pathInput ? pathInput.value : '').trim();
-    if (!remote_path) {
+    const gdriveCreds = document.getElementById('offsite-gdrive-credentials');
+    const gdriveFolder = document.getElementById('offsite-gdrive-folder');
+
+    const remote_path = (pathInput ? pathInput.value : '').trim().replace(/^["']|["']$/g, '');
+    const gdrive_credentials_file = (gdriveCreds ? gdriveCreds.value : '').trim().replace(/^["']|["']$/g, '');
+    const gdrive_folder_id = (gdriveFolder ? gdriveFolder.value : '').trim().replace(/^["']|["']$/g, '');
+
+    if (provider === 'gdrive' && !gdrive_credentials_file) {
+        alert('구글 서비스 계정 키 파일(.json) 경로를 입력하세요.');
+        return;
+    }
+    if (provider === 'local' && !remote_path) {
         alert('테스트할 원격 대상 경로를 입력하세요.');
         return;
     }
 
     const badge = document.getElementById('offsite-status-badge');
-    if (badge) badge.innerText = '연결 확인 중...';
+    if (badge) badge.innerText = (provider === 'gdrive') ? '브라우저 로그인 대기 중...' : '연결 확인 중...';
 
     try {
         const res = await fetchAPI('/api/offsite/test', {
             method: 'POST',
-            body: JSON.stringify({ remote_path })
+            body: JSON.stringify({
+                provider,
+                remote_path,
+                gdrive_credentials_file,
+                gdrive_folder_id
+            })
         });
+
+        // OAuth 웹 팝업 인증이 필요한 경우: 사용자의 실제 브라우저에서 100% 팝업 오픈
+        if (res.needs_oauth && res.auth_url) {
+            if (badge) badge.innerText = '구글 로그인 팝업 창 대기 중...';
+            const authWin = window.open(res.auth_url, 'gdrive_oauth', 'width=600,height=720,menubar=no,toolbar=no');
+            if (!authWin || authWin.closed || typeof authWin.closed === 'undefined') {
+                window.open(res.auth_url, '_blank');
+            }
+
+            // 토큰 저장 완료 여부를 2초 주기로 자동 감지 (최대 120초)
+            let elapsedSec = 0;
+            const poller = setInterval(async () => {
+                elapsedSec += 2;
+                if (elapsedSec > 120) {
+                    clearInterval(poller);
+                    if (badge) badge.innerText = '로그인 대기 시간 초과';
+                    return;
+                }
+                try {
+                    const stCheck = await fetchAPI('/api/offsite');
+                    if (stCheck && stCheck.status && stCheck.status.reachable) {
+                        clearInterval(poller);
+                        try { if (authWin && !authWin.closed) authWin.close(); } catch(e){}
+                        alert(`🎉 [Google Drive 연동 성공!]\n\n- 인증 계정: ${stCheck.status.user_email}\n- 가용 여유 공간: ${stCheck.status.free_gb} GB\n- 대상 폴더: ${stCheck.status.target_folder_id || 'kova'}`);
+                        await loadOffsiteStatus();
+                    }
+                } catch(e) {}
+            }, 2000);
+            return;
+        }
+
         const st = res.status || {};
         if (res.success && st.reachable) {
-            alert(`🎉 [연결 성공!]\n\n- 원격 대상: ${remote_path}\n- 가용 여유 공간: ${st.free_gb} GB (${st.free_percent}% 여유)`);
+            if (provider === 'gdrive') {
+                alert(`🎉 [Google Drive 연결 성공!]\n\n- 인증 계정: ${st.user_email || 'Service Account'}\n- 가용 여유 공간: ${st.free_gb} GB\n- 대상 폴더 ID: ${st.target_folder_id || st.folder_id}`);
+            } else {
+                alert(`🎉 [연결 성공!]\n\n- 원격 대상: ${remote_path}\n- 가용 여유 공간: ${st.free_gb} GB (${st.free_percent}% 여유)`);
+            }
         } else {
-            alert(`⚠️ [연결 실패]\n\n원격 경로에 접근할 수 없습니다:\n${st.error || '경로가 존재하지 않거나 권한이 없습니다.'}`);
+            alert(`⚠️ [연결 실패]\n\n원격 대상에 접근할 수 없습니다:\n${st.error || '접근 권한이 없거나 설정이 올바르지 않습니다.'}`);
         }
         await loadOffsiteStatus();
     } catch (e) {
@@ -993,15 +1118,24 @@ async function testOffsiteFromUI() {
 }
 
 async function triggerOffsiteSyncFromUI() {
+    const isGdrive = document.getElementById('offsite-provider-gdrive')?.checked;
+    const provider = isGdrive ? 'gdrive' : 'local';
     const pathInput = document.getElementById('offsite-remote-path');
     const remote_path = (pathInput ? pathInput.value : '').trim();
 
-    if (!confirm('현재 로컬 백업 저장소 전체를 원격지로 지금 즉시 동기화(복제)하시겠습니까?\n(Windows 순정 robocopy /MT:32 고속 백그라운드 엔진 가동)')) return;
+    const engineMsg = isGdrive 
+        ? '(Google Drive Cloud API 클라우드 스트리밍 엔진 가동)'
+        : '(Windows 순정 robocopy /MT:32 고속 백그라운드 엔진 가동)';
+
+    if (!confirm(`현재 로컬 백업 저장소 전체를 원격지로 지금 즉시 동기화(복제)하시겠습니까?\n${engineMsg}`)) return;
 
     try {
         const res = await fetchAPI('/api/offsite/sync', {
             method: 'POST',
-            body: JSON.stringify({ remote_path: remote_path || undefined })
+            body: JSON.stringify({
+                provider,
+                remote_path: isGdrive ? undefined : (remote_path || undefined)
+            })
         });
         if (res.success) {
             alert(res.message);
