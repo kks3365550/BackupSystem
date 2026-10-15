@@ -3,7 +3,7 @@
 ; =========================================================================
 
 #define MyAppName "Kova"
-#define MyAppVersion "2.15.10"
+#define MyAppVersion "2.15.11"
 #define MyAppPublisher "kks3365550"
 #define MyAppURL "http://127.0.0.1:8765"
 #define MyAppExeName "Kova.exe"
@@ -45,15 +45,15 @@ Name: "{app}\logs"; Permissions: users-modify
 
 [Files]
 ; 1. Embedded Python 3.11 Runtime (Self-Contained)
-Source: "runtime\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "runtime\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs restartreplace uninsrestartdelete
 
 ; 2. Application Core Source Tree (v2.9.21 Production Source)
-Source: "..\core\*"; DestDir: "{app}\core"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "__pycache__,*.pyc,*.pyo"
-Source: "..\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "__pycache__,*.pyc,*.pyo"
-Source: "..\run.py"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\VERSION"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\keys\*.pub"; DestDir: "{app}\keys"; Flags: ignoreversion
-Source: "..\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\core\*"; DestDir: "{app}\core"; Flags: ignoreversion recursesubdirs createallsubdirs restartreplace uninsrestartdelete; Excludes: "__pycache__,*.pyc,*.pyo"
+Source: "..\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs restartreplace uninsrestartdelete; Excludes: "__pycache__,*.pyc,*.pyo"
+Source: "..\run.py"; DestDir: "{app}"; Flags: ignoreversion restartreplace
+Source: "..\VERSION"; DestDir: "{app}"; Flags: ignoreversion restartreplace
+Source: "..\keys\*.pub"; DestDir: "{app}\keys"; Flags: ignoreversion restartreplace
+Source: "..\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion restartreplace
 
 ; 3. VBScript 래퍼 및 운영 스크립트
 Source: "start_silent.vbs"; DestDir: "{app}"; Flags: ignoreversion
@@ -101,7 +101,7 @@ begin
   PsExe := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
 
   // 1. Windows cmd.exe를 통한 원초적이고 무조건적인 python.exe 및 pythonw.exe 전수 강제 사살
-  Exec('cmd.exe', '/c taskkill.exe /F /T /IM pythonw.exe /IM python.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(CmdExe, '/c taskkill.exe /F /T /IM pythonw.exe /IM python.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   if FileExists(TaskkillExe) then
     Exec(TaskkillExe, '/F /T /IM pythonw.exe /IM python.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
