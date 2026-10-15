@@ -6,8 +6,10 @@ web/api_migration.py: 실시간 SSD 마이그레이션(클론 & 부트로더 주
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 
 from core.disk_clone import DiskCloneManager, get_candidate_target_drives
+from core.drive_archive import DriveArchiveManager
 
 router = APIRouter(prefix="/api/migration", tags=["migration"])
 
@@ -15,6 +17,24 @@ router = APIRouter(prefix="/api/migration", tags=["migration"])
 class StartMigrationRequest(BaseModel):
     target_drive: str
     auto_prepare_esp: bool = True
+
+
+class StartArchiveRequest(BaseModel):
+    source_drive: str = "C:"
+    target_wim_path: Optional[str] = None
+    compress: str = "fast"
+    auto_verify: bool = True
+
+
+class VerifyArchiveRequest(BaseModel):
+    wim_path: str
+
+
+class RestoreArchiveRequest(BaseModel):
+    wim_path: str
+    target_drive: str
+    auto_bcdboot: bool = True
+    auto_restore_vsn: bool = True
 
 
 @router.get("/disks")
@@ -65,3 +85,76 @@ async def api_migration_stop():
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "마이그레이션 중단 실패"))
     return {"success": True, "message": res.get("message")}
+
+
+# --- 드라이브 통백업(WIM 단일 아카이브) & 4단계 실측 검증 API ---
+
+@router.post("/archive/start")
+async def api_archive_start(req: StartArchiveRequest):
+    """보험용 드라이브 통백업(WIM) 캡처 및 자동 실측 검증 시작"""
+    manager = DriveArchiveManager.get_instance()
+    res = manager.start_capture(
+        source_drive=req.source_drive,
+        target_wim_path=req.target_wim_path,
+        compress=req.compress,
+        auto_verify=req.auto_verify
+    )
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "통백업 시작 실패"))
+    return res
+
+
+@router.get("/archive/status")
+async def api_archive_status():
+    """통백업 및 실측 검증 진행 상태 조회"""
+    manager = DriveArchiveManager.get_instance()
+    return {"success": True, "status": manager.get_status()}
+
+
+@router.get("/archive/logs")
+async def api_archive_logs(limit: int = 100):
+    """통백업 및 검증 실시간 로그 조회"""
+    manager = DriveArchiveManager.get_instance()
+    return {"success": True, "logs": manager.get_logs(limit=limit)}
+
+
+@router.post("/archive/stop")
+async def api_archive_stop():
+    """진행 중인 아카이브 캡처/복원 작업 중단"""
+    manager = DriveArchiveManager.get_instance()
+    return manager.cancel()
+
+
+@router.post("/archive/verify")
+async def api_archive_verify(req: VerifyArchiveRequest):
+    """지정된 WIM 아카이브의 4단계 실측 검증 단독 실행"""
+    if not req.wim_path:
+        raise HTTPException(status_code=400, detail="wim_path 필드는 필수입니다.")
+    manager = DriveArchiveManager.get_instance()
+    v_res = manager.verify_archive(req.wim_path)
+    return {"success": True, "result": v_res}
+
+
+@router.get("/archive/list")
+async def api_archive_list(repo_dir: Optional[str] = None):
+    """보관 중인 WIM 아카이브 및 검증 상태 목록 조회"""
+    manager = DriveArchiveManager.get_instance()
+    archives = manager.list_archives(repo_dir=repo_dir)
+    return {"success": True, "archives": archives}
+
+
+@router.post("/archive/restore")
+async def api_archive_restore(req: RestoreArchiveRequest):
+    """WIM 아카이브를 대상 드라이브로 복원 + BCD 부트로더 주입 + VSN 복원"""
+    if not req.wim_path or not req.target_drive:
+        raise HTTPException(status_code=400, detail="wim_path와 target_drive는 필수입니다.")
+    manager = DriveArchiveManager.get_instance()
+    res = manager.start_restore(
+        wim_path=req.wim_path,
+        target_drive=req.target_drive,
+        auto_bcdboot=req.auto_bcdboot,
+        auto_restore_vsn=req.auto_restore_vsn
+    )
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "복원 시작 실패"))
+    return res

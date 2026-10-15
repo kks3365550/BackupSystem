@@ -31,6 +31,12 @@ except Exception:
     VSS_AVAILABLE = False
     VSSContext = None
 
+try:
+    from core.drive_archive import get_volume_serial_number, set_volume_serial_number
+    VSN_HELPERS_AVAILABLE = True
+except Exception:
+    VSN_HELPERS_AVAILABLE = False
+
 
 # 스마트 제외 패턴 (마이그레이션 대상에서 제외할 불필요한 OS 가상메모리 및 임시 파일)
 DEFAULT_CLONE_EXCLUDE_FILES = [
@@ -505,6 +511,20 @@ class DiskCloneManager:
                     self.append_log("  - VSS 섀도 볼륨 안전 해제 완료.")
                 except Exception as e_vss_close:
                     self.append_log(f"  - VSS 해제 알림: {e_vss_close}")
+
+            # 4-1. 라이선스 지문 보존: 원본 C: Volume Serial Number(VSN) 타겟 SSD 복제 주입
+            if VSN_HELPERS_AVAILABLE:
+                try:
+                    c_vsn = get_volume_serial_number("C:")
+                    if c_vsn:
+                        self.append_log(f"  - [라이선스 보호] 원본 C: 볼륨 시리얼 번호(VSN: {c_vsn}) 타겟 SSD에 복제 주입 중...")
+                        vsn_res = set_volume_serial_number(target_drive, c_vsn)
+                        if vsn_res.get("success"):
+                            self.append_log(f"    ✓ 타겟 드라이브 VSN 주입 성공! (방법: {vsn_res.get('method')}). Office/한글/CAD 정품 라이선스 보존.")
+                        else:
+                            self.append_log(f"    - [참고] VSN 주입 상태: {vsn_res.get('error')}")
+                except Exception as e_vsn:
+                    self.append_log(f"    - [주의] VSN 처리 예외 ({e_vsn})")
 
             # 5. UEFI 부트로더(BCD) 정밀 주입
             self.append_log(f"[5/5] 부트 매니저(BCD) 정밀 주입 중: bcdboot {target_root}Windows ...")

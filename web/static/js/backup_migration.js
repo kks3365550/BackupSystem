@@ -338,5 +338,319 @@ async function stopLiveMigration() {
 // 탭 전환 시 자동 드라이브 목록 로드
 document.addEventListener("DOMContentLoaded", () => {
     // OS 백업 탭이 활성화될 때 또는 첫 로드 시 드라이브 로드
-    setTimeout(loadMigrationDrives, 1000);
+    setTimeout(() => {
+        loadMigrationDrives();
+        loadArchiveList();
+    }, 1000);
 });
+
+// ==============================================================================
+// 드라이브 통백업(WIM) & 4단계 실측 검증 프론트엔드 모듈
+// ==============================================================================
+
+let archivePollingInterval = null;
+
+async function loadArchiveList() {
+    const listEl = document.getElementById("archive-list-container");
+    if (!listEl) return;
+
+    try {
+        const res = await fetch("/api/migration/archive/list");
+        const data = await res.json();
+
+        if (!data.success || !data.archives || data.archives.length === 0) {
+            listEl.innerHTML = `
+                <div class="text-zinc-500 text-xs py-4 text-center border border-dashed border-zinc-800 rounded-xl">
+                    보관 중인 드라이브 통백업(WIM) 아카이브가 없습니다.
+                </div>
+            `;
+            return;
+        }
+
+        listEl.innerHTML = data.archives.map(a => {
+            const verifyBadge = a.is_verified 
+                ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1"><i data-lucide="check-check" class="w-3 h-3"></i> 4단계 실측 검증 완료 (부팅/라이선스 100% 보증)</span>'
+                : '<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">미검증 아카이브</span>';
+
+            return `
+                <div class="p-3.5 bg-zinc-950/80 rounded-xl border border-zinc-800/80 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:border-indigo-500/40 transition">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-bold text-white text-xs">${escapeHtml(a.name)}</span>
+                            <span class="text-[10px] px-1.5 py-0.2 rounded bg-indigo-950 text-indigo-300 font-mono border border-indigo-800">${a.size_gb} GB</span>
+                            ${verifyBadge}
+                        </div>
+                        <div class="flex items-center gap-3 text-[11px] text-zinc-400">
+                            <span>생성: ${escapeHtml(a.created_at)}</span>
+                            <span>•</span>
+                            <span>원본 VSN: <strong class="text-purple-300 font-mono">${escapeHtml(a.vsn)}</strong></span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button onclick="verifySingleArchive('${escapeHtml(a.path)}')" class="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-xs font-medium border border-zinc-700 transition flex items-center gap-1">
+                            <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i> 실측 검증
+                        </button>
+                        <button onclick="openArchiveRestoreModal('${escapeHtml(a.path)}')" class="px-2.5 py-1.5 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1">
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> 이 백업으로 복원
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join("");
+
+        if (window.lucide) window.lucide.createIcons();
+    } catch (err) {
+        console.error("WIM 아카이브 목록 조회 실패:", err);
+    }
+}
+
+async function startDriveArchiveBackup() {
+    const compressEl = document.getElementById("archive-compress-select");
+    const autoVerifyEl = document.getElementById("chk-archive-auto-verify");
+
+    const compress = compressEl ? compressEl.value : "fast";
+    const autoVerify = autoVerifyEl ? autoVerifyEl.checked : true;
+
+    if (!confirm(`C: 드라이브 전체를 단일 압축 파일(.wim)로 통백업하시겠습니까?\n\n- 압축 모드: ${compress.toUpperCase()}\n- 4단계 실측 검증: ${autoVerify ? "포함 (권장)" : "미포함"}`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch("/api/migration/archive/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                source_drive: "C:",
+                compress: compress,
+                auto_verify: autoVerify
+            })
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+            alert("통백업 시작 실패: " + (data.detail || data.error || "알 수 없는 오류"));
+            return;
+        }
+
+        appendArchiveConsoleLog(`[START] 보험용 드라이브 통백업이 시작되었습니다: ${data.target_wim}`);
+        startArchivePolling();
+    } catch (err) {
+        alert("네트워크 오류: " + err.message);
+    }
+}
+
+function startArchivePolling() {
+    if (archivePollingInterval) clearInterval(archivePollingInterval);
+    pollArchiveStatus();
+    archivePollingInterval = setInterval(pollArchiveStatus, 1500);
+}
+
+async function pollArchiveStatus() {
+    try {
+        const [resSt, resLogs] = await Promise.all([
+            fetch("/api/migration/archive/status"),
+            fetch("/api/migration/archive/logs?limit=50")
+        ]);
+
+        const dataSt = await resSt.json();
+        const dataLogs = await resLogs.json();
+
+        if (dataSt.success && dataSt.status) {
+            updateArchiveUI(dataSt.status);
+        }
+
+        if (dataLogs.success && dataLogs.logs) {
+            renderArchiveLogs(dataLogs.logs);
+        }
+    } catch (err) {
+        console.warn("아카이브 상태 폴링 실패:", err);
+    }
+}
+
+function updateArchiveUI(status) {
+    const btnStart = document.getElementById("btn-start-archive");
+    const btnStop = document.getElementById("btn-stop-archive");
+    const progressBar = document.getElementById("archive-progress-bar");
+    const progressText = document.getElementById("archive-progress-percent");
+    const phaseText = document.getElementById("archive-current-phase");
+    const badgeEl = document.getElementById("archive-status-badge");
+
+    const isRunning = status.is_running;
+
+    if (btnStart) {
+        if (isRunning) btnStart.classList.add("hidden");
+        else btnStart.classList.remove("hidden");
+    }
+
+    if (btnStop) {
+        if (isRunning) btnStop.classList.remove("hidden");
+        else btnStop.classList.add("hidden");
+    }
+
+    if (progressBar) progressBar.style.width = `${status.progress_percent || 0}%`;
+    if (progressText) progressText.textContent = `${status.progress_percent || 0}%`;
+    if (phaseText) phaseText.textContent = status.current_phase || "대기 중";
+
+    if (badgeEl) {
+        const s = status.status;
+        badgeEl.textContent = s;
+        badgeEl.className = "text-[11px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ";
+        if (s === "capturing" || s === "restoring") {
+            badgeEl.classList.add("bg-indigo-900/60", "text-indigo-300", "border", "border-indigo-700", "animate-pulse");
+        } else if (s === "verifying") {
+            badgeEl.classList.add("bg-purple-900/60", "text-purple-300", "border", "border-purple-700", "animate-pulse");
+        } else if (s === "completed") {
+            badgeEl.classList.add("bg-emerald-900/60", "text-emerald-300", "border", "border-emerald-700");
+        } else if (s === "failed") {
+            badgeEl.classList.add("bg-rose-900/60", "text-rose-300", "border", "border-rose-700");
+        } else {
+            badgeEl.classList.add("bg-zinc-800", "text-zinc-400", "border", "border-zinc-700");
+        }
+    }
+
+    if (!isRunning && (status.status === "completed" || status.status === "failed" || status.status === "cancelled")) {
+        if (archivePollingInterval) {
+            clearInterval(archivePollingInterval);
+            archivePollingInterval = null;
+        }
+        loadArchiveList();
+    }
+}
+
+function renderArchiveLogs(logs) {
+    const consoleEl = document.getElementById("archive-console");
+    if (!consoleEl) return;
+
+    if (!logs || logs.length === 0) {
+        consoleEl.innerHTML = '<div class="text-zinc-500">[대기] 드라이브 통백업 시작 시 실시간 로그가 출력됩니다.</div>';
+        return;
+    }
+
+    consoleEl.innerHTML = logs.map(l => {
+        let cls = "text-zinc-300";
+        if (l.includes("ERROR") || l.includes("❌") || l.includes("실패")) cls = "text-rose-400 font-bold";
+        else if (l.includes("🎉") || l.includes("성공") || l.includes("완료") || l.includes("✓")) cls = "text-emerald-400 font-bold";
+        else if (l.includes("DISM") || l.includes("VSN") || l.includes("검증")) cls = "text-cyan-300";
+        else if (l.includes("경고") || l.includes("주의")) cls = "text-amber-300";
+        return `<div class="${cls}">${escapeHtml(l)}</div>`;
+    }).join("");
+
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
+function appendArchiveConsoleLog(msg) {
+    const consoleEl = document.getElementById("archive-console");
+    if (!consoleEl) return;
+    const div = document.createElement("div");
+    div.className = "text-cyan-300";
+    div.textContent = msg;
+    consoleEl.appendChild(div);
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
+async function stopDriveArchiveBackup() {
+    if (!confirm("진행 중인 통백업/복원 작업을 중단하시겠습니까?")) return;
+    try {
+        const res = await fetch("/api/migration/archive/stop", { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+            appendArchiveConsoleLog("[STOP] 중단 요청이 전달되었습니다.");
+            pollArchiveStatus();
+        } else {
+            alert("중단 실패: " + (data.message || data.error));
+        }
+    } catch (err) {
+        alert("네트워크 오류: " + err.message);
+    }
+}
+
+async function verifySingleArchive(wimPath) {
+    if (!wimPath) return;
+    if (!confirm(`선택한 WIM 아카이브에 대해 4단계 실측 검증을 실행하시겠습니까?\n\n- 대상: ${wimPath}\n- 검증 내용: 헤더 무결성 + 가상 마운트 + 5대 부팅/라이선스 아티팩트 전수 조사`)) {
+        return;
+    }
+
+    appendArchiveConsoleLog(`[VERIFY] 단독 실측 검증 착수: ${wimPath}`);
+    startArchivePolling();
+
+    try {
+        const res = await fetch("/api/migration/archive/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ wim_path: wimPath })
+        });
+        const data = await res.json();
+        if (data.success && data.result) {
+            const r = data.result;
+            if (r.verified) {
+                alert(`🎉 4단계 실측 검증 100% 통과!\n\n- OS 커널, winload.efi, 레지스트리, tokens.dat 모두 정상 무결합니다.\n- 슈뢰딩거의 백업 위험 0% 확인.`);
+            } else {
+                alert(`⚠️ 검증 경고: ${r.error || "일부 아티팩트 확인 실패"}`);
+            }
+            loadArchiveList();
+        }
+    } catch (err) {
+        alert("검증 통신 오류: " + err.message);
+    }
+}
+
+let activeRestoreWimPath = "";
+
+function openArchiveRestoreModal(wimPath) {
+    activeRestoreWimPath = wimPath;
+    const modal = document.getElementById("archive-restore-modal");
+    const targetText = document.getElementById("modal-archive-restore-wim");
+    if (targetText) targetText.textContent = wimPath;
+
+    // 드라이브 목록 옵션 채우기
+    const selectEl = document.getElementById("archive-restore-target-select");
+    if (selectEl && migrationDrivesCache) {
+        selectEl.innerHTML = migrationDrivesCache.map(d => `
+            <option value="${d.drive}">${d.drive} (총 ${d.total_gb} GB / 여유 ${d.free_gb} GB)</option>
+        `).join("");
+    }
+
+    const chk = document.getElementById("chk-archive-restore-danger");
+    if (chk) chk.checked = false;
+    const btn = document.getElementById("btn-run-archive-restore-final");
+    if (btn) btn.disabled = true;
+
+    if (modal) modal.classList.remove("hidden");
+}
+
+function onArchiveRestoreDangerCheckChange() {
+    const chk = document.getElementById("chk-archive-restore-danger");
+    const btn = document.getElementById("btn-run-archive-restore-final");
+    if (btn && chk) btn.disabled = !chk.checked;
+}
+
+async function confirmAndRunArchiveRestore() {
+    const selectEl = document.getElementById("archive-restore-target-select");
+    const targetDrive = selectEl ? selectEl.value : "";
+    if (!targetDrive || !activeRestoreWimPath) return;
+
+    closeModal("archive-restore-modal");
+
+    try {
+        const res = await fetch("/api/migration/archive/restore", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                wim_path: activeRestoreWimPath,
+                target_drive: targetDrive,
+                auto_bcdboot: true,
+                auto_restore_vsn: true
+            })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            alert("복원 시작 실패: " + (data.detail || data.error));
+            return;
+        }
+
+        appendArchiveConsoleLog(`[START] ${targetDrive} 드라이브로 WIM 복원 시작: ${activeRestoreWimPath}`);
+        startArchivePolling();
+    } catch (err) {
+        alert("네트워크 오류: " + err.message);
+    }
+}
