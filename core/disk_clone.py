@@ -485,7 +485,9 @@ class DiskCloneManager:
 
         target_root = target + "\\"
         if not os.path.exists(target_root):
-            return {"success": False, "error": f"타겟 드라이브 경로({target_root})를 찾을 수 없습니다."}
+            part_info = get_all_partition_info()
+            if target not in part_info:
+                return {"success": False, "error": f"타겟 드라이브 경로({target_root})를 찾을 수 없습니다."}
 
         with self.state_lock:
             if self.is_running:
@@ -531,14 +533,21 @@ class DiskCloneManager:
             self.append_log(f"  - 타겟 {target_drive} 물리 디스크 번호: Disk {t_disk if t_disk is not None else '감지불가'}")
 
             c_usage = shutil.disk_usage("C:\\")
-            t_usage = shutil.disk_usage(target_root)
             c_used_gb = round(c_usage.used / (1024 ** 3), 1)
-            t_total_gb = round(t_usage.total / (1024 ** 3), 1)
+
+            try:
+                t_usage = shutil.disk_usage(target_root)
+                t_total_bytes = t_usage.total
+            except OSError:
+                part_info = get_all_partition_info()
+                t_total_bytes = part_info.get(target_drive, {}).get("size_bytes", 0)
+
+            t_total_gb = round(t_total_bytes / (1024 ** 3), 1)
 
             self.append_log(f"  - 원본 C: 드라이브 실사용량: {c_used_gb} GB")
             self.append_log(f"  - 타겟 {target_drive} 드라이브 총용량: {t_total_gb} GB")
 
-            if t_usage.total < c_usage.used:
+            if t_total_bytes > 0 and t_total_bytes < c_usage.used:
                 raise RuntimeError(f"타겟 드라이브 총용량({t_total_gb} GB)이 원본 데이터({c_used_gb} GB)보다 작아 복제를 진행할 수 없습니다.")
 
             # 2. 100% 부팅 보장 모드: UEFI 표준(GPT + 260MB FAT32 ESP + 16MB MSR + NTFS Windows) 자동 파티셔닝

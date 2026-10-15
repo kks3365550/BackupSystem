@@ -506,14 +506,15 @@ def restart_local_server():
 
     # 1. Kill any process holding port 8765 or running pythonw unconditionally (including elevated zombies)
     try:
-        subprocess.run(['powershell', '-NoProfile', '-Command', "Get-Process python*, pythonw*, kova*, backupsystem* -ErrorAction SilentlyContinue | Stop-Process -Force"], capture_output=True, timeout=8, **no_win)
+        cur_pid = os.getpid()
+        subprocess.run(['powershell', '-NoProfile', '-Command', "Get-Process pythonw*, kova*, backupsystem* -ErrorAction SilentlyContinue | Stop-Process -Force"], capture_output=True, timeout=8, **no_win)
         subprocess.run(['taskkill.exe', '/F', '/T', '/IM', 'pythonw.exe'], capture_output=True, timeout=8, **no_win)
         subprocess.run(['taskkill.exe', '/F', '/T', '/IM', 'Kova.exe'], capture_output=True, timeout=8, **no_win)
         subprocess.run(['taskkill.exe', '/F', '/T', '/IM', 'BackupSystem.exe'], capture_output=True, timeout=8, **no_win)
         kill_elevated = (
             "Start-Process powershell.exe -ArgumentList '-NoProfile -Command "
-            "\"Get-Process python*, pythonw*, kova*, backupsystem* -ErrorAction SilentlyContinue | Stop-Process -Force; "
-            "(Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue).OwningProcess | Sort-Object -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }\"' "
+            "\"Get-Process pythonw*, kova*, backupsystem* -ErrorAction SilentlyContinue | Stop-Process -Force; "
+            f"(Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue).OwningProcess | Where-Object {{ $_ -ne {cur_pid} }} | Sort-Object -Unique | ForEach-Object {{ Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }}\"' "
             "-Verb RunAs -WindowStyle Hidden -Wait"
         )
         subprocess.run(['powershell', '-NoProfile', '-Command', kill_elevated], capture_output=True, timeout=10, **no_win)
