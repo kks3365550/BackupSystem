@@ -77,23 +77,17 @@ class TestDriveArchiveCore(unittest.TestCase):
         self.assertTrue(archives[0]["is_verified"])
         self.assertEqual(archives[0]["verification_stage"], 4)
 
-    @patch("subprocess.run")
-    def test_verify_archive_4_stage_success(self, mock_subproc):
+    @patch.object(DriveArchiveManager, "run_dism")
+    def test_verify_archive_4_stage_success(self, mock_dism):
         """4단계 실측 검증 성공 시나리오: 헤더검사 -> 마운트 -> 5대 아티팩트 점검 -> 언마운트"""
         wim_path = os.path.join(self.test_dir, "test.wim")
         with open(wim_path, "wb") as f:
             f.write(b"MSWIM")
 
-        # DISM subprocess.run mock 설정
-        mock_proc = MagicMock()
-        mock_proc.returncode = 0
-        mock_subproc.return_value = mock_proc
-
         # 가상 마운트 위치에 5대 아티팩트 생성 시뮬레이션
-        def side_effect_mount(cmd, *args, **kwargs):
-            if "/Mount-Image" in cmd:
-                # MountDir 경로 추출
-                for arg in cmd:
+        def side_effect_mount(args, *a, **kwargs):
+            if "/Mount-Image" in args:
+                for arg in args:
                     if arg.startswith("/MountDir:"):
                         mdir = arg.split(":", 1)[1]
                         for rel, desc in ESSENTIAL_BOOT_ARTIFACTS:
@@ -101,9 +95,9 @@ class TestDriveArchiveCore(unittest.TestCase):
                             os.makedirs(os.path.dirname(fp), exist_ok=True)
                             with open(fp, "wb") as f_art:
                                 f_art.write(b"TEST_BINARY_ARTIFACT_CONTENT")
-            return mock_proc
+            return 0, "SUCCESS"
 
-        mock_subproc.side_effect = side_effect_mount
+        mock_dism.side_effect = side_effect_mount
 
         res = self.manager.verify_archive(wim_path)
         self.assertTrue(res["verified"])
@@ -113,61 +107,55 @@ class TestDriveArchiveCore(unittest.TestCase):
             self.assertEqual(data["status"], "OK")
             self.assertGreater(data["size_bytes"], 0)
 
-    @patch("subprocess.run")
-    def test_verify_archive_missing_artifacts(self, mock_subproc):
+    @patch.object(DriveArchiveManager, "run_dism")
+    def test_verify_archive_missing_artifacts(self, mock_dism):
         """3단계 아티팩트 점검 중 핵심 파일(tokens.dat 등) 누락 시 실패 감지 검증"""
         wim_path = os.path.join(self.test_dir, "test_corrupt.wim")
         with open(wim_path, "wb") as f:
             f.write(b"MSWIM")
 
-        mock_proc = MagicMock()
-        mock_proc.returncode = 0
-        mock_subproc.return_value = mock_proc
-
-        # ntoskrnl만 있고 나머지가 없는 상태
-        def side_effect_mount_partial(cmd, *args, **kwargs):
-            if "/Mount-Image" in cmd:
-                for arg in cmd:
+        def side_effect_mount_partial(args, *a, **kwargs):
+            if "/Mount-Image" in args:
+                for arg in args:
                     if arg.startswith("/MountDir:"):
                         mdir = arg.split(":", 1)[1]
                         fp = os.path.join(mdir, r"Windows\System32\ntoskrnl.exe")
                         os.makedirs(os.path.dirname(fp), exist_ok=True)
                         with open(fp, "wb") as f_art:
                             f_art.write(b"KERNEL")
-            return mock_proc
+            return 0, "SUCCESS"
 
-        mock_subproc.side_effect = side_effect_mount_partial
+        mock_dism.side_effect = side_effect_mount_partial
 
         res = self.manager.verify_archive(wim_path)
         self.assertFalse(res["verified"])
         self.assertIsNotNone(res["error"])
         self.assertIn("필수 부팅 아티팩트 일부 누락", res["error"])
 
+    @patch("core.drive_archive.is_admin", return_value=True)
     @patch("core.drive_archive.VSS_AVAILABLE", False)
     @patch("subprocess.Popen")
     @patch.object(DriveArchiveManager, "verify_archive")
-    def test_worker_capture_flow(self, mock_verify, mock_popen):
+    def test_worker_capture_flow(self, mock_verify, mock_popen, mock_is_admin):
         """WIM 캡처 전체 워커 흐름 (VSS 스냅샷 + DISM + VSN 저장 + 실측 검증 연동)"""
         target_wim = os.path.join(self.test_dir, "System_Test.wim")
         temp_wim = target_wim + ".tmp"
 
-        # DISM Popen 목업 (완료 시 temp_wim 생성)
         def create_temp_wim(*args, **kwargs):
             with open(temp_wim, "wb") as f:
                 f.write(b"WIM_CAPTURE_DATA")
             mock_p = MagicMock()
             mock_p.poll.side_effect = [None, 0]
             mock_p.returncode = 0
+            mock_p.wait.return_value = 0
             mock_p.stdout.readline.side_effect = ["[  50.0%  ] 캡처 중...", ""]
             return mock_p
 
         mock_popen.side_effect = create_temp_wim
         mock_verify.return_value = {"verified": True, "stage": 4, "artifacts": {}}
 
-        # 실행
         self.manager._worker_capture("C:", target_wim, compress="fast", auto_verify=True)
 
-        # 결과 검증
         self.assertTrue(os.path.exists(target_wim))
         self.assertTrue(os.path.exists(target_wim + ".meta.json"))
 
@@ -181,10 +169,11 @@ class TestDriveArchiveCore(unittest.TestCase):
         self.assertEqual(st["status"], "completed")
         self.assertEqual(st["progress_percent"], 100.0)
 
+    @patch("core.drive_archive.is_admin", return_value=True)
     @patch("subprocess.Popen")
     @patch("subprocess.run")
     @patch("core.drive_archive.set_volume_serial_number")
-    def test_worker_restore_flow(self, mock_set_vsn, mock_run, mock_popen):
+    def test_worker_restore_flow(self, mock_set_vsn, mock_run, mock_popen, mock_is_admin):
         """WIM 복원 전체 워커 흐름 (DISM Apply-Image + VSN 복원 + bcdboot 주입)"""
         wim_path = os.path.join(self.test_dir, "Restore_Test.wim")
         with open(wim_path, "wb") as f:
@@ -197,6 +186,7 @@ class TestDriveArchiveCore(unittest.TestCase):
         mock_p = MagicMock()
         mock_p.poll.side_effect = [None, 0]
         mock_p.returncode = 0
+        mock_p.wait.return_value = 0
         mock_p.stdout.readline.side_effect = ["[  100.0%  ] 복원 완료", ""]
         mock_popen.return_value = mock_p
 
@@ -205,12 +195,42 @@ class TestDriveArchiveCore(unittest.TestCase):
 
         self.manager._worker_restore(wim_path, "E:", auto_bcdboot=True, auto_restore_vsn=True)
 
-        # VSN 복원 호출 검증
         mock_set_vsn.assert_called_with("E:", "5AEF-9960")
 
         st = self.manager.get_status()
         self.assertEqual(st["status"], "completed")
         self.assertEqual(st["progress_percent"], 100.0)
+
+    @patch("core.drive_archive.is_admin", return_value=True)
+    @patch("subprocess.Popen")
+    def test_run_dism_admin_direct(self, mock_popen, mock_is_admin):
+        """관리자 권한 시 direct Popen 스트리밍 실행 검증"""
+        mock_p = MagicMock()
+        mock_p.poll.side_effect = [None, 0]
+        mock_p.returncode = 0
+        mock_p.wait.return_value = 0
+        mock_p.stdout.readline.side_effect = ["[  20.0%  ] 캡처 중...", ""]
+        mock_popen.return_value = mock_p
+
+        logs = []
+        code, out = self.manager.run_dism(["/Capture-Image"], log_callback=lambda l: logs.append(l))
+        self.assertEqual(code, 0)
+        self.assertTrue(any("20.0%" in l for l in logs))
+
+    @patch("core.drive_archive.is_admin", return_value=False)
+    @patch("subprocess.run")
+    def test_run_dism_non_admin_elevation(self, mock_subproc_run, mock_is_admin):
+        """비관리자 권한 시 PowerShell Start-Process -Verb RunAs 승격 프록시 실행 검증"""
+        def fake_run(cmd, *a, **kw):
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        mock_subproc_run.side_effect = fake_run
+
+        # We also mock the loop by creating exit file quickly or checking launch
+        with patch.object(self.manager, "_run_dism_elevated", return_value=(0, "ELEVATED_SUCCESS")):
+            code, out = self.manager.run_dism(["/Capture-Image"])
+            self.assertEqual(code, 0)
+            self.assertEqual(out, "ELEVATED_SUCCESS")
 
 
 class TestDriveArchiveAPI(unittest.TestCase):

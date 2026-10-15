@@ -1,6 +1,15 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
+
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [*] 백업시스템은 디스크 볼륨 제어 및 DISM 통백업을 위해 관리자 권한이 필요합니다.
+    echo [*] 관리자 권한으로 승격을 요청합니다...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath cmd.exe -ArgumentList '/c `"`"%~f0`"`"' -Verb RunAs"
+    exit /b 0
+)
+
 title 백업시스템 매니저
 
 set "PY="

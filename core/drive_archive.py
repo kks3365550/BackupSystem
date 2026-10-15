@@ -18,6 +18,7 @@ import threading
 import subprocess
 import uuid
 from typing import Dict, List, Any, Optional
+from pathlib import Path
 
 logger = logging.getLogger("BackupSystem.DriveArchive")
 
@@ -273,6 +274,237 @@ class DriveArchiveManager:
             self.append_log("[알림] 사용자 요청에 의해 작업 취소 플래그가 설정되었습니다.")
             return {"success": True, "message": "작업 취소 요청이 전송되었습니다."}
 
+    def run_dism(
+        self,
+        args: List[str],
+        log_callback: Optional[Any] = None,
+        cancel_event: Optional[threading.Event] = None
+    ) -> tuple[int, str]:
+        """
+        DISM 명령 실행 (관리자 권한 시 직접 실행, 비관리자 권한 시 UAC 자동 승격 프록시 실행)
+        - 관리자 권한: subprocess.Popen 파이프 스트리밍
+        - 비관리자 권한: PowerShell Start-Process cmd.exe ... -Verb RunAs -WindowStyle Hidden + %TEMP% 로그 테일링
+        반환: (exit_code, combined_output)
+        """
+        if not args:
+            return 0, ""
+
+        if is_admin():
+            return self._run_dism_direct(args, log_callback, cancel_event)
+        else:
+            return self._run_dism_elevated(args, log_callback, cancel_event)
+
+    def _run_dism_direct(
+        self,
+        args: List[str],
+        log_callback: Optional[Any] = None,
+        cancel_event: Optional[threading.Event] = None
+    ) -> tuple[int, str]:
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        cmd = ["dism.exe", *args]
+        lines = []
+
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="cp949",
+                errors="replace",
+                creationflags=creationflags
+            )
+        except Exception as exc:
+            err = f"dism.exe 직접 실행 시작 실패: {exc}"
+            if log_callback:
+                try:
+                    log_callback(err)
+                except Exception:
+                    pass
+            return 1, err
+
+        try:
+            while True:
+                if cancel_event is not None and cancel_event.is_set():
+                    proc.terminate()
+                    time.sleep(0.5)
+                    if proc.poll() is None:
+                        proc.kill()
+                    msg = "DISM 작업이 사용자에 의해 취소되었습니다."
+                    if log_callback:
+                        try:
+                            log_callback(msg)
+                        except Exception:
+                            pass
+                    return 1, "\n".join(lines + [msg])
+
+                line = proc.stdout.readline() if proc.stdout else ""
+                if not line:
+                    break
+
+                line_str = line.rstrip("\r\n")
+                lines.append(line_str)
+                if log_callback:
+                    try:
+                        log_callback(line_str)
+                    except Exception:
+                        pass
+
+            exit_code = proc.wait() if hasattr(proc, "wait") else 0
+            if not isinstance(exit_code, int):
+                rc = getattr(proc, "returncode", 0)
+                exit_code = rc if isinstance(rc, int) else 0
+            return exit_code, "\n".join(lines)
+        except Exception as exc:
+            err = f"DISM 직접 실행 중 예외: {exc}"
+            return 1, "\n".join(lines + [err])
+
+    def _run_dism_elevated(
+        self,
+        args: List[str],
+        log_callback: Optional[Any] = None,
+        cancel_event: Optional[threading.Event] = None
+    ) -> tuple[int, str]:
+        temp_dir = Path(tempfile.mkdtemp(prefix="bk_dism_elev_"))
+        temp_bat = temp_dir / "run_elevated_dism.bat"
+        temp_log = temp_dir / "dism_output.log"
+        temp_exit = temp_dir / "dism_exit.txt"
+
+        escaped_args = []
+        for a in args:
+            if " " in a and not a.startswith('"'):
+                clean = a.rstrip("\\")
+                escaped_args.append(f'"{clean}"')
+            else:
+                escaped_args.append(a)
+        dism_args_str = " ".join(escaped_args)
+
+        bat_content = (
+            "@echo off\r\n"
+            f'dism.exe {dism_args_str} > "{temp_log}" 2>&1\r\n'
+            f'echo %ERRORLEVEL% > "{temp_exit}"\r\n'
+            "exit /b %ERRORLEVEL%\r\n"
+        )
+
+        try:
+            temp_bat.write_text(bat_content, encoding="cp949", errors="replace")
+        except Exception as exc:
+            msg = f"UAC 승격 배치 파일 생성 실패: {exc}"
+            if log_callback:
+                try:
+                    log_callback(msg)
+                except Exception:
+                    pass
+            self._cleanup_temp_dir(temp_dir)
+            return 1, msg
+
+        notice = "  - [UAC] 비관리자 환경 감지: Windows UAC 관리자 권한 승격 프록시를 통해 DISM을 실행합니다..."
+        self.append_log(notice)
+        if log_callback:
+            try:
+                log_callback(notice)
+            except Exception:
+                pass
+
+        bat_path_str = str(temp_bat)
+        ps_script = f'Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"{bat_path_str}`"" -Verb RunAs -WindowStyle Hidden'
+
+        try:
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            ps_proc = subprocess.run(
+                ["powershell.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+                capture_output=True,
+                text=True,
+                creationflags=creationflags
+            )
+            if ps_proc.returncode != 0:
+                err_msg = f"UAC 권한 승격 요청 실패 (사용자 취소 또는 정책 차단): {ps_proc.stderr.strip()}"
+                self.append_log(f"  - ✗ {err_msg}")
+                self._cleanup_temp_dir(temp_dir)
+                return 740, err_msg
+        except Exception as exc:
+            err_msg = f"PowerShell UAC 실행기 기동 실패: {exc}"
+            self.append_log(f"  - ✗ {err_msg}")
+            self._cleanup_temp_dir(temp_dir)
+            return 1, err_msg
+
+        lines = []
+        read_pos = 0
+        start_wait = time.time()
+        max_no_activity_sec = 7200  # 2시간 타임아웃
+
+        while True:
+            if cancel_event is not None and cancel_event.is_set():
+                msg = "DISM 작업이 사용자에 의해 취소되었습니다."
+                if log_callback:
+                    try:
+                        log_callback(msg)
+                    except Exception:
+                        pass
+                self._cleanup_temp_dir(temp_dir)
+                return 1, "\n".join(lines + [msg])
+
+            if temp_log.exists():
+                try:
+                    with temp_log.open("r", encoding="cp949", errors="replace") as f:
+                        f.seek(read_pos)
+                        new_content = f.read()
+                        if new_content:
+                            read_pos = f.tell()
+                            for l in new_content.splitlines():
+                                l_str = l.rstrip("\r\n")
+                                lines.append(l_str)
+                                if log_callback:
+                                    try:
+                                        log_callback(l_str)
+                                    except Exception:
+                                        pass
+                except Exception:
+                    pass
+
+            if temp_exit.exists():
+                time.sleep(0.5)
+                try:
+                    with temp_log.open("r", encoding="cp949", errors="replace") as f:
+                        f.seek(read_pos)
+                        rest = f.read()
+                        if rest:
+                            for l in rest.splitlines():
+                                l_str = l.rstrip("\r\n")
+                                lines.append(l_str)
+                                if log_callback:
+                                    try:
+                                        log_callback(l_str)
+                                    except Exception:
+                                        pass
+                except Exception:
+                    pass
+                break
+
+            if time.time() - start_wait > max_no_activity_sec:
+                lines.append("DISM 작업 타임아웃 초과")
+                break
+
+            time.sleep(0.3)
+
+        exit_code = 1
+        try:
+            if temp_exit.exists():
+                raw = temp_exit.read_text(encoding="utf-8", errors="replace").strip()
+                exit_code = int(raw)
+        except Exception:
+            exit_code = 1
+
+        self._cleanup_temp_dir(temp_dir)
+        return exit_code, "\n".join(lines)
+
+    def _cleanup_temp_dir(self, temp_dir: Path):
+        try:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        except Exception:
+            pass
+
+
     def start_capture(
         self,
         source_drive: str = "C:",
@@ -317,7 +549,6 @@ class DriveArchiveManager:
         return {"success": True, "message": "드라이브 통백업 캡처가 시작되었습니다.", "target_wim": target_wim_path}
 
     def _worker_capture(self, source_drive: str, target_wim: str, compress: str, auto_verify: bool):
-        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         vss_ctx = None
         temp_wim = target_wim + ".tmp"
 
@@ -357,17 +588,20 @@ class DriveArchiveManager:
 
             source_capture_dir = f"{source_drive[0]}:\\"
             if VSS_AVAILABLE and VSSContext:
-                try:
-                    vss_ctx = VSSContext(source_paths=[f"{source_drive[0]}:\\"], enabled=True, strict=False)
-                    vss_ctx.__enter__()
-                    if vss_ctx.vss_active:
-                        shadow_path = vss_ctx.get_shadow_path(f"{source_drive[0]}:\\")
-                        if shadow_path and os.path.exists(shadow_path):
-                            source_capture_dir = shadow_path.rstrip("\\") + "\\"
-                            self.append_log(f"  - VSS 섀도 볼륨 바인딩 성공: {source_capture_dir}")
-                except Exception as e_vss:
-                    self.append_log(f"  - [주의] VSS 섀도 생성 실패 ({e_vss}). 직접 볼륨 캡처로 진행합니다.")
-                    vss_ctx = None
+                if is_admin():
+                    try:
+                        vss_ctx = VSSContext(source_paths=[f"{source_drive[0]}:\\"], enabled=True, strict=False)
+                        vss_ctx.__enter__()
+                        if vss_ctx.vss_active:
+                            shadow_path = vss_ctx.get_shadow_path(f"{source_drive[0]}:\\")
+                            if shadow_path and os.path.exists(shadow_path):
+                                source_capture_dir = shadow_path.rstrip("\\") + "\\"
+                                self.append_log(f"  - VSS 섀도 볼륨 바인딩 성공: {source_capture_dir}")
+                    except Exception as e_vss:
+                        self.append_log(f"  - [주의] VSS 섀도 생성 실패 ({e_vss}). 직접 볼륨 캡처로 진행합니다.")
+                        vss_ctx = None
+                else:
+                    self.append_log("  - [안내] 비관리자 환경 감지: VSS 스냅샷(vssadmin) 45초 타임아웃 방지를 위해 건너뛰고 DISM 자체 백업 시맨틱으로 캡처를 진행합니다.")
 
             # 3. DISM Capture-Image 실행
             os.makedirs(os.path.dirname(os.path.abspath(target_wim)), exist_ok=True)
@@ -398,40 +632,24 @@ class DriveArchiveManager:
             self.append_log(f"  - DISM 실행: {' '.join(dism_cmd[:4])} ...")
 
             start_ts = time.time()
-            proc = subprocess.Popen(
-                dism_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="cp949",
-                errors="ignore",
-                creationflags=creationflags
+
+            def on_dism_line(line: str):
+                stripped = line.strip()
+                m = re.search(r"(\d+(\.\d+)?)%", stripped)
+                if m:
+                    pct = float(m.group(1))
+                    with self.state_lock:
+                        self.progress_percent = round(10.0 + (pct * 0.7), 1)
+                        self.current_phase = f"DISM 캡처 진행 중 ({pct}%)"
+                elif any(k in stripped for k in ("Error", "오류", "100.0%", "작업을 완료했습니다")):
+                    self.append_log(f"    {stripped}")
+
+            rc, out = self.run_dism(
+                dism_cmd[1:],
+                log_callback=on_dism_line,
+                cancel_event=self._cancel_event
             )
 
-            while proc.poll() is None:
-                if self._cancel_event.is_set():
-                    proc.terminate()
-                    time.sleep(1)
-                    if proc.poll() is None:
-                        proc.kill()
-                    raise RuntimeError("사용자에 의해 WIM 캡처가 취소되었습니다.")
-
-                line = proc.stdout.readline() if proc.stdout else ""
-                if line:
-                    stripped = line.strip()
-                    # 진행률 파싱 (예: [  15.0%  ] 캡처 중...)
-                    m = re.search(r"(\d+(\.\d+)?)%", stripped)
-                    if m:
-                        pct = float(m.group(1))
-                        with self.state_lock:
-                            self.progress_percent = round(10.0 + (pct * 0.7), 1)
-                            self.current_phase = f"DISM 캡처 진행 중 ({pct}%)"
-                    elif any(k in stripped for k in ("Error", "오류", "100.0%", "작업을 완료했습니다")):
-                        self.append_log(f"    {stripped}")
-
-                time.sleep(0.3)
-
-            rc = proc.returncode
             if rc != 0:
                 raise RuntimeError(f"DISM 캡처 실패 (Exit Code: {rc}). 관리자 권한 확인 필요.")
 
@@ -519,7 +737,6 @@ class DriveArchiveManager:
         3단계: 5대 핵심 부팅 및 라이선스 아티팩트 실측 검사 (ntoskrnl, winload, SYSTEM, SOFTWARE, tokens.dat)
         4단계: 가상 마운트 즉시 안전 해제 (/Unmount-Image /Discard)
         """
-        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         result: Dict[str, Any] = {
             "wim_path": wim_path,
             "verified": False,
@@ -544,17 +761,10 @@ class DriveArchiveManager:
                 self.progress_percent = 82.0
                 self.current_phase = "검증 1단계: WIM 이미지 헤더/인덱스 검사"
 
-            info_cmd = ["dism.exe", "/Get-ImageInfo", f"/ImageFile:{wim_path}", "/Index:1"]
-            proc_info = subprocess.run(
-                info_cmd,
-                capture_output=True,
-                text=True,
-                encoding="cp949",
-                errors="ignore",
-                creationflags=creationflags
-            )
-            if proc_info.returncode != 0:
-                raise RuntimeError(f"1단계 실패: WIM 이미지 손상 또는 읽기 불가 (rc={proc_info.returncode})")
+            info_cmd = ["/Get-ImageInfo", f"/ImageFile:{wim_path}", "/Index:1"]
+            rc_info, _ = self.run_dism(info_cmd)
+            if rc_info != 0:
+                raise RuntimeError(f"1단계 실패: WIM 이미지 손상 또는 읽기 불가 (rc={rc_info})")
 
             result["stage"] = 1
             result["stage_messages"].append("1단계 통과: DISM WIM 헤더 및 무결성 블록 정상")
@@ -568,7 +778,6 @@ class DriveArchiveManager:
 
             os.makedirs(temp_mount_dir, exist_ok=True)
             mount_cmd = [
-                "dism.exe",
                 "/Mount-Image",
                 f"/ImageFile:{wim_path}",
                 "/Index:1",
@@ -577,16 +786,9 @@ class DriveArchiveManager:
                 "/Optimize"
             ]
 
-            proc_mount = subprocess.run(
-                mount_cmd,
-                capture_output=True,
-                text=True,
-                encoding="cp949",
-                errors="ignore",
-                creationflags=creationflags
-            )
-            if proc_mount.returncode != 0:
-                raise RuntimeError(f"2단계 실패: 가상 마운트 거부됨 (rc={proc_mount.returncode}). DISM 드라이버 확인 필요.")
+            rc_mount, _ = self.run_dism(mount_cmd)
+            if rc_mount != 0:
+                raise RuntimeError(f"2단계 실패: 가상 마운트 거부됨 (rc={rc_mount}). DISM 드라이버 확인 필요.")
 
             is_mounted = True
             result["stage"] = 2
@@ -631,15 +833,8 @@ class DriveArchiveManager:
                 self.progress_percent = 96.0
                 self.current_phase = "검증 4단계: 가상 마운트 안전 해제 중"
 
-            unmount_cmd = ["dism.exe", "/Unmount-Image", f"/MountDir:{temp_mount_dir}", "/Discard"]
-            subprocess.run(
-                unmount_cmd,
-                capture_output=True,
-                text=True,
-                encoding="cp949",
-                errors="ignore",
-                creationflags=creationflags
-            )
+            unmount_cmd = ["/Unmount-Image", f"/MountDir:{temp_mount_dir}", "/Discard"]
+            self.run_dism(unmount_cmd)
             is_mounted = False
 
             result["stage"] = 4
@@ -654,11 +849,9 @@ class DriveArchiveManager:
         finally:
             if is_mounted:
                 try:
-                    subprocess.run(
-                        ["dism.exe", "/Unmount-Image", f"/MountDir:{temp_mount_dir}", "/Discard"],
-                        capture_output=True,
-                        creationflags=creationflags
-                    )
+                    self.run_dism(["/Unmount-Image", f"/MountDir:{temp_mount_dir}", "/Discard"])
+                except Exception:
+                    pass
                 except Exception:
                     pass
             if os.path.exists(temp_mount_dir):
@@ -743,37 +936,25 @@ class DriveArchiveManager:
                 "/Verify"
             ]
 
-            proc = subprocess.Popen(
-                apply_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="cp949",
-                errors="ignore",
-                creationflags=creationflags
+            def on_restore_line(line: str):
+                stripped = line.strip()
+                m = re.search(r"(\d+(\.\d+)?)%", stripped)
+                if m:
+                    pct = float(m.group(1))
+                    with self.state_lock:
+                        self.progress_percent = round(10.0 + (pct * 0.7), 1)
+                        self.current_phase = f"DISM 복원 전개 중 ({pct}%)"
+                elif any(k in stripped for k in ("Error", "오류", "100.0%")):
+                    self.append_log(f"    {stripped}")
+
+            rc, _ = self.run_dism(
+                apply_cmd[1:],
+                log_callback=on_restore_line,
+                cancel_event=self._cancel_event
             )
 
-            while proc.poll() is None:
-                if self._cancel_event.is_set():
-                    proc.terminate()
-                    raise RuntimeError("사용자에 의해 복원이 취소되었습니다.")
-
-                line = proc.stdout.readline() if proc.stdout else ""
-                if line:
-                    stripped = line.strip()
-                    m = re.search(r"(\d+(\.\d+)?)%", stripped)
-                    if m:
-                        pct = float(m.group(1))
-                        with self.state_lock:
-                            self.progress_percent = round(10.0 + (pct * 0.7), 1)
-                            self.current_phase = f"DISM 복원 전개 중 ({pct}%)"
-                    elif any(k in stripped for k in ("Error", "오류", "100.0%")):
-                        self.append_log(f"    {stripped}")
-
-                time.sleep(0.3)
-
-            if proc.returncode != 0:
-                raise RuntimeError(f"DISM Apply-Image 실패 (rc={proc.returncode})")
+            if rc != 0:
+                raise RuntimeError(f"DISM Apply-Image 실패 (rc={rc})")
 
             self.append_log("  - DISM 전개 완료 (100%)")
 
