@@ -885,12 +885,21 @@
                             <!-- 구글 드라이브 설정 필드 -->
                             <div id="offsite-gdrive-fields" class="md:col-span-6 space-y-2 hidden">
                                 <div>
-                                    <label class="block text-[11px] font-semibold text-slate-300">구글 서비스 계정 키 파일 (.json 경로)</label>
-                                    <input type="text" id="offsite-gdrive-credentials" placeholder="예: C:\keys\gdrive-service-account.json" class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+                                    <div class="flex items-center justify-between">
+                                        <label class="block text-[11px] font-semibold text-slate-300">구글 계정 인증 키 (.json)</label>
+                                        <span class="text-[10px] text-cyan-400 font-medium">개인 계정(OAuth 2.0) 및 서비스 계정 지원</span>
+                                    </div>
+                                    <div class="flex items-center gap-1.5 mt-1">
+                                        <input type="text" id="offsite-gdrive-credentials" placeholder="자동 탐색 또는 파일 선택 (비어있으면 기본 키 사용)" class="flex-1 bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+                                        <input type="file" id="gdrive-cred-file-input" class="hidden" accept=".json" onchange="uploadGdriveCredFile(this)">
+                                        <button type="button" onclick="document.getElementById('gdrive-cred-file-input').click()" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-medium shrink-0 flex items-center gap-1">
+                                            <i data-lucide="upload" class="w-3.5 h-3.5"></i> 파일 선택
+                                        </button>
+                                    </div>
                                 </div>
                                 <div>
                                     <label class="block text-[11px] font-semibold text-slate-300">구글 드라이브 대상 폴더명 또는 Folder ID</label>
-                                    <input type="text" id="offsite-gdrive-folder" placeholder="기본값: BackupSystem_Offsite" class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+                                    <input type="text" id="offsite-gdrive-folder" placeholder="예: 1V6M4zO0bfKcN78CBb1DL_zaivHsJtCXK 또는 폴더명" class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
                                 </div>
                             </div>
 
@@ -1066,7 +1075,7 @@
                             <h3 class="text-sm font-bold text-white flex items-center gap-2">
                                 <i data-lucide="cpu" class="w-4 h-4 text-indigo-400"></i>
                                 <span>1-Click 라이브 SSD 마이그레이션 (Live Disk Clone & Bootable)</span>
-                                <span class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-300 font-bold border border-indigo-800">삼성 매지션 방식</span>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-300 font-bold border border-indigo-800">NVMe LBA 직사 복제</span>
                                 <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 font-bold border border-emerald-800">즉시 부팅 가능</span>
                             </h3>
                             <p class="text-xs text-zinc-400">

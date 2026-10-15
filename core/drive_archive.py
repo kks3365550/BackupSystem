@@ -1772,11 +1772,11 @@ class DriveArchiveManager:
                     raise RuntimeError(f"VHDX 가상 마운트 실패 또는 드라이브 할당 불가: {vhdx_path}")
 
             try:
-                # 2. 삼성 매지션급 LBA 블록 직접 스트리밍 복제 (100% 순수 블록 직사 복제)
+                # 2. 고속 LBA 블록 직접 스트리밍 복제 (100% 순수 블록 직사 복제)
                 if mounted_drive:
                     self.append_log(f"  - ✓ VHDX 가상 드라이브 마운트 성공: {mounted_drive}")
                     from core.block_stream import stream_volume_to_volume
-                    self.append_log(f"[2/4] [삼성 매지션 LBA 가속] VHDX({mounted_drive}) -> 타겟 SSD({target_root}) NVMe 다이렉트 블록 스트리밍 복제 시작...")
+                    self.append_log(f"[2/4] [고속 LBA 블록 복제] VHDX({mounted_drive}) -> 타겟 SSD({target_root}) NVMe 다이렉트 블록 스트리밍 복제 시작...")
                     with self.state_lock:
                         self.progress_percent = 15.0
                         self.current_phase = "NVMe LBA 블록 직접 스트리밍 복제 중"
@@ -1800,7 +1800,7 @@ class DriveArchiveManager:
                     elapsed = res_block.get("elapsed_seconds", 0)
                     spd = res_block.get("average_speed_mb_s", 0)
                     copied_gb = res_block.get("copied_bytes", 0) / (1024**3)
-                    self.append_log(f"  - 🎉 [삼성 매지션급 LBA 복제 성공] 초고속 블록 복제 완료! (복제 용량: {copied_gb:.2f} GB, 소요 시간: {elapsed}초, 평균 속도: {spd} MB/s)")
+                    self.append_log(f"  - 🎉 [LBA 다이렉트 블록 복제 성공] 초고속 블록 복제 완료! (복제 용량: {copied_gb:.2f} GB, 소요 시간: {elapsed}초, 평균 속도: {spd} MB/s)")
                 else:
                     self.append_log("[2/4] 테스트 환경 복제 단계 통과")
 
@@ -1883,7 +1883,7 @@ class DriveArchiveManager:
         target_root = f"{target_drive[0]}:\\"
         try:
             self.append_log("=" * 60)
-            self.append_log("🚀 [초고속 LBA 블록 역스트리밍 복원 엔진 시작 (삼성 매지션급)]")
+            self.append_log("🚀 [초고속 LBA 블록 역스트리밍 복원 엔진 시작]")
             self.append_log(f"  - 원본 이미지: {image_path}")
             self.append_log(f"  - 복구 대상 새 SSD: {target_root}")
             self.append_log(f"  - UEFI 부트로더(BCD) 자동 주입: {'예' if auto_bcdboot else '아니오'}")

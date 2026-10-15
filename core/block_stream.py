@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-core/block_stream.py: 초고속 LBA 블록 스트리밍 백업 및 복원 엔진 (삼성 매지션 Clonix급 가속)
+core/block_stream.py: 초고속 LBA 블록 스트리밍 백업 및 복원 엔진
 - VSS 스냅샷 또는 볼륨 핸들 직접 오픈 (CreateFileW)
 - NTFS $Bitmap (FSCTL_GET_VOLUME_BITMAP) 파싱으로 유효 클러스터만 선별 (스마트 블록 스킵)
 - 4MB~8MB 대용량 블록 연속 스트리밍 (Direct I/O)
@@ -436,7 +436,7 @@ def create_block_stream_backup(
     cancel_event = None
 ) -> Dict[str, Any]:
     """
-    삼성 매지션급 초고속 LBA 블록 스트리밍 백업 실행.
+    초고속 LBA 블록 스트리밍 백업 실행.
     1. VSS 볼륨 스냅샷 생성 (또는 볼륨 핸들 오픈)
     2. NTFS $Bitmap 파싱으로 유효 클러스터 청크 생성 (빈 공간 100% 스킵)
     3. zstandard 초고속 압축 스트리밍으로 단일 컨테이너 파일 생성
@@ -574,7 +574,7 @@ def restore_block_stream(
     cancel_event = None
 ) -> Dict[str, Any]:
     """
-    초고속 LBA 블록 역스트리밍 복원 (삼성 매지션급 복구).
+    초고속 LBA 블록 역스트리밍 복원.
     1. 컨테이너 헤더 검증
     2. 타겟 볼륨(E:) 직접 열기 및 락/언마운트
     3. zstandard 압축 해제 및 LBA 위치에 블록 직사
@@ -725,7 +725,7 @@ def stream_volume_to_volume(
     queue_depth: int = 6
 ) -> Dict[str, Any]:
     """
-    삼성 매지션(WinClon) 방식의 볼륨 직결 LBA 블록 스트리밍 복제.
+    볼륨 직결 LBA 다이렉트 블록 스트리밍 복제.
     [고성능 최적화]:
     1. 생산자-소비자(Producer-Consumer) 듀얼 스레드 파이프라인 (Reader/Writer 동시 병렬 I/O)
     2. 사전 할당된 버퍼 풀 (Zero-Allocation Buffer Pool)로 파이썬 메모리 복사 및 GC 오버헤드 0 제거

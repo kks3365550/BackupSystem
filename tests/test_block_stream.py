@@ -113,7 +113,7 @@ class TestZstdStreamRoundTrip:
         sample_clusters = 5
         cluster_size = 4096
         total_size = sample_clusters * cluster_size
-        test_payload = b"CLONIX_SAMSUNG_RAW_BLOCK_STREAM_DATA_" * (total_size // 37 + 1)
+        test_payload = b"DIRECT_NVME_RAW_BLOCK_STREAM_DATA_" * (total_size // 34 + 1)
         test_payload = test_payload[:total_size]
 
         with tempfile.NamedTemporaryFile(suffix=".qblk", delete=False) as f_img:

@@ -7,7 +7,7 @@ import psutil
 import logging
 from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -571,6 +571,28 @@ def save_offsite_settings(req: OffsiteSaveRequest):
     append_task_log(f"[3-2-1 설정] 오프사이트 원격 복제 설정 저장: 제공자={saved['provider']}, 활성={saved['enabled']}, 경로={saved['remote_path']}, GoogleDrive키={saved['gdrive_credentials_file']}")
     return {"success": True, "data": saved}
 
+@app.post("/api/offsite/upload_creds")
+async def upload_gdrive_credentials(file: UploadFile = File(...)):
+    """구글 드라이브 인증 JSON 파일(OAuth 클라이언트 또는 서비스 계정)을 업로드하여 data 디렉터리에 저장합니다."""
+    try:
+        base_data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+        os.makedirs(base_data_dir, exist_ok=True)
+        file_path = os.path.join(base_data_dir, file.filename)
+        content = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
+        # 배포 및 설치 디렉터리 동기화
+        for target_dir in [r"D:\백업시스템_설치용\data", r"C:\Users\kksjmj\AppData\Local\Programs\백업시스템\data"]:
+            try:
+                os.makedirs(target_dir, exist_ok=True)
+                with open(os.path.join(target_dir, file.filename), "wb") as f:
+                    f.write(content)
+            except Exception:
+                pass
+        return {"success": True, "file_path": file_path, "filename": file.filename}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 @app.post("/api/offsite/test")
 def test_offsite_connection(req: OffsiteTestRequest):
     cfg = ConfigManager.get_offsite_config()
@@ -582,9 +604,20 @@ def test_offsite_connection(req: OffsiteTestRequest):
         creds = (creds or "").strip().strip('"').strip("'")
         folder = (folder or "").strip().strip('"').strip("'")
 
-        # 1. 기 저장된 OAuth 토큰 유무 확인
         base_data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         token_path = os.path.join(base_data_dir, "gdrive_oauth_token.json")
+
+        # 키 파일 경로가 비어있거나 없는 경우 자동 탐색
+        if not creds or not os.path.exists(creds):
+            for sdir in [base_data_dir, root_dir]:
+                if os.path.exists(sdir):
+                    for fname in os.listdir(sdir):
+                        if fname.startswith("client_secret") and fname.endswith(".json"):
+                            creds = os.path.join(sdir, fname)
+                            break
+                if creds and os.path.exists(creds):
+                    break
 
         needs_oauth = False
         if creds and os.path.exists(creds) and not os.path.exists(token_path):
@@ -598,8 +631,6 @@ def test_offsite_connection(req: OffsiteTestRequest):
                 pass
 
         if needs_oauth:
-            # 백그라운드 프로세스가 브라우저를 띄우지 않고, 포트 8766 수신 대기 시작
-            # 생성된 auth_url을 프론트엔드로 반환하여 사용자의 브라우저에서 직접 팝업 창을 띄움
             from google_auth_oauthlib.flow import InstalledAppFlow
             flow = InstalledAppFlow.from_client_secrets_file(
                 creds, scopes=["https://www.googleapis.com/auth/drive"]
@@ -607,27 +638,107 @@ def test_offsite_connection(req: OffsiteTestRequest):
             flow.redirect_uri = "http://localhost:8766/"
             auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
 
-            def _oauth_listener():
-                try:
-                    logger.info("[Google OAuth] 포트 8766에서 구글 로그인 콜백 대기 시작...")
-                    tok = flow.run_local_server(port=8766, open_browser=False, prompt="consent", access_type="offline")
-                    os.makedirs(base_data_dir, exist_ok=True)
-                    with open(token_path, "w", encoding="utf-8") as tf:
-                        tf.write(tok.to_json())
-                    logger.info(f"[Google OAuth] 토큰 저장 성공: {token_path}")
-                    # 설치 및 배포 디렉터리 동기화
-                    for target_dir in [r"D:\백업시스템_설치용\data", r"C:\Users\kksjmj\AppData\Local\Programs\백업시스템\data"]:
-                        try:
-                            os.makedirs(target_dir, exist_ok=True)
-                            with open(os.path.join(target_dir, "gdrive_oauth_token.json"), "w", encoding="utf-8") as tf:
-                                tf.write(tok.to_json())
-                        except Exception:
-                            pass
-                except Exception as ex:
-                    logger.error(f"[Google OAuth] 리스너 오류: {ex}")
+            import http.server
+            import urllib.parse
 
-            import threading
-            threading.Thread(target=_oauth_listener, daemon=True).start()
+            SUCCESS_HTML = """<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>구글 드라이브 인증 완료</title>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 32px 40px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            max-width: 440px;
+        }
+        h2 { color: #38bdf8; margin: 12px 0 8px 0; font-size: 20px; }
+        p { color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0; }
+        .badge {
+            display: inline-block;
+            background: #059669;
+            color: #ecfdf5;
+            padding: 6px 14px;
+            border-radius: 9999px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+    </style>
+    <script>
+        window.onload = function() {
+            setTimeout(function() {
+                try { window.close(); } catch(e){}
+            }, 1500);
+        };
+    </script>
+</head>
+<body>
+    <div class="card">
+        <div class="badge">✓ 연동 성공</div>
+        <h2>구글 드라이브 인증 완료</h2>
+        <p>Google Drive OAuth 연동이 정상적으로 완료되었습니다.<br>이 창은 잠시 후 자동으로 닫힙니다.</p>
+    </div>
+</body>
+</html>"""
+
+            class _OAuthHandler(http.server.BaseHTTPRequestHandler):
+                def log_message(self, format, *args):
+                    pass
+                def do_GET(self):
+                    query = urllib.parse.urlparse(self.path).query
+                    params = urllib.parse.parse_qs(query)
+                    code = params.get("code", [None])[0]
+                    if code:
+                        try:
+                            flow.fetch_token(code=code)
+                            tok_json = flow.credentials.to_json()
+                            os.makedirs(base_data_dir, exist_ok=True)
+                            with open(token_path, "w", encoding="utf-8") as tf:
+                                tf.write(tok_json)
+                            for target_dir in [r"D:\백업시스템_설치용\data", r"C:\Users\kksjmj\AppData\Local\Programs\백업시스템\data"]:
+                                try:
+                                    os.makedirs(target_dir, exist_ok=True)
+                                    with open(os.path.join(target_dir, "gdrive_oauth_token.json"), "w", encoding="utf-8") as tf:
+                                        tf.write(tok_json)
+                                except Exception:
+                                    pass
+                            self.send_response(200)
+                            self.send_header("Content-Type", "text/html; charset=utf-8")
+                            self.end_headers()
+                            self.wfile.write(SUCCESS_HTML.encode("utf-8"))
+                        except Exception as e:
+                            self.send_response(500)
+                            self.send_header("Content-Type", "text/html; charset=utf-8")
+                            self.end_headers()
+                            self.wfile.write(f"<h3>인증 처리 오류: {e}</h3>".encode("utf-8"))
+                    else:
+                        self.send_response(400)
+                        self.end_headers()
+
+            def _run_server():
+                try:
+                    server = http.server.HTTPServer(("localhost", 8766), _OAuthHandler)
+                    server.timeout = 180
+                    server.handle_request()
+                    server.server_close()
+                except Exception as ex:
+                    logger.error(f"[Google OAuth] 서버 오류: {ex}")
+
+            threading.Thread(target=_run_server, daemon=True).start()
 
             return {
                 "success": True,

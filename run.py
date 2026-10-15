@@ -83,7 +83,20 @@ except Exception as _rec_e:
     sys.exit(1)
 
 def ensure_dependencies():
-    required = ["uvicorn", "fastapi", "cryptography", "psutil", "jinja2", "requests", "pydantic", "zstandard", "multipart"]
+    required = [
+        "uvicorn",
+        "fastapi",
+        "cryptography",
+        "psutil",
+        "jinja2",
+        "requests",
+        "pydantic",
+        "zstandard",
+        "multipart",
+        "googleapiclient",
+        "google.auth",
+        "google_auth_oauthlib",
+    ]
     missing = []
     for mod in required:
         try:
