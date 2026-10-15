@@ -40,15 +40,13 @@ def test_find_free_drive_letter_mock():
 
 
 def test_prepare_target_disk_with_esp_mock():
-    with patch("core.disk_clone.subprocess.run") as mock_run:
-        mock_run.return_value = type("Res", (), {"returncode": 0, "stdout": "DiskPart successfully partitioned the disk.", "stderr": ""})()
+    with patch("core.disk_clone.run_elevated_command", return_value=(0, "DiskPart successfully partitioned the disk.", "")):
         res = prepare_target_disk_with_esp(1, "E:", "S:")
         assert res["success"] is True
 
 
 def test_remove_esp_drive_letter_mock():
-    with patch("core.disk_clone.subprocess.run") as mock_run:
-        mock_run.return_value = type("Res", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+    with patch("core.disk_clone.run_elevated_command", return_value=(0, "", "")):
         ok = remove_esp_drive_letter("S:")
         assert ok is True
 
@@ -120,8 +118,8 @@ def test_disk_clone_manager_pipeline_execution_with_auto_esp():
          patch("core.disk_clone.prepare_target_disk_with_esp", return_value={"success": True}) as mock_part, \
          patch("core.disk_clone.remove_esp_drive_letter", return_value=True) as mock_rem, \
          patch("core.disk_clone.VSSContext") as mock_vss_cls, \
-         patch("core.disk_clone.subprocess.Popen") as mock_popen, \
-         patch("core.disk_clone.subprocess.run") as mock_run, \
+         patch("core.block_stream.stream_volume_to_volume") as mock_stream, \
+         patch("core.disk_clone.run_elevated_command", return_value=(0, "부팅 파일이 성공적으로 만들어졌습니다.", "")), \
          patch("os.path.exists", return_value=True), \
          patch("time.sleep", return_value=None):
 
@@ -133,16 +131,14 @@ def test_disk_clone_manager_pipeline_execution_with_auto_esp():
 
         vss_mock = MagicMock()
         vss_mock.vss_active = True
-        vss_mock.get_shadow_path.return_value = "GLOBALROOT\\Device\\HarddiskVolumeShadowCopy1"
+        vss_mock.shadows = {"C:": MagicMock(device_path="\\Device\\HarddiskVolumeShadowCopy1")}
         mock_vss_cls.return_value = vss_mock
 
-        proc_mock = MagicMock()
-        proc_mock.poll.side_effect = [None, 1]
-        proc_mock.stdout.readline.side_effect = ["New File: test.txt\n", ""]
-        proc_mock.returncode = 1
-        mock_popen.return_value = proc_mock
-
-        mock_run.return_value = type("SubRes", (), {"returncode": 0, "stdout": "부팅 파일이 성공적으로 만들어졌습니다.", "stderr": ""})()
+        mock_stream.return_value = {
+            "success": True,
+            "copied_bytes": 50 * (1024**3),
+            "average_speed_mb_s": 850.5
+        }
 
         # auto_prepare_esp=True 실행
         mgr._run_clone_pipeline("E:", auto_prepare_esp=True)
@@ -153,6 +149,7 @@ def test_disk_clone_manager_pipeline_execution_with_auto_esp():
         assert status["is_running"] is False
         assert mock_part.called
         assert mock_rem.called
+        assert mock_stream.called
         logs = mgr.get_logs()
         assert any("마이그레이션이 완료되었습니다" in l for l in logs)
 
@@ -162,7 +159,7 @@ def test_disk_clone_manager_pipeline_cancel():
     mgr._init_state()
 
     with patch("core.disk_clone.shutil.disk_usage") as mock_usage, \
-         patch("core.disk_clone.subprocess.Popen") as mock_popen, \
+         patch("core.block_stream.stream_volume_to_volume", side_effect=RuntimeError("사용자에 의해 마이그레이션이 취소되었습니다.")), \
          patch("os.path.exists", return_value=True):
 
         mock_usage.side_effect = lambda p: type("Usage", (), {
@@ -170,10 +167,6 @@ def test_disk_clone_manager_pipeline_cancel():
             "used": 50 * (1024**3),
             "free": 450 * (1024**3)
         })()
-
-        proc_mock = MagicMock()
-        proc_mock.poll.return_value = None
-        mock_popen.return_value = proc_mock
 
         mgr._cancel_event.set()
         mgr._run_clone_pipeline("E:", auto_prepare_esp=False)

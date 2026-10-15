@@ -1036,6 +1036,29 @@ async function saveOffsiteConfigFromUI() {
     }
 }
 
+async function uploadGdriveCredFile(input) {
+    if (!input.files || input.files.length === 0) return;
+    const file = input.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+        const res = await fetch('/api/offsite/upload_creds', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+        if (data.success && data.file_path) {
+            const credsInput = document.getElementById('offsite-gdrive-credentials');
+            if (credsInput) credsInput.value = data.file_path;
+            alert(`✅ [키 파일 업로드 완료]\n파일명: ${data.filename}\n\n[연결 테스트] 버튼을 눌러 연동을 확인해 주십시오.`);
+        } else {
+            alert('키 파일 업로드 실패: ' + (data.error || '알 수 없는 오류'));
+        }
+    } catch(err) {
+        alert('키 파일 업로드 통신 오류: ' + err.message);
+    }
+}
+
 async function testOffsiteFromUI() {
     const isGdrive = document.getElementById('offsite-provider-gdrive')?.checked;
     const provider = isGdrive ? 'gdrive' : 'local';
@@ -1046,11 +1069,6 @@ async function testOffsiteFromUI() {
     const remote_path = (pathInput ? pathInput.value : '').trim().replace(/^["']|["']$/g, '');
     const gdrive_credentials_file = (gdriveCreds ? gdriveCreds.value : '').trim().replace(/^["']|["']$/g, '');
     const gdrive_folder_id = (gdriveFolder ? gdriveFolder.value : '').trim().replace(/^["']|["']$/g, '');
-
-    if (provider === 'gdrive' && !gdrive_credentials_file) {
-        alert('구글 서비스 계정 키 파일(.json) 경로를 입력하세요.');
-        return;
-    }
     if (provider === 'local' && !remote_path) {
         alert('테스트할 원격 대상 경로를 입력하세요.');
         return;

@@ -398,7 +398,7 @@ class GoogleDriveOffsiteReplicator:
                     raise ValueError(f"사용자 인증 토큰 로드 실패: {e_tok}")
 
             # C. Service Account JSON인 경우
-            elif "type" in data and data.get("type") == "service_account":
+            elif ("type" in data and data.get("type") == "service_account") or "client_email" in data or "private_key" in data:
                 try:
                     creds = g_service_account.Credentials.from_service_account_file(
                         self.credentials_file, scopes=self.GDRIVE_SCOPES

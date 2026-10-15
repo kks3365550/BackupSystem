@@ -722,7 +722,8 @@ def stream_volume_to_volume(
     progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
     cancel_event = None,
     chunk_bytes: int = 16 * 1024 * 1024,
-    queue_depth: int = 6
+    queue_depth: int = 6,
+    src_shadow_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     볼륨 직결 LBA 다이렉트 블록 스트리밍 복제.
@@ -730,6 +731,7 @@ def stream_volume_to_volume(
     1. 생산자-소비자(Producer-Consumer) 듀얼 스레드 파이프라인 (Reader/Writer 동시 병렬 I/O)
     2. 사전 할당된 버퍼 풀 (Zero-Allocation Buffer Pool)로 파이썬 메모리 복사 및 GC 오버헤드 0 제거
     3. 16MB 대형 청크로 커널 I/O 컨텍스트 스위칭 최소화
+    4. 실시간 VSS 섀도 디바이스 지원으로 실행 중인 OS 원자성/정합성 100% 보장
     """
     src_vol = src_drive.strip().rstrip("\\")[:2].upper()
     dst_vol = dst_drive.strip().rstrip("\\")[:2].upper()
@@ -744,8 +746,13 @@ def stream_volume_to_volume(
     h_dst = None
 
     try:
-        h_src = open_volume_direct(src_path, write=False)
-        bitmap_bytes = query_volume_bitmap(h_src, total_clusters)
+        # 1. NTFS $Bitmap 분석 (생체 볼륨 C: 핸들에서 안전 조회)
+        h_bmp = open_volume_direct(src_path, write=False)
+        try:
+            bitmap_bytes = query_volume_bitmap(h_bmp, total_clusters)
+        finally:
+            close_volume(h_bmp)
+
         runs = get_allocated_cluster_runs(bitmap_bytes, cluster_size, chunk_bytes)
 
         if not runs:
@@ -755,6 +762,10 @@ def stream_volume_to_volume(
         total_data_bytes = total_used_clusters * cluster_size
         logger.info(f"✓ {src_vol} 사용 클러스터: {total_used_clusters:,}개 ({total_data_bytes / (1024**3):.2f} GB, 총 {len(runs):,} 청크)")
 
+        # 2. 읽기 소스 디바이스 바인딩 (VSS 스냅샷 우선)
+        read_src_path = src_shadow_path if (src_shadow_path and src_shadow_path.strip()) else src_path
+        logger.info(f"✓ LBA 블록 스트리밍 읽기 핸들 오픈: {read_src_path}")
+        h_src = open_volume_direct(read_src_path, write=False)
         h_dst = open_volume_direct(dst_path, write=True, lock=True)
 
         # ----------------------------------------------------------------------

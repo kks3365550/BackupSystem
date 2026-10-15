@@ -2,7 +2,7 @@
 """
 core/disk_clone.py: 라이브 SSD 마이그레이션 (Live Disk Clone & Bootable) 엔진
 - Windows 현재 실행 중인 C: 드라이브(OS + 데이터)를 VSS(Volume Shadow Copy)로 실시간 캡처
-- 대상 물리 SSD로 고속 다이렉트 미러링 (Robocopy 멀티스레드)
+- 대상 물리 SSD로 초고속 LBA 블록 스트리밍 복제 (하드웨어 한계 속도 직사)
 - 부트로더(bcdboot) 자동 주입으로 대상 SSD를 즉시 부팅 가능한(Bootable) 상태로 구축
 - 비동기 백그라운드 실행 및 실시간 진행률/로그 스트리밍 지원
 """
@@ -111,6 +111,110 @@ def find_free_drive_letter(preferred: str = "S:") -> str:
     return "S:"
 
 
+def is_admin() -> bool:
+    """현재 프로세스가 관리자 권한인지 확인"""
+    try:
+        import ctypes
+        return ctypes.windll.shell32.IsUserAnAdmin() != 0
+    except Exception:
+        return False
+
+
+def run_elevated_command(cmd_args: List[str], timeout: int = 60) -> tuple[int, str, str]:
+    """
+    관리자 권한이 필요한 Windows 시스템 도구(diskpart, bcdboot 등)를 안전하게 실행.
+    현재 프로세스가 관리자 권한이면 CREATE_NO_WINDOW로 즉시 실행하고,
+    비관리자 권한이거나 [WinError 740] 발생 시 PowerShell Start-Process -Verb RunAs UAC 프록시로 무창(Hidden) 실행.
+    """
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+    # 1. 관리자 권한인 경우 직접 실행
+    if is_admin():
+        try:
+            proc = subprocess.run(
+                cmd_args,
+                capture_output=True,
+                text=True,
+                encoding="cp949",
+                errors="ignore",
+                creationflags=creationflags,
+                timeout=timeout
+            )
+            return proc.returncode, proc.stdout or "", proc.stderr or ""
+        except OSError as e:
+            if getattr(e, "winerror", None) != 740:
+                return -1, "", str(e)
+            # winerror == 740 이면 아래 2번 UAC 승격 프록시로 폴백
+
+    # 2. 비관리자 권한이거나 WinError 740 발생 시 PowerShell Start-Process -Verb RunAs 프록시
+    import tempfile
+    out_file = tempfile.mktemp(suffix=".out")
+    err_file = tempfile.mktemp(suffix=".err")
+    code_file = tempfile.mktemp(suffix=".code")
+
+    inner_cmd = subprocess.list2cmdline(cmd_args)
+    batch_script = (
+        f'@chcp 65001 >nul\r\n'
+        f'{inner_cmd} > "{out_file}" 2> "{err_file}"\r\n'
+        f'echo %ERRORLEVEL% > "{code_file}"\r\n'
+    )
+
+    bat_path = tempfile.mktemp(suffix=".bat")
+    try:
+        with open(bat_path, "w", encoding="cp949", errors="ignore") as f:
+            f.write(batch_script)
+
+        ps_cmd = (
+            f"$p = Start-Process -FilePath '{bat_path}' -Verb RunAs -WindowStyle Hidden -Wait -PassThru; "
+            f"exit $p.ExitCode"
+        )
+
+        proc = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", ps_cmd],
+            capture_output=True,
+            text=True,
+            creationflags=creationflags,
+            timeout=timeout
+        )
+
+        rc = 0
+        if os.path.exists(code_file):
+            try:
+                with open(code_file, "r", encoding="utf-8", errors="ignore") as f:
+                    c_txt = f.read().strip()
+                    if c_txt.isdigit():
+                        rc = int(c_txt)
+            except Exception:
+                pass
+        else:
+            rc = proc.returncode
+
+        out_txt = ""
+        if os.path.exists(out_file):
+            try:
+                with open(out_file, "r", encoding="cp949", errors="ignore") as f:
+                    out_txt = f.read()
+            except Exception:
+                pass
+
+        err_txt = ""
+        if os.path.exists(err_file):
+            try:
+                with open(err_file, "r", encoding="cp949", errors="ignore") as f:
+                    err_txt = f.read()
+            except Exception:
+                pass
+
+        return rc, out_txt, err_txt
+    finally:
+        for tmp_f in (bat_path, out_file, err_file, code_file):
+            if os.path.exists(tmp_f):
+                try:
+                    os.remove(tmp_f)
+                except Exception:
+                    pass
+
+
 def prepare_target_disk_with_esp(disk_number: int, target_drive: str, esp_letter: str) -> Dict[str, Any]:
     """
     타겟 새 물리 SSD를 100% 부팅 가능한 UEFI 표준(GPT + 260MB FAT32 ESP + 16MB MSR + NTFS Windows)으로 원클릭 초기화
@@ -138,20 +242,11 @@ def prepare_target_disk_with_esp(disk_number: int, target_drive: str, esp_letter
         tf.write(script_content)
         script_path = tf.name
 
-    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
-        proc = subprocess.run(
-            ["diskpart", "/s", script_path],
-            capture_output=True,
-            text=True,
-            encoding="cp949",
-            errors="ignore",
-            creationflags=creationflags,
-            timeout=60
-        )
-        if proc.returncode != 0:
-            return {"success": False, "error": f"diskpart 파티셔닝 실패 (Exit Code {proc.returncode}): {proc.stderr or proc.stdout}"}
-        return {"success": True, "output": proc.stdout}
+        rc, out, err = run_elevated_command(["diskpart", "/s", script_path], timeout=60)
+        if rc != 0:
+            return {"success": False, "error": f"diskpart 파티셔닝 실패 (Exit Code {rc}): {err or out}"}
+        return {"success": True, "output": out}
     finally:
         try:
             os.remove(script_path)
@@ -172,18 +267,9 @@ def remove_esp_drive_letter(esp_letter: str) -> bool:
     with tempfile.NamedTemporaryFile("w", delete=False, suffix=".txt", encoding="utf-8") as tf:
         tf.write(script_content)
         script_path = tf.name
-    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
-        proc = subprocess.run(
-            ["diskpart", "/s", script_path],
-            capture_output=True,
-            text=True,
-            encoding="cp949",
-            errors="ignore",
-            creationflags=creationflags,
-            timeout=15
-        )
-        return proc.returncode == 0
+        rc, _, _ = run_elevated_command(["diskpart", "/s", script_path], timeout=20)
+        return rc == 0
     finally:
         try:
             os.remove(script_path)
@@ -409,100 +495,72 @@ class DiskCloneManager:
             if not auto_prepare_esp:
                 self.append_log("[2/5] 기존 파티션 모드 유지 (추가 파티셔닝 없이 기존 NTFS 볼륨으로 직접 복제)")
 
-            # 3. VSS 볼륨 스냅샷 획득 (라이브 OS 일관성 보장)
-            self.append_log("[3/5] 실시간 VSS 섀도 복사본 생성 중 (현재 실행 중인 파일/DB 정합성 보장)...")
+            # 3. VSS 볼륨 스냅샷 획득 (라이브 OS 정합성 및 일관성 보장)
+            self.append_log("[3/5] 실시간 VSS 섀도 스냅샷 생성 중 (현재 실행 중인 DB/파일 블록 동결)...")
             with self.state_lock:
                 self.status = "preparing"
                 self.progress_percent = 10.0
                 self.current_phase = "실시간 VSS 섀도 볼륨 생성 중"
 
             vss_ctx = None
-            source_clone_root = "C:\\"
+            shadow_device = None
 
             if VSS_AVAILABLE and VSSContext:
                 try:
                     vss_ctx = VSSContext(source_paths=["C:\\"], enabled=True, strict=False)
                     vss_ctx.__enter__()
                     if vss_ctx.vss_active:
-                        shadow_path = vss_ctx.get_shadow_path("C:\\")
-                        if shadow_path and os.path.exists(shadow_path):
-                            source_clone_root = shadow_path.rstrip("\\") + "\\"
-                            self.append_log(f"  - VSS 섀도 볼륨 바인딩 성공: {source_clone_root}")
+                        sc = vss_ctx.shadows.get("C:") or vss_ctx.shadows.get("C:\\")
+                        if sc and sc.device_path:
+                            shadow_device = sc.device_path
+                            self.append_log(f"  - VSS 섀도 디바이스 바인딩 성공: {shadow_device}")
+                        else:
+                            shadow_path = vss_ctx.get_shadow_path("C:\\")
+                            self.append_log(f"  - VSS 섀도 볼륨 바인딩 성공: {shadow_path}")
                 except Exception as e_vss:
-                    self.append_log(f"  - [주의] VSS 섀도 생성 실패 ({e_vss}). 직접 볼륨 읽기로 진행합니다.")
+                    self.append_log(f"  - [주의] VSS 섀도 생성 실패 ({e_vss}). 볼륨 직결 모드로 진행합니다.")
                     vss_ctx = None
 
-            # 4. Robocopy 고속 멀티스레드 미러링 복사
-            self.append_log(f"[4/5] 다이렉트 파일 복제 시작: {source_clone_root} -> {target_root}")
+            # 4. NVMe 다이렉트 LBA 블록 스트리밍 복제 (Robocopy 완전 배제, 파일 메타데이터 오버헤드 0%)
+            self.append_log(f"[4/5] 초고속 LBA 블록 스트리밍 복제 시작: C: -> {target_drive} (최대 하드웨어 속도 직사)")
             with self.state_lock:
                 self.status = "copying"
                 self.progress_percent = 15.0
-                self.current_phase = "데이터 미러링 복제 진행 중 (Robocopy /MIR)"
+                self.current_phase = "고속 LBA 블록 스트리밍 복제 진행 중"
 
-            cmd = [
-                "robocopy",
-                source_clone_root,
-                target_root,
-                "/MIR",              # 미러링 (원본과 100% 동일 동기화)
-                "/COPY:DAT",         # 데이터, 속성, 타임스탬프 복제
-                "/DCOPY:DAT",        # 디렉토리 타임스탬프 복제
-                "/R:1",              # 재시도 1회
-                "/W:1",              # 대기 1초
-                "/XJ",               # 심볼릭/정션 루프 방지
-                "/SL",               # 심볼릭 링크 자체 복사
-                "/MT:8",             # 8코어 멀티스레드 고속 복사
-                "/NP",               # 콘솔 진행률 스팸 억제
-                "/NDL"               # 디렉토리명 출력 억제
-            ]
+            from core.block_stream import stream_volume_to_volume
 
-            if DEFAULT_CLONE_EXCLUDE_FILES:
-                cmd.append("/XF")
-                cmd.extend(DEFAULT_CLONE_EXCLUDE_FILES)
-            if DEFAULT_CLONE_EXCLUDE_DIRS:
-                cmd.append("/XD")
-                cmd.extend(DEFAULT_CLONE_EXCLUDE_DIRS)
+            last_ui_log_time = 0.0
 
-            self.append_log(f"  - Robocopy 실행: {' '.join(cmd[:6])} ...")
+            def on_block_progress(p: Dict[str, Any]):
+                nonlocal last_ui_log_time
+                pct = p.get("percent", 0.0)
+                speed_mb = p.get("speed_mb_s", 0.0)
+                proc_gb = round(p.get("processed_bytes", 0) / (1024 ** 3), 1)
+                tot_gb = round(p.get("total_bytes", 1) / (1024 ** 3), 1)
 
-            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="cp949",
-                errors="ignore",
-                creationflags=creationflags
+                with self.state_lock:
+                    # 복제 단계 진행률을 15% ~ 85% 범위에 매핑
+                    self.progress_percent = min(85.0, round(15.0 + (pct * 0.70), 1))
+                    self.current_phase = f"NVMe LBA 블록 직사 복제 중 ({pct}% - {speed_mb:.1f} MB/s)"
+
+                now = time.time()
+                if now - last_ui_log_time >= 1.0 or pct >= 100.0:
+                    self.append_log(f"  - [LBA 블록 스트림] {pct}% 완료 ({proc_gb}/{tot_gb} GB, 전송속도: {speed_mb:.1f} MB/s)")
+                    last_ui_log_time = now
+
+            stream_res = stream_volume_to_volume(
+                src_drive="C:",
+                dst_drive=target_drive,
+                progress_callback=on_block_progress,
+                cancel_event=self._cancel_event,
+                chunk_bytes=16 * 1024 * 1024,
+                src_shadow_path=shadow_device
             )
 
-            start_copy_ts = time.time()
-
-            while proc.poll() is None:
-                if self._cancel_event.is_set():
-                    proc.terminate()
-                    time.sleep(1)
-                    if proc.poll() is None:
-                        proc.kill()
-                    raise RuntimeError("사용자에 의해 마이그레이션이 취소되었습니다.")
-
-                elapsed = time.time() - start_copy_ts
-                with self.state_lock:
-                    if self.progress_percent < 85.0:
-                        self.progress_percent = min(85.0, round(15.0 + (elapsed * 0.5), 1))
-
-                line = proc.stdout.readline() if proc.stdout else ""
-                if line:
-                    stripped = line.strip()
-                    if stripped and not stripped.startswith("---") and not stripped.startswith("==="):
-                        if any(k in stripped for k in ("ERROR", "오류", "100%", "새 파일", "New File")):
-                            self.append_log(f"    {stripped[:100]}")
-
-                time.sleep(0.5)
-
-            rc = proc.returncode
-            if rc is not None and rc >= 8:
-                raise RuntimeError(f"Robocopy 복제 실패 (Exit Code: {rc}).")
-            self.append_log(f"  - Robocopy 복제 성공 완료 (Exit Code: {rc})")
+            copied_gb = stream_res.get("copied_bytes", 0) / (1024 ** 3)
+            avg_spd = stream_res.get("average_speed_mb_s", 0.0)
+            self.append_log(f"  - LBA 블록 스트리밍 복제 완료: {copied_gb:.2f} GB 전송 성공 (평균 전송속도: {avg_spd:.1f} MB/s)")
 
             # VSS Fast-Release 해제
             if vss_ctx:
@@ -545,17 +603,9 @@ class DiskCloneManager:
             ]
             self.append_log(f"  - 부트로더 명령 실행: {' '.join(bcd_cmd)}")
 
-            bcd_res = subprocess.run(
-                bcd_cmd,
-                capture_output=True,
-                text=True,
-                encoding="cp949",
-                errors="ignore",
-                creationflags=creationflags
-            )
-
-            bcd_out = (bcd_res.stdout or "") + (bcd_res.stderr or "")
-            self.append_log(f"  - bcdboot 결과: {bcd_out.strip() or '부팅 파일 생성 정상 완료'}")
+            rc, bcd_out, bcd_err = run_elevated_command(bcd_cmd, timeout=30)
+            bcd_msg = (bcd_out or bcd_err).strip()
+            self.append_log(f"  - bcdboot 결과 (Exit Code {rc}): {bcd_msg or '부팅 파일 생성 정상 완료'}")
 
             # ESP 임시 드라이브 문자 정리 (보안 및 숨김 파티션 전환)
             if auto_prepare_esp and esp_letter:
