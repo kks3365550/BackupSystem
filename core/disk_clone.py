@@ -152,26 +152,35 @@ def run_elevated_command(cmd_args: List[str], timeout: int = 60) -> tuple[int, s
     out_file = tempfile.mktemp(suffix=".out")
     err_file = tempfile.mktemp(suffix=".err")
     code_file = tempfile.mktemp(suffix=".code")
+    ps1_path = tempfile.mktemp(suffix=".ps1")
 
-    inner_cmd = subprocess.list2cmdline(cmd_args)
-    batch_script = (
-        f'@chcp 65001 >nul\r\n'
-        f'{inner_cmd} > "{out_file}" 2> "{err_file}"\r\n'
-        f'echo %ERRORLEVEL% > "{code_file}"\r\n'
+    exe_target = cmd_args[0]
+    sub_args = cmd_args[1:]
+    escaped_exe = str(exe_target).replace("'", "''")
+    escaped_args = ["'" + str(a).replace("'", "''") + "'" for a in sub_args]
+    args_array = "@(" + ", ".join(escaped_args) + ")"
+
+    ps1_content = (
+        "$OutputEncoding = [System.Text.Encoding]::UTF8\r\n"
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\r\n"
+        "$ErrorActionPreference = 'Continue'\r\n"
+        f"& '{escaped_exe}' {args_array} > '{out_file}' 2> '{err_file}'\r\n"
+        f"$code = if ($LASTEXITCODE -ne $null) {{ $LASTEXITCODE }} else {{ 0 }}\r\n"
+        f"Set-Content -Path '{code_file}' -Value $code -Encoding ASCII\r\n"
+        f"exit $code\r\n"
     )
 
-    bat_path = tempfile.mktemp(suffix=".bat")
     try:
-        with open(bat_path, "w", encoding="cp949", errors="ignore") as f:
-            f.write(batch_script)
+        with open(ps1_path, "w", encoding="utf-8-sig") as f:
+            f.write(ps1_content)
 
         ps_cmd = (
-            f"$p = Start-Process -FilePath '{bat_path}' -Verb RunAs -WindowStyle Hidden -Wait -PassThru; "
-            f"exit $p.ExitCode"
+            f"$p = Start-Process powershell.exe -ArgumentList '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{ps1_path}\"' "
+            f"-Verb RunAs -WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode"
         )
 
         proc = subprocess.run(
-            ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", ps_cmd],
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", ps_cmd],
             capture_output=True,
             text=True,
             creationflags=creationflags,
@@ -183,32 +192,36 @@ def run_elevated_command(cmd_args: List[str], timeout: int = 60) -> tuple[int, s
             try:
                 with open(code_file, "r", encoding="utf-8", errors="ignore") as f:
                     c_txt = f.read().strip()
-                    if c_txt.isdigit():
+                    if c_txt.isdigit() or (c_txt.startswith("-") and c_txt[1:].isdigit()):
                         rc = int(c_txt)
             except Exception:
                 pass
         else:
             rc = proc.returncode
 
-        out_txt = ""
-        if os.path.exists(out_file):
+        def _safe_read_out(f_path: str) -> str:
+            if not os.path.exists(f_path):
+                return ""
+            for enc in ("utf-16", "utf-8-sig", "utf-8", "cp949"):
+                try:
+                    with open(f_path, "r", encoding=enc) as rf:
+                        txt = rf.read()
+                        if txt and "\x00" not in txt:
+                            return txt
+                except Exception:
+                    pass
             try:
-                with open(out_file, "r", encoding="cp949", errors="ignore") as f:
-                    out_txt = f.read()
+                with open(f_path, "r", encoding="utf-8", errors="replace") as rf:
+                    return rf.read()
             except Exception:
-                pass
+                return ""
 
-        err_txt = ""
-        if os.path.exists(err_file):
-            try:
-                with open(err_file, "r", encoding="cp949", errors="ignore") as f:
-                    err_txt = f.read()
-            except Exception:
-                pass
+        out_txt = _safe_read_out(out_file)
+        err_txt = _safe_read_out(err_file)
 
         return rc, out_txt, err_txt
     finally:
-        for tmp_f in (bat_path, out_file, err_file, code_file):
+        for tmp_f in (ps1_path, out_file, err_file, code_file):
             if os.path.exists(tmp_f):
                 try:
                     os.remove(tmp_f)
