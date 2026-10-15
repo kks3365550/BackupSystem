@@ -607,6 +607,7 @@ class DriveArchiveManager:
 
     def _worker_capture(self, source_drive: str, target_wim: str, compress: str, auto_verify: bool):
         vss_ctx = None
+        vss_symlink_path = None
         temp_wim = target_wim + ".tmp"
 
         try:
@@ -651,9 +652,33 @@ class DriveArchiveManager:
                         vss_ctx.__enter__()
                         if vss_ctx.vss_active:
                             shadow_path = vss_ctx.get_shadow_path(f"{source_drive[0]}:\\")
-                            if shadow_path and os.path.exists(shadow_path):
-                                source_capture_dir = shadow_path.rstrip("\\") + "\\"
-                                self.append_log(f"  - VSS 섀도 볼륨 바인딩 성공: {source_capture_dir}")
+                            if shadow_path:
+                                target_shadow = shadow_path.rstrip("\\") + "\\"
+                                symlink_candidate = os.path.join(tempfile.gettempdir(), f"vss_mnt_{uuid.uuid4().hex[:8]}")
+                                if os.path.exists(symlink_candidate) or os.path.islink(symlink_candidate):
+                                    try:
+                                        subprocess.run(
+                                            ["cmd.exe", "/c", "rmdir", symlink_candidate],
+                                            capture_output=True,
+                                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                                            timeout=5
+                                        )
+                                    except Exception:
+                                        pass
+                                mk_res = subprocess.run(
+                                    ["cmd.exe", "/c", "mklink", "/d", symlink_candidate, target_shadow],
+                                    capture_output=True,
+                                    text=True,
+                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                                    timeout=15
+                                )
+                                if mk_res.returncode == 0 and (os.path.exists(symlink_candidate) or os.path.islink(symlink_candidate)):
+                                    vss_symlink_path = symlink_candidate
+                                    source_capture_dir = symlink_candidate.rstrip("\\") + "\\"
+                                    self.append_log(f"  - VSS 섀도 볼륨 바인딩 성공: {source_capture_dir} -> {target_shadow}")
+                                else:
+                                    err_detail = mk_res.stderr.strip() or mk_res.stdout.strip()
+                                    self.append_log(f"  - [주의] VSS 심볼릭 링크 마운트 실패 ({err_detail}). 직접 볼륨 캡처로 진행합니다.")
                     except Exception as e_vss:
                         self.append_log(f"  - [주의] VSS 섀도 생성 실패 ({e_vss}). 직접 볼륨 캡처로 진행합니다.")
                         vss_ctx = None
@@ -732,7 +757,12 @@ class DriveArchiveManager:
             shutil.rmtree(wim_config_dir, ignore_errors=True)
 
             if rc != 0:
-                raise RuntimeError(f"DISM 캡처 실패 (Exit Code: {rc}). 관리자 권한 확인 필요.")
+                if rc == 32:
+                    raise RuntimeError("DISM 캡처 실패 (Exit Code: 32 / ERROR_SHARING_VIOLATION). 다른 프로세스가 파일을 독점 사용 중입니다. VSS 스냅샷 바인딩을 확인하세요.")
+                elif rc in (5, 740):
+                    raise RuntimeError(f"DISM 캡처 실패 (Exit Code: {rc}). Windows 관리자(Administrator) 권한이 필요합니다.")
+                else:
+                    raise RuntimeError(f"DISM 캡처 실패 (Exit Code: {rc}).")
 
             # 임시 파일 -> 최종 WIM 파일 이름 변경
             if os.path.exists(target_wim):
@@ -748,7 +778,20 @@ class DriveArchiveManager:
             meta_data["wim_size_gb"] = wim_size_gb
             self.append_log(f"  - WIM 캡처 완료! (크기: {wim_size_gb} GB, 소요시간: {int(time.time() - start_ts)}초)")
 
-            # VSS 안전 해제
+            # VSS 심볼릭 링크 및 VSS 안전 해제
+            if vss_symlink_path:
+                try:
+                    subprocess.run(
+                        ["cmd.exe", "/c", "rmdir", vss_symlink_path],
+                        capture_output=True,
+                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                        timeout=10
+                    )
+                    vss_symlink_path = None
+                    self.append_log("  - VSS 마운트 심볼릭 링크 안전 해제 완료.")
+                except Exception as e_rm:
+                    self.append_log(f"  - [주의] VSS 심볼릭 링크 해제 실패 ({e_rm})")
+
             if vss_ctx:
                 try:
                     vss_ctx.__exit__(None, None, None)
@@ -802,6 +845,16 @@ class DriveArchiveManager:
                 except OSError:
                     pass
         finally:
+            if vss_symlink_path:
+                try:
+                    subprocess.run(
+                        ["cmd.exe", "/c", "rmdir", vss_symlink_path],
+                        capture_output=True,
+                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                        timeout=10
+                    )
+                except Exception:
+                    pass
             if vss_ctx:
                 try:
                     vss_ctx.__exit__(None, None, None)
@@ -931,8 +984,6 @@ class DriveArchiveManager:
             if is_mounted:
                 try:
                     self.run_dism(["/Unmount-Image", f"/MountDir:{temp_mount_dir}", "/Discard"])
-                except Exception:
-                    pass
                 except Exception:
                     pass
             if os.path.exists(temp_mount_dir):
