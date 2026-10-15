@@ -3,7 +3,7 @@
 ; =========================================================================
 
 #define MyAppName "Kova"
-#define MyAppVersion "2.15.8"
+#define MyAppVersion "2.15.9"
 #define MyAppPublisher "kks3365550"
 #define MyAppURL "http://127.0.0.1:8765"
 #define MyAppExeName "Kova.exe"
@@ -28,7 +28,7 @@ LicenseFile=..\docs\EULA.txt
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog commandline
 ArchitecturesInstallIn64BitMode=x64compatible
-CloseApplications=force
+CloseApplications=no
 RestartApplications=no
 
 [Languages]
@@ -101,41 +101,42 @@ begin
   PsExe := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
 
   // 1. Windows taskkill.exe 직접 호출로 백그라운드 서버/트레이(pythonw.exe) 무조건 강제 사살
-  // 주의: 설치 프로그램 자신(Setup, Kova_Setup_*.exe)은 절대로 죽이지 않도록 오직 pythonw.exe만 정확히 타겟
-  if FileExists(TaskkillExe) then
-  begin
-    Exec(TaskkillExe, '/F /T /IM pythonw.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  end
-  else
-  begin
-    Exec('taskkill.exe', '/F /T /IM pythonw.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  end;
+  Exec('taskkill.exe', '/F /T /IM pythonw.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-  // 2. 8765 포트 점유 PID 전수 강제 사살 (netstat -> taskkill /PID)
+  // 2. PowerShell을 통해 백업시스템 및 Kova 관련 모든 python.exe, pythonw.exe, 8765 포트 프로세스 전수 강제 사살
+  KillPsCmd :=
+    '-NoProfile -ExecutionPolicy Bypass -Command "' +
+    'Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue | ForEach-Object { if ($_.OwningProcess -ne 0) { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue } }; ' +
+    'Get-Process -Name python, pythonw -ErrorAction SilentlyContinue | Where-Object { ($_.Path -like ''*백업시스템*'' -or $_.Path -like ''*Kova*'' -or $_.Name -eq ''pythonw'') -and ($_.Name -notmatch ''(?i)(setup|is-)'') } | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }"';
+
+  if FileExists(PsExe) then
+    Exec(PsExe, KillPsCmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  // 3. 8765 포트 점유 PID 전수 강제 사살 (netstat -> taskkill /PID)
   Exec(CmdExe, '/c "for /f ""tokens=5"" %a in (''netstat -aon ^| findstr :8765 ^| findstr LISTENING'') do if not ""%a""==""0"" taskkill /F /PID %a"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-  // 3. 백업시스템 관련 예약 작업(Task Scheduler) 중단
+  // 4. 백업시스템 관련 예약 작업(Task Scheduler) 중단
   Exec('schtasks.exe', '/End /TN "BackupSystem_AutoBackup"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec('schtasks.exe', '/End /TN "BackupSystem_WebServer"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec('schtasks.exe', '/End /TN "BackupSystem_Server"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec('schtasks.exe', '/End /TN "BackupSystem_Server_Daemon"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-  // 4. PowerShell 2차 안전망: 인스톨러 자신(setup, is-*.tmp) 및 PID는 절대 제외하고 8765 포트 및 pythonw 잔여 프로세스 사살
-  KillPsCmd :=
-    '-NoProfile -ExecutionPolicy Bypass -Command "' +
-    'Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue | ForEach-Object { if ($_.OwningProcess -ne 0) { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue } }; ' +
-    'Get-Process -ErrorAction SilentlyContinue | Where-Object { ($_.Name -eq ''pythonw'') -and ($_.Name -notmatch ''(?i)(setup|is-)'') } | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }"';
-
-  if FileExists(PsExe) then
-    Exec(PsExe, KillPsCmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-
-  // 5. Windows 파일 핸들 / DLL 락(libcrypto-3.dll 등) 완전 해제 보장 대기 (1.5초)
+  // 5. Windows 파일 핸들 / DLL 락(libcrypto-3.dll 등) 완전 해제 대기 (1.5초)
   Sleep(1500);
 end;
 
 function InitializeSetup(): Boolean;
 begin
+  // 인스톨러 창 뜨자마자 기존 실행 중인 백업시스템 프로세스 전수 사살
+  KillExistingProcesses();
   Result := True;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  // 파일 복사 시작 직전 2차로 모든 프로세스 재확인 사살 (DLL 락 100% 원천 차단)
+  KillExistingProcesses();
+  Result := '';
 end;
 
 // v2.15.1+: 설치 시작 및 완료 시점 백업시스템 프로세스 라이프사이클 관리
