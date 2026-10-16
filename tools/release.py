@@ -398,7 +398,7 @@ def build_self_extracting_updater(version: str):
         "del \"%TMP_ZIP%\" >nul 2>&1\r\n"
         "\r\n"
         "REM Update Desktop Shortcut to point to updated installation\r\n"
-        "powershell -ExecutionPolicy Bypass -NoProfile -Command \"$ws = New-Object -ComObject WScript.Shell; $d = [Environment]::GetFolderPath('Desktop'); $lnk = $ws.CreateShortcut(\\\"$d\\백업시스템.lnk\\\"); $lnk.TargetPath = 'wscript.exe'; $lnk.Arguments = \\\"`\\\"\" + '%TARGET_DIR%' + \"\\start_silent.vbs`\\\"\\\"; $lnk.WorkingDirectory = '%TARGET_DIR%'; $lnk.Save()\" >nul 2>&1\r\n"
+        "powershell -ExecutionPolicy Bypass -NoProfile -Command \"$ws = New-Object -ComObject WScript.Shell; $d = [Environment]::GetFolderPath('Desktop'); Get-ChildItem -Path $d -Filter '*백업시스템*.lnk' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue; $lnk = $ws.CreateShortcut(\\\"$d\\Kova 대시보드.lnk\\\"); $lnk.TargetPath = 'wscript.exe'; $lnk.Arguments = \\\"`\\\"\" + '%TARGET_DIR%' + \"\\launch_dashboard.vbs`\\\"\\\"; $lnk.WorkingDirectory = '%TARGET_DIR%'; $lnk.Description = 'Kova - 로컬 백업 & 재해 복구 웹 대시보드'; $lnk.IconLocation = 'shell32.dll,259'; $lnk.Save()\" >nul 2>&1\r\n"
         "\r\n"
         "echo ========================================================\r\n"
         f"echo   [3/3] Starting Backup System v{version}...\r\n"
