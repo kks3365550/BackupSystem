@@ -669,7 +669,8 @@ class DiskCloneManager:
                     "--src", "C:",
                     "--dst", target_drive,
                     "--ipc-file", ipc_file,
-                    "--chunk-mb", "16"
+                    "--chunk-mb", "16",
+                    "--queue-depth", "12"
                 ]
                 if shadow_device:
                     cmd.extend(["--shadow", shadow_device])

@@ -22,6 +22,7 @@ def main():
     parser.add_argument("--shadow", default="", help="Optional VSS snapshot device path")
     parser.add_argument("--ipc-file", required=True, help="Shared IPC JSONL log file")
     parser.add_argument("--chunk-mb", type=int, default=16, help="Chunk size in MB (default: 16)")
+    parser.add_argument("--queue-depth", type=int, default=12, help="Ring buffer queue depth (default: 12)")
     args = parser.parse_args()
 
     ipc_path = args.ipc_file
@@ -54,6 +55,7 @@ def main():
             dst_drive=args.dst,
             progress_callback=on_progress,
             chunk_bytes=args.chunk_mb * 1024 * 1024,
+            queue_depth=args.queue_depth,
             src_shadow_path=shadow_arg
         )
 
