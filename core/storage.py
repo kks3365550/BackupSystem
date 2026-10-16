@@ -92,6 +92,7 @@ class BlobStorage:
                 BlobStorage._class_blob_caches[self.repo_dir] = set()
         self._blob_cache = BlobStorage._class_blob_caches[self.repo_dir]
         self._cache_lock = BlobStorage._class_cache_lock
+        self._pack_writer_lock = threading.RLock()
 
     # Class-level facade cache so all BlobStorage and PackConsolidator instances share pack index map
     _class_facades: Dict[str, Any] = {}
@@ -434,30 +435,32 @@ class BlobStorage:
         """Returns or creates the active append-only PackContainerWriter."""
         from pathlib import Path
         from core.pack_format import PackContainerWriter
-        if not hasattr(self, "_active_pack_writer") or self._active_pack_writer is None:
-            import time
-            pack_id = f"pack_{int(time.time())}_{os.urandom(3).hex()}"
-            pack_path = Path(self.packs_dir) / f"{pack_id}.pack"
-            idx_path = Path(self.packs_dir) / f"{pack_id}.idx"
-            self._active_pack_writer = PackContainerWriter(pack_path, idx_path)
-            self._active_pack_id = pack_id
-        elif self._active_pack_writer.current_offset >= max_pack_size_bytes:
-            self.commit_active_pack()
-            import time
-            pack_id = f"pack_{int(time.time())}_{os.urandom(3).hex()}"
-            pack_path = Path(self.packs_dir) / f"{pack_id}.pack"
-            idx_path = Path(self.packs_dir) / f"{pack_id}.idx"
-            self._active_pack_writer = PackContainerWriter(pack_path, idx_path)
-            self._active_pack_id = pack_id
-        return self._active_pack_writer
+        with self._pack_writer_lock:
+            if not hasattr(self, "_active_pack_writer") or self._active_pack_writer is None:
+                import time
+                pack_id = f"pack_{int(time.time())}_{os.urandom(3).hex()}"
+                pack_path = Path(self.packs_dir) / f"{pack_id}.pack"
+                idx_path = Path(self.packs_dir) / f"{pack_id}.idx"
+                self._active_pack_writer = PackContainerWriter(pack_path, idx_path)
+                self._active_pack_id = pack_id
+            elif self._active_pack_writer.current_offset >= max_pack_size_bytes:
+                self.commit_active_pack()
+                import time
+                pack_id = f"pack_{int(time.time())}_{os.urandom(3).hex()}"
+                pack_path = Path(self.packs_dir) / f"{pack_id}.pack"
+                idx_path = Path(self.packs_dir) / f"{pack_id}.idx"
+                self._active_pack_writer = PackContainerWriter(pack_path, idx_path)
+                self._active_pack_id = pack_id
+            return self._active_pack_writer
 
     def commit_active_pack(self):
         """Atomically commits index of active pack writer and reloads composite lookup."""
-        if hasattr(self, "_active_pack_writer") and self._active_pack_writer is not None:
-            self._active_pack_writer.commit_index()
-            self._active_pack_writer.close()
-            self._active_pack_writer = None
-            self.composite_facade.reload_packs()
+        with self._pack_writer_lock:
+            if hasattr(self, "_active_pack_writer") and self._active_pack_writer is not None:
+                self._active_pack_writer.commit_index()
+                self._active_pack_writer.close()
+                self._active_pack_writer = None
+                self.composite_facade.reload_packs()
 
     def put_chunk_to_pack(self, data: bytes, compress_level: int = 3) -> Tuple[str, int, int, bool]:
         """
@@ -471,15 +474,20 @@ class BlobStorage:
         if self.has_blob(sha256_hash):
             return sha256_hash, orig_size, orig_size, False
 
-        # Store raw chunk bytes directly so Pack frame payload matches chunk SHA-256
-        writer = self.get_or_create_active_pack_writer()
-        writer.write_chunk(sha256_hash, data)
+        with self._pack_writer_lock:
+            # Re-check under lock in case another thread just committed it
+            if self.has_blob(sha256_hash):
+                return sha256_hash, orig_size, orig_size, False
 
-        # Update in-memory composite map immediately
-        if self.composite_facade:
-            self.composite_facade.pack_index_map[sha256_hash.lower()] = self._active_pack_id
+            # Store raw chunk bytes directly so Pack frame payload matches chunk SHA-256
+            writer = self.get_or_create_active_pack_writer()
+            writer.write_chunk(sha256_hash, data)
 
-        return sha256_hash, orig_size, orig_size, True
+            # Update in-memory composite map immediately
+            if self.composite_facade:
+                self.composite_facade.pack_index_map[sha256_hash.lower()] = self._active_pack_id
+
+            return sha256_hash, orig_size, orig_size, True
 
     def put_bytes_blob(self, data: bytes, compress_level: int = 3, use_pack: bool = False) -> Tuple[str, int, int, bool]:
         if use_pack:

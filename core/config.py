@@ -13,7 +13,7 @@ DEFAULT_PROFILE = {
     "sources": [
         os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     ],
-    "repo_dir": os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backup_repository")),
+    "repo_dir": r"D:\MyBackup_Repository",
     "exclude_patterns": [
         "pagefile.sys", "hiberfil.sys", "swapfile.sys",
         "$RECYCLE.BIN", "$Recycle.Bin", "System Volume Information",
