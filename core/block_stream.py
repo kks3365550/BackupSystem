@@ -17,6 +17,8 @@ import zlib
 import ctypes
 import logging
 import subprocess
+import threading
+import queue
 from typing import Optional, Callable, List, Tuple, Dict, Any
 
 try:
@@ -225,24 +227,25 @@ def get_allocated_cluster_runs(
     bitmap_bytes: bytes,
     cluster_size: int = 4096,
     max_chunk_bytes: int = 16 * 1024 * 1024,
-    max_coalesce_gap_bytes: int = 8 * 1024 * 1024,
-    min_chunk_bytes: int = 2 * 1024 * 1024
+    max_coalesce_gap_bytes: int = 0,
+    min_chunk_bytes: int = 0
 ) -> List[Tuple[int, int]]:
     """
     NTFS $Bitmap 바이트 배열을 파싱하여, 실제 데이터가 있는 LCN 구간을
     대형 연속 청크 (lcn, cluster_count) 목록으로 분할 반환.
-    - [8MB Coalescing]: max_coalesce_gap_bytes(기본 8MB) 이하의 자잘한 빈틈은
-      조각내지 않고 단일 대형 청크로 병합하여 수십만 번의 Seek 시스템 콜 오버헤드를 원천 차단.
-    - [2MB Min Chunk Floor]: 단독 청크의 크기가 2MB 미만으로 떨어지지 않도록
-      인접 클러스터 및 갭을 흡수 병합하여 4KB~64KB 미세 I/O로 인한 속도 급감(25MB/s) 완전 차단.
-    - 대형 빈 공간(8MB 초과)은 100% 스킵하여 전송 대역폭 보존.
+    - [Coalescing]: max_coalesce_gap_bytes(기본 0) 이하의 자잘한 빈틈은
+      max_gap_clusters > 0일 때만 병합, 기본 시나리오에서 100% disabled로 설정.
+    - [Min Chunk Floor]: min_chunk_bytes(기본 0)일 min_chunk_clusters > 0일 때만
+      인접 클러스터 및 갭을 흡수 병합, 기본 시나리오에서 100% disabled로 설정.
+    - min_chunk_clusters는 max_clusters를 never exceed로 clamp.
+    - 대형 빈 공간(max_coalesce_gap_bytes 초과)은 100% 스킵하여 전송 대역폭 보존.
     """
     if not bitmap_bytes:
         return []
 
     max_clusters = max(1, max_chunk_bytes // cluster_size)
-    max_gap_clusters = max(1, max_coalesce_gap_bytes // cluster_size)
-    min_chunk_clusters = max(1, min_chunk_bytes // cluster_size)
+    max_gap_clusters = max(0, max_coalesce_gap_bytes // cluster_size)
+    min_chunk_clusters = min(max_clusters, max(0, min_chunk_bytes // cluster_size))
 
     raw_runs: List[Tuple[int, int]] = []
     cur_run_start = None
@@ -258,8 +261,9 @@ def get_allocated_cluster_runs(
                     cur_run_start = lcn
                     cur_run_end = lcn + 1
                 else:
-                    # 갭이 허용 범위(8MB) 내이고 총 크기가 max_clusters를 넘지 않으면 병합
-                    if (lcn - cur_run_end) <= max_gap_clusters and (lcn + 1 - cur_run_start) <= max_clusters:
+                    # 연속 클러스터(gap == 0)이거나, max_gap_clusters > 0 허용 범위 내 gap인 경우 병합
+                    gap = lcn - cur_run_end
+                    if (gap == 0 or (max_gap_clusters > 0 and gap <= max_gap_clusters)) and (lcn + 1 - cur_run_start) <= max_clusters:
                         cur_run_end = lcn + 1
                     else:
                         rem = cur_run_end - cur_run_start
@@ -281,7 +285,7 @@ def get_allocated_cluster_runs(
             c_lcn += take
             rem -= take
 
-    # Min Chunk Floor (2MB) 2차 통합 패스
+    # Min Chunk Floor / Coalescing 2차 통합 패스
     runs: List[Tuple[int, int]] = []
     for lcn, count in raw_runs:
         if not runs:
@@ -292,20 +296,31 @@ def get_allocated_cluster_runs(
         prev_end = prev_lcn + prev_count
         gap_clusters = lcn - prev_end
 
-        if gap_clusters <= max_gap_clusters and (prev_count + gap_clusters + count) <= max_clusters:
+        if (
+            (gap_clusters == 0 or (max_gap_clusters > 0 and gap_clusters <= max_gap_clusters))
+            and (prev_count + gap_clusters + count) <= max_clusters
+        ):
             runs[-1] = (prev_lcn, prev_count + gap_clusters + count)
-        elif prev_count < min_chunk_clusters and (prev_count + gap_clusters + count) <= max_clusters:
+        elif (
+            min_chunk_clusters > 0
+            and prev_count < min_chunk_clusters
+            and (prev_count + gap_clusters + count) <= max_clusters
+        ):
             runs[-1] = (prev_lcn, prev_count + gap_clusters + count)
-        elif count < min_chunk_clusters and (prev_count + gap_clusters + count) <= max_clusters:
+        elif (
+            min_chunk_clusters > 0
+            and count < min_chunk_clusters
+            and (prev_count + gap_clusters + count) <= max_clusters
+        ):
             runs[-1] = (prev_lcn, prev_count + gap_clusters + count)
         else:
             runs.append((lcn, count))
 
-    # 잔여 초미세 청크 최종 플로어(Floor) 보장 (최소 2MB 확보)
+    # 잔여 초미세 청크 최종 플로어(Floor) 보장 (min_chunk_clusters > 0일 때만)
     final_runs: List[Tuple[int, int]] = []
     total_clusters_limit = len(bitmap_bytes) * 8
     for lcn, count in runs:
-        if count < min_chunk_clusters:
+        if min_chunk_clusters > 0 and count < min_chunk_clusters:
             count = min(min_chunk_clusters, total_clusters_limit - lcn)
         final_runs.append((lcn, count))
 
@@ -793,6 +808,7 @@ def stream_volume_to_volume(
 
     h_src = None
     h_dst = None
+    raw_buffers = []
 
     try:
         # 1. NTFS $Bitmap 분석 (생체 볼륨 C: 핸들에서 안전 조회)
@@ -820,91 +836,182 @@ def stream_volume_to_volume(
         # 2. 읽기 소스 디바이스 바인딩 (VSS 스냅샷 우선)
         read_src_path = src_shadow_path if (src_shadow_path and src_shadow_path.strip()) else src_path
         logger.info(f"✓ LBA 블록 스트리밍 읽기 핸들 오픈: {read_src_path}")
-        h_src = open_volume_direct(read_src_path, write=False)
+        try:
+            h_src = open_volume_direct(read_src_path, write=False, unbuffered=True)
+            logger.info("✓ 소스 볼륨 Direct DMA (FILE_FLAG_NO_BUFFERING) 모드 활성화 완료")
+        except Exception as e:
+            logger.warning(f"⚠️ 소스 볼륨 Direct DMA 오픈 실패 ({e}), 버퍼링 모드로 폴백 시도")
+            h_src = open_volume_direct(read_src_path, write=False, unbuffered=False)
+
         h_dst = open_volume_direct(dst_path, write=True, lock=True, unbuffered=True)
 
         # ----------------------------------------------------------------------
-        # 초고속 Direct LBA 순차 스트리밍 파이프라인 (REA: Samsung SDM / Macrium 아키텍처)
-        # 1. VirtualAlloc 64KB/4KB 페이지 정렬 버퍼로 커널 메모리 복사 0% 및 정렬 위반 차단
-        # 2. FILE_FLAG_NO_BUFFERING으로 OS 캐시 바이패스 후 타겟 NVMe에 Direct DMA 직사
-        # 3. 단일 스레드 무지터 순차 I/O로 GIL 및 락 경합 0 달성
+        # 초고속 Direct DMA Producer-Consumer 듀얼 스레드 링버퍼 파이프라인
+        # (Samsung Data Migration / Macrium Reflect 아키텍처)
+        # 1. VirtualAlloc 64KB/4KB 정렬 고정 버퍼 풀 (Zero-Allocation, GC/메모리복사 0%)
+        # 2. Reader 스레드(Producer)와 Writer 스레드(Consumer)가 동시 병렬 구동 (Queue Depth > 1)
+        # 3. 소스/타겟 양방향 FILE_FLAG_NO_BUFFERING으로 OS 캐시 고갈/더티페이지 스로틀링(25MB/s) 100% 바이패스
         # ----------------------------------------------------------------------
-        buf_addr = None
-        if kernel32 and VirtualAlloc:
-            buf_addr = VirtualAlloc(None, ctypes.c_size_t(chunk_bytes), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE)
-        buf = ctypes.c_void_p(buf_addr) if buf_addr else ctypes.create_string_buffer(chunk_bytes)
+        num_buffers = max(4, min(8, queue_depth))
+        for _ in range(num_buffers):
+            addr = None
+            if kernel32 and VirtualAlloc:
+                addr = VirtualAlloc(None, ctypes.c_size_t(chunk_bytes), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE)
+            buf = ctypes.c_void_p(addr) if addr else ctypes.create_string_buffer(chunk_bytes)
+            raw_buffers.append((addr, buf))
 
-        bytes_read = ctypes.c_ulong()
+        pool_q = queue.Queue(maxsize=num_buffers)
+        for idx in range(num_buffers):
+            pool_q.put(idx)
+
+        ready_q = queue.Queue(maxsize=num_buffers)
+        reader_error = []
+        stop_event = threading.Event()
+
+        def reader_worker():
+            last_src_offset = -1
+            bytes_read = ctypes.c_ulong()
+            try:
+                for idx, (lcn, cluster_count) in enumerate(runs):
+                    if stop_event.is_set() or (cancel_event and cancel_event.is_set()):
+                        break
+
+                    bytes_to_read = cluster_count * cluster_size
+                    offset = lcn * cluster_size
+
+                    # 빈 버퍼 획득 (대기)
+                    buf_idx = None
+                    while not stop_event.is_set():
+                        if cancel_event and cancel_event.is_set():
+                            return
+                        try:
+                            buf_idx = pool_q.get(timeout=0.2)
+                            break
+                        except queue.Empty:
+                            continue
+
+                    if buf_idx is None:
+                        return
+
+                    addr, buf = raw_buffers[buf_idx]
+
+                    # 이전 청크의 끝과 현재 청크의 시작이 연속이면 SetFilePointerEx 생략 (순수 순차 읽기)
+                    if offset != last_src_offset:
+                        large_int = ctypes.c_int64(offset)
+                        new_ptr = ctypes.c_int64()
+                        if not SetFilePointerEx(h_src, large_int, ctypes.byref(new_ptr), FILE_BEGIN):
+                            err = GetLastError()
+                            pool_q.put(buf_idx)
+                            raise OSError(f"SetFilePointerEx(LCN={lcn}) 읽기 이동 실패 (WinError: {err})")
+
+                    if not ReadFile(h_src, buf, bytes_to_read, ctypes.byref(bytes_read), None):
+                        err = GetLastError()
+                        pool_q.put(buf_idx)
+                        raise OSError(f"ReadFile(LCN={lcn}, Bytes={bytes_to_read}) 읽기 실패 (WinError: {err})")
+
+                    actual_read = bytes_read.value
+                    last_src_offset = offset + actual_read
+
+                    # ready_q로 전달
+                    while not stop_event.is_set():
+                        if cancel_event and cancel_event.is_set():
+                            pool_q.put(buf_idx)
+                            return
+                        try:
+                            ready_q.put((idx, lcn, cluster_count, offset, actual_read, buf_idx), timeout=0.2)
+                            break
+                        except queue.Full:
+                            continue
+                    else:
+                        pool_q.put(buf_idx)
+                        return
+
+            except Exception as e:
+                reader_error.append(e)
+            finally:
+                ready_q.put(None)
+
+        reader_thread = threading.Thread(target=reader_worker, daemon=True, name="LBA-BlockReader")
+        reader_thread.start()
+
         bytes_written = ctypes.c_ulong()
         copied_bytes = 0
-
-        last_src_offset = -1
         last_dst_offset = -1
         last_log_time = time.time()
         window_start_time = time.time()
         window_start_bytes = 0
         current_instant_speed = 0.0
 
-        for idx, (lcn, cluster_count) in enumerate(runs):
-            if cancel_event and cancel_event.is_set():
-                raise InterruptedError("사용자에 의해 볼륨 스트리밍 복제가 취소되었습니다.")
+        try:
+            while True:
+                if cancel_event and cancel_event.is_set():
+                    stop_event.set()
+                    raise InterruptedError("사용자에 의해 볼륨 스트리밍 복제가 취소되었습니다.")
 
-            bytes_to_read = cluster_count * cluster_size
-            offset = lcn * cluster_size
+                try:
+                    item = ready_q.get(timeout=0.2)
+                except queue.Empty:
+                    if not reader_thread.is_alive() and ready_q.empty():
+                        break
+                    continue
 
-            # 이전 청크의 끝과 현재 청크의 시작이 연속이면 SetFilePointerEx 생략 (순수 순차 읽기)
-            if offset != last_src_offset:
-                large_int = ctypes.c_int64(offset)
-                new_ptr = ctypes.c_int64()
-                if not SetFilePointerEx(h_src, large_int, ctypes.byref(new_ptr), FILE_BEGIN):
-                    err = GetLastError()
-                    raise OSError(f"SetFilePointerEx(LCN={lcn}) 읽기 이동 실패 (WinError: {err})")
+                if item is None:
+                    # Reader 정상 완료 또는 종료 신호
+                    break
 
-            if not ReadFile(h_src, buf, bytes_to_read, ctypes.byref(bytes_read), None):
-                err = GetLastError()
-                raise OSError(f"ReadFile(LCN={lcn}, Bytes={bytes_to_read}) 읽기 실패 (WinError: {err})")
+                idx, lcn, cluster_count, offset, actual_read, buf_idx = item
+                addr, buf = raw_buffers[buf_idx]
 
-            actual_read = bytes_read.value
-            last_src_offset = offset + actual_read
+                try:
+                    # 이전 청크의 끝과 현재 청크의 시작이 연속이면 SetFilePointerEx 생략 (순수 순차 쓰기)
+                    if offset != last_dst_offset:
+                        large_int = ctypes.c_int64(offset)
+                        new_ptr = ctypes.c_int64()
+                        if not SetFilePointerEx(h_dst, large_int, ctypes.byref(new_ptr), FILE_BEGIN):
+                            err = GetLastError()
+                            raise OSError(f"SetFilePointerEx(LCN={lcn}) 쓰기 이동 실패 (WinError: {err})")
 
-            # 이전 청크의 끝과 현재 청크의 시작이 연속이면 SetFilePointerEx 생략 (순수 순차 쓰기)
-            if offset != last_dst_offset:
-                large_int = ctypes.c_int64(offset)
-                new_ptr = ctypes.c_int64()
-                if not SetFilePointerEx(h_dst, large_int, ctypes.byref(new_ptr), FILE_BEGIN):
-                    err = GetLastError()
-                    raise OSError(f"SetFilePointerEx(LCN={lcn}) 쓰기 이동 실패 (WinError: {err})")
+                    if not WriteFile(h_dst, buf, actual_read, ctypes.byref(bytes_written), None):
+                        err = GetLastError()
+                        raise OSError(f"WriteFile(LCN={lcn}, Bytes={actual_read}) 쓰기 실패 (WinError: {err})")
 
-            if not WriteFile(h_dst, buf, actual_read, ctypes.byref(bytes_written), None):
-                err = GetLastError()
-                raise OSError(f"WriteFile(LCN={lcn}, Bytes={actual_read}) 쓰기 실패 (WinError: {err})")
+                    copied_bytes += actual_read
+                    last_dst_offset = offset + actual_read
 
-            copied_bytes += actual_read
-            last_dst_offset = offset + actual_read
+                finally:
+                    # 쓰기 완료된 버퍼 즉시 풀로 반환하여 Reader가 다음 청크를 즉시 프리패치하도록 함
+                    pool_q.put(buf_idx)
 
-            now = time.time()
-            # 최근 1초 순간 속도 윈도우 계산
-            if now - window_start_time >= 1.0:
-                w_elapsed = max(0.01, now - window_start_time)
-                current_instant_speed = ((copied_bytes - window_start_bytes) / (1024 * 1024)) / w_elapsed
-                window_start_time = now
-                window_start_bytes = copied_bytes
+                now = time.time()
+                # 최근 1초 순간 속도 윈도우 계산
+                if now - window_start_time >= 1.0:
+                    w_elapsed = max(0.01, now - window_start_time)
+                    current_instant_speed = ((copied_bytes - window_start_bytes) / (1024 * 1024)) / w_elapsed
+                    window_start_time = now
+                    window_start_bytes = copied_bytes
 
-            if now - last_log_time >= 0.5 or idx == len(runs) - 1:
-                pct = min(100.0, round((copied_bytes / max(1, total_data_bytes)) * 100.0, 1))
-                display_speed = current_instant_speed if current_instant_speed > 0 else (copied_bytes / (1024 * 1024)) / max(0.1, now - start_time)
+                if now - last_log_time >= 0.5 or idx == len(runs) - 1:
+                    pct = min(100.0, round((copied_bytes / max(1, total_data_bytes)) * 100.0, 1))
+                    display_speed = current_instant_speed if current_instant_speed > 0 else (copied_bytes / (1024 * 1024)) / max(0.1, now - start_time)
 
-                if progress_callback:
-                    progress_callback({
-                        "percent": pct,
-                        "processed_bytes": copied_bytes,
-                        "total_bytes": total_data_bytes,
-                        "speed_mb_s": round(display_speed, 1),
-                        "chunk_index": idx + 1,
-                        "total_chunks": len(runs),
-                        "phase": f"NVMe 초고속 LBA 블록 직사 복제 중 ({pct}% - {display_speed:.1f} MB/s)"
-                    })
-                last_log_time = now
+                    if progress_callback:
+                        progress_callback({
+                            "percent": pct,
+                            "processed_bytes": copied_bytes,
+                            "total_bytes": total_data_bytes,
+                            "speed_mb_s": round(display_speed, 1),
+                            "chunk_index": idx + 1,
+                            "total_chunks": len(runs),
+                            "phase": f"NVMe 초고속 LBA 블록 직사 복제 중 ({pct}% - {display_speed:.1f} MB/s)"
+                        })
+                    last_log_time = now
+
+            if reader_error:
+                raise reader_error[0]
+
+        finally:
+            stop_event.set()
+            reader_thread.join(timeout=3.0)
 
         elapsed_total = time.time() - start_time
         avg_speed = (copied_bytes / (1024 * 1024)) / max(0.1, elapsed_total)
@@ -922,11 +1029,13 @@ def stream_volume_to_volume(
         }
 
     finally:
-        if buf_addr and kernel32 and VirtualFree:
-            try:
-                VirtualFree(ctypes.c_void_p(buf_addr), 0, MEM_RELEASE)
-            except Exception:
-                pass
+        if raw_buffers and kernel32 and VirtualFree:
+            for addr, _ in raw_buffers:
+                if addr:
+                    try:
+                        VirtualFree(ctypes.c_void_p(addr), 0, MEM_RELEASE)
+                    except Exception:
+                        pass
         if h_src:
             close_volume(h_src)
         if h_dst:

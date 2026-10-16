@@ -182,7 +182,7 @@ def test_disk_clone_manager_pipeline_elevated_worker_fallback():
     mgr = DiskCloneManager.get_instance()
     mgr._init_state()
 
-    def fake_elevated_cmd(cmd, timeout=3600):
+    def fake_elevated_cmd(cmd, timeout=3600, **kwargs):
         if "--ipc-file" in cmd:
             idx = cmd.index("--ipc-file")
             ipc_f = cmd[idx + 1]
