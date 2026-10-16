@@ -19,8 +19,12 @@ async function loadSystemImageStatus() {
                     const freeGb = Math.round(d.free / (1024**3));
                     return `<option value="${ltr}">${ltr} 드라이브 (${freeGb} GB 여유)</option>`;
                 }).join('');
+
                 if (currentVal && availableDrives.some(d => d.device.toUpperCase().startsWith(currentVal))) {
                     driveSelect.value = currentVal;
+                } else {
+                    const hasD = availableDrives.some(d => d.device.toUpperCase().startsWith('D:'));
+                    driveSelect.value = hasD ? 'D:' : availableDrives[0].device.substring(0, 2).toUpperCase();
                 }
             }
         } catch (e) {
@@ -90,6 +94,10 @@ async function loadSystemImageStatus() {
         }
     } catch (e) {
         console.error('Failed to load system image status:', e);
+        const dBadge = document.getElementById('sysimg-space-badge');
+        if (dBadge) {
+            dBadge.innerHTML = `<span class="text-rose-400">오류: ${e.message || '상태 조회 실패'}</span>`;
+        }
     }
 }
 
@@ -249,9 +257,10 @@ async function verifySnapshot(snapshotId) {
     }
 }
 
-async function loadVhdxList() {
+async function loadVhdxList(drive = null) {
     const driveSelect = document.getElementById('sysimg-drive-select');
-    const targetDrive = driveSelect ? driveSelect.value : 'D:';
+    let targetDrive = drive || (driveSelect ? driveSelect.value : '');
+    if (!targetDrive) targetDrive = 'D:';
     const container = document.getElementById('vhdx-list-container');
     if (!container) return;
 

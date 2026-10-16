@@ -1272,6 +1272,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (driveSelect) {
         driveSelect.addEventListener('change', () => {
             loadSystemImageStatus();
+            loadVhdxList(driveSelect.value);
         });
     }
 
