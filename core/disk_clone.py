@@ -779,6 +779,35 @@ class DiskCloneManager:
                 except Exception as e_vsn:
                     self.append_log(f"    - [주의] VSN 처리 예외 ({e_vsn})")
 
+            # 4-2. 타겟 SSD 오프라인 레지스트리 MountedDevices 드라이브 문자 교정 (로고 후 블랙스크린 방지)
+            try:
+                target_sys_hive = os.path.join(target_root, "Windows", "System32", "config", "SYSTEM")
+                target_clean = normalize_drive(target_drive).rstrip(":")
+                if os.path.exists(target_sys_hive) and target_clean and target_clean != "C":
+                    self.append_log(f"  - [드라이브 문자 교정] 타겟 SSD 오프라인 레지스트리 MountedDevices 교정 중 ({target_clean}: -> C:)...")
+                    run_elevated_command(["reg", "load", "HKLM\\CLONE_SYSTEM", target_sys_hive], timeout=15)
+                    try:
+                        rc_q, out_q, _ = run_elevated_command(["reg", "query", "HKLM\\CLONE_SYSTEM\\MountedDevices"], timeout=15)
+                        target_dos = f"\\DosDevices\\{target_clean}:"
+                        guid_val = None
+                        if rc_q == 0 and out_q:
+                            for line in out_q.splitlines():
+                                if target_dos.lower() in line.lower():
+                                    parts = line.strip().split()
+                                    if len(parts) >= 3 and parts[1].upper() == "REG_BINARY":
+                                        guid_val = parts[2]
+                                        break
+                        if guid_val:
+                            run_elevated_command(["reg", "add", "HKLM\\CLONE_SYSTEM\\MountedDevices", "/v", "\\DosDevices\\C:", "/t", "REG_BINARY", "/d", guid_val, "/f"], timeout=15)
+                            run_elevated_command(["reg", "delete", "HKLM\\CLONE_SYSTEM\\MountedDevices", "/v", target_dos, "/f"], timeout=15)
+                            self.append_log(f"    ✓ 타겟 SSD MountedDevices \\DosDevices\\C: 매핑 성공! (GUID: {guid_val[:16]}...) 단독 부팅 시 C: 자동 할당.")
+                        else:
+                            self.append_log(f"    - [참고] MountedDevices에서 {target_dos} 엔트리를 찾지 못해 C: 강제 매핑 생략.")
+                    finally:
+                        run_elevated_command(["reg", "unload", "HKLM\\CLONE_SYSTEM"], timeout=15)
+            except Exception as e_reg:
+                self.append_log(f"    - [주의] MountedDevices 교정 예외 (무시 가능): {e_reg}")
+
             # 5. UEFI 부트로더(BCD) 정밀 주입
             self.append_log(f"[5/5] 부트 매니저(BCD) 정밀 주입 중: bcdboot {target_root}Windows ...")
             with self.state_lock:
@@ -807,10 +836,23 @@ class DiskCloneManager:
                 bcd_file_check = os.path.join(esp_letter + "\\", "EFI", "Microsoft", "Boot", "BCD")
                 if os.path.exists(bcd_file_check):
                     self.append_log(f"  - [검증 완료] UEFI BCD 파일 무결성 확인 ({bcd_file_check})")
-                    # 타겟 SSD 단독 부팅 시 0xc000000e 블루스크린 방지: BCD device/osdevice를 partition=C:로 설정
-                    run_elevated_command(["bcdedit", "/store", bcd_file_check, "/set", "{default}", "device", "partition=C:"], timeout=15)
-                    run_elevated_command(["bcdedit", "/store", bcd_file_check, "/set", "{default}", "osdevice", "partition=C:"], timeout=15)
-                    self.append_log("  - [독립 부팅 보장] BCD osdevice/device를 partition=C:로 동기화 완료")
+                    # Safety Gate: bcdedit /enum {default}로 타겟 드라이브 바인딩 실측 검증
+                    enum_cmd = ["bcdedit", "/store", bcd_file_check, "/enum", "{default}"]
+                    rc_enum, enum_out, enum_err = run_elevated_command(enum_cmd, timeout=15)
+                    enum_text = (enum_out or enum_err or "")
+                    target_drive_norm = target_drive.rstrip("\\").upper()
+
+                    if rc_enum != 0:
+                        self.append_log(f"  - [주의] BCD {enum_cmd} 검증 명령 실행 실패 (Exit Code {rc_enum}): {(enum_err or enum_out).strip()}")
+                    else:
+                        device_ok = any("device" in l.lower() and target_drive_norm in l.upper() for l in enum_text.splitlines())
+                        osdevice_ok = any("osdevice" in l.lower() and target_drive_norm in l.upper() for l in enum_text.splitlines())
+
+                        if device_ok and osdevice_ok:
+                            self.append_log(f"  - [Safety Gate 통과] BCD {{default}} device/osdevice가 타겟({target_drive_norm})을 정확히 가리킴 확인")
+                        else:
+                            self.append_log(f"  - [Safety Gate 알림] BCD 엔트리 상태 확인: device_ok={device_ok}, osdevice_ok={osdevice_ok}")
+                            self.append_log("  - [독립 부팅 보장] GUID 오염 방지를 위해 partition=C: 강제 덮어쓰기 생략")
 
                 # UEFI BIOS 표준 폴백 부트로더(bootx64.efi) 보장
                 esp_boot_dir = os.path.join(esp_letter + "\\", "EFI", "Boot")
