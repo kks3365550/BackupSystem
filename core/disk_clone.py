@@ -251,8 +251,8 @@ def prepare_target_disk_with_esp(disk_number: int, target_drive: str, esp_letter
         "clean",
         "convert gpt",
         "select partition 1",
-        "delete partition override noerr",
-        "create partition efi size=260 offset=1024",
+        "delete partition override",
+        "create partition efi size=260",
         "format fs=fat32 quick label=\"ESP\"",
         f"assign letter={esp_clean}",
         "create partition msr size=16",
@@ -575,9 +575,8 @@ class DiskCloneManager:
 
                     part_res = prepare_target_disk_with_esp(t_disk, target_drive, esp_letter)
                     if not part_res.get("success"):
-                        self.append_log(f"  - [경고] 자동 파티셔닝 실패 ({part_res.get('error')}). 기존 파티션 모드로 폴백합니다.")
-                        auto_prepare_esp = False
-                        esp_letter = ""
+                        err_msg = part_res.get("error", "알 수 없는 오류")
+                        raise RuntimeError(f"새 SSD UEFI 표준 규격 자동 파티셔닝 실패: {err_msg}")
                     else:
                         self.append_log(f"  - 새 SSD UEFI 파티셔닝 완료 (ESP 임시 문자: {esp_letter}, OS 볼륨: {target_drive})")
                         time.sleep(2)
