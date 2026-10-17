@@ -932,8 +932,8 @@
                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h2 class="text-base font-bold text-white flex items-center gap-2">
-                            <i data-lucide="hard-drive" class="w-5 h-5 text-emerald-400"></i> 디스크 통백업 & OS 전체 복원 (VHDX & Bare-Metal)
-                            <span class="text-[11px] px-2.5 py-0.5 bg-emerald-950/80 text-emerald-300 rounded-full border border-emerald-700/60 font-medium">SSD 사망 대비 특화</span>
+                            <i data-lucide="hard-drive" class="w-5 h-5 text-emerald-400"></i> 디스크 통백업 & OS 전체 복원 (LBA 블록 .qblk & Bare-Metal)
+                            <span class="text-[11px] px-2.5 py-0.5 bg-emerald-950/80 text-emerald-300 rounded-full border border-emerald-700/60 font-medium font-mono">SSD 사망 대비 특화</span>
                         </h2>
                         <p class="text-xs text-slate-400 mt-1">
                             C드라이브 SSD가 물리적으로 고장 나 새 SSD로 교체했을 때, 윈도우 재설치 없이 <strong>부팅(EFI) 파티션 + OS + 프로그램 전체를 100% 원상복구</strong>합니다.
@@ -991,10 +991,10 @@
                                     <h3 class="text-sm font-bold text-white flex items-center gap-2">
                                         <i data-lucide="shield-check" class="w-4 h-4 text-purple-400"></i>
                                         <span>디스크 통백업 생성</span>
-                                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 font-bold border border-emerald-800">wbadmin VHDX</span>
+                                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 font-bold border border-emerald-800 font-mono">LBA 블록 스트리밍 (.qblk)</span>
                                     </h3>
                                     <p class="text-[11px] text-zinc-400">
-                                        C: 드라이브(부팅 파티션+OS 전체)를 VHDX로 통백업합니다.
+                                        C: 드라이브(부팅 파티션+OS 전체)를 zstd 초고속 압축 단일 블록 아카이브(.qblk)로 통백업합니다.
                                     </p>
                                 </div>
                                 <div class="flex items-center gap-1.5 shrink-0">
@@ -1013,7 +1013,7 @@
                                         <span>백업 엔진 및 방식:</span>
                                     </label>
                                     <select id="archive-compress-select" class="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-purple-500 font-mono">
-                                        <option value="fast" selected>wbadmin VHDX (잠긴 파일 에러 0% / 5~8분 완료)</option>
+                                        <option value="fast" selected>LBA 블록 스트리밍 (.qblk) - zstd 풀코어 압축 / NTFS 빈공간 100% 스킵</option>
                                     </select>
                                 </div>
 
@@ -1074,7 +1074,7 @@
                                     </span>
                                 </div>
                                 <div id="archive-console" class="bg-zinc-950 rounded-xl p-3.5 font-mono text-[11px] text-zinc-300 h-44 overflow-y-auto border border-zinc-800/80 space-y-1 select-text leading-relaxed">
-                                    <div class="text-zinc-500">[대기] '지금 OS 통백업 생성 시작' 버튼을 누르면 WindowsImageBackup 생성 및 4단계 실측 검증이 시작됩니다.</div>
+                                    <div class="text-zinc-500">[대기] '지금 OS 통백업 생성 시작' 버튼을 누르면 VSS 스냅샷 및 LBA 블록 스트리밍(.qblk) 생성과 4단계 실측 검증이 시작됩니다.</div>
                                 </div>
                                 <div id="sysimg-console" class="hidden"></div>
                             </div>
