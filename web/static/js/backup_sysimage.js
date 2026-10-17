@@ -267,11 +267,7 @@ async function loadVhdxList(drive = null) {
     try {
         const res = await fetchAPI(`/api/system-image/vhdx-list?target_drive=${targetDrive}`);
         if (!res || !res.success || !res.vhdx_list || res.vhdx_list.length === 0) {
-            container.innerHTML = `
-                <div class="p-4 bg-slate-950/40 rounded-xl border border-slate-800 text-center text-xs text-slate-500">
-                    WindowsImageBackup 폴더 내에 생성된 VHDX 디스크 이미지가 없습니다.
-                </div>
-            `;
+            container.innerHTML = '';
             return;
         }
 
