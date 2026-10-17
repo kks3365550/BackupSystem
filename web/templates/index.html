@@ -1202,12 +1202,18 @@
                             </select>
                         </div>
 
-                        <div class="md:col-span-4 space-y-1 flex flex-col justify-center">
-                            <label class="flex items-center gap-2 cursor-pointer pt-2">
+                        <div class="md:col-span-4 space-y-1.5 flex flex-col justify-center">
+                            <label class="flex items-center gap-2 cursor-pointer pt-1">
                                 <input type="checkbox" id="chk-archive-auto-verify" checked class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-purple-600 focus:ring-0">
                                 <span class="text-xs text-zinc-200 font-semibold">4단계 실측 검증 자동 실행</span>
                             </label>
-                            <span class="text-[11px] text-zinc-400">가상 마운트 실측으로 '슈뢰딩거의 백업' 100% 방지</span>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="chk-archive-upload-gdrive" class="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-purple-600 focus:ring-0">
+                                <span class="text-xs text-purple-300 font-semibold flex items-center gap-1.5">
+                                    <i data-lucide="cloud-upload" class="w-3.5 h-3.5 text-purple-400"></i>
+                                    완료 후 구글 드라이브 업로드 (6청크 병렬)
+                                </span>
+                            </label>
                         </div>
 
                         <div class="md:col-span-4 flex items-center justify-end gap-3 pt-2 md:pt-0">

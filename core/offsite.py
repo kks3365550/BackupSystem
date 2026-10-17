@@ -607,6 +607,12 @@ client_secret = {client_secret}
 scope = drive
 root_folder_id = {target_folder_id}
 token = {tok_str}
+
+[gdrive_chunker]
+type = chunker
+remote = gdrive:archives
+chunk_size = 4G
+hash_type = md5
 """
         with open(conf_path, "w", encoding="utf-8") as f:
             f.write(conf_content)
@@ -728,6 +734,154 @@ token = {tok_str}
             result["duration_sec"] = time.time() - started
             self._log(f"[구글 드라이브 오프사이트 오류] {e}", level="ERROR")
             return result
+
+    def upload_baremetal_chunked(self, archive_path: str, transfers: int = 6) -> Dict[str, Any]:
+        """
+        베어메탈 아카이브(.qblk/.vhdx 등) 전용 Rclone Chunker 6스트림 병렬 업로드.
+        - 로컬 디스크 원본 파일 훼손 및 용량 낭비 없이 4GB 가상 청크로 실시간 분할 스트리밍
+        - 대상: gdrive_chunker: (구글 드라이브 archives/ 폴더 매핑)
+        - --transfers 6 적용
+        """
+        started = time.time()
+        result = {
+            "success": False,
+            "skipped": False,
+            "provider": "gdrive_chunker",
+            "reason": "",
+            "duration_sec": 0.0
+        }
+
+        if not os.path.isfile(archive_path):
+            result["reason"] = f"베어메탈 아카이브 파일이 존재하지 않습니다: {archive_path}"
+            self._log(f"[구글 드라이브 청크 업로드 오류] {result['reason']}", level="ERROR")
+            return result
+
+        pf = self.preflight()
+        if not pf["ok"]:
+            result["skipped"] = True
+            result["reason"] = pf["reason"] or "구글 드라이브 사전 점검 실패"
+            result["duration_sec"] = time.time() - started
+            return result
+
+        root_folder_id = pf["target_folder_id"]
+        rclone_exe = self._get_rclone_exe()
+        if not rclone_exe:
+            result["reason"] = "Rclone 실행 바이너리(rclone.exe)를 찾을 수 없습니다."
+            result["duration_sec"] = time.time() - started
+            self._log(f"[구글 드라이브 청크 업로드 오류] {result['reason']}", level="ERROR")
+            return result
+
+        try:
+            rclone_conf = self._ensure_rclone_config(root_folder_id)
+        except Exception as e_conf:
+            result["reason"] = f"Rclone 설정 생성 실패: {e_conf}"
+            result["duration_sec"] = time.time() - started
+            self._log(f"[구글 드라이브 청크 업로드 오류] {result['reason']}", level="ERROR")
+            return result
+
+        if os.path.isfile(archive_path):
+            archive_dir = os.path.dirname(os.path.abspath(archive_path))
+            archive_name = os.path.basename(archive_path)
+            meta_name = f"{archive_name}.meta.json"
+            include_args = ["--include", archive_name, "--include", meta_name]
+        elif os.path.isdir(archive_path):
+            archive_dir = os.path.abspath(archive_path)
+            archive_name = os.path.basename(archive_dir)
+            include_args = []
+        else:
+            result["reason"] = f"베어메탈 아카이브 파일 또는 디렉터리가 존재하지 않습니다: {archive_path}"
+            self._log(f"[구글 드라이브 청크 업로드 오류] {result['reason']}", level="ERROR")
+            return result
+
+        self._log(
+            f"🚀 [구글 드라이브 청크 업로드] 초고속 6청크 병렬 스트림 시작: {archive_name} -> gdrive_chunker: "
+            f"(동시 전송: {transfers}개, 계정: {pf['user_email']})"
+        )
+
+        cmd = [
+            rclone_exe,
+            "copy",
+            archive_dir,
+            "gdrive_chunker:",
+            "--config", rclone_conf,
+        ]
+        cmd.extend(include_args)
+        cmd.extend([
+            "--drive-chunk-size", "128M",
+            "--transfers", str(transfers),
+            "--checkers", "8",
+            "--stats", "5s",
+            "--stats-one-line",
+        ])
+
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=creationflags
+            )
+
+            last_log_t = time.time()
+            if proc.stdout:
+                for line in proc.stdout:
+                    line_s = line.strip()
+                    if not line_s:
+                        continue
+                    now = time.time()
+                    if ("ETA" in line_s or "%" in line_s or "Transferred:" in line_s) and (now - last_log_t >= 3.0):
+                        clean_msg = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", line_s)
+                        clean_msg = re.sub(r"^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} (NOTICE|INFO): ", "", clean_msg)
+                        self._log(f"[구글 드라이브 6청크 업로드] {clean_msg}")
+                        last_log_t = now
+                    elif "ERROR" in line_s:
+                        self._log(f"[구글 드라이브 6청크 에러] {line_s}", level="WARNING")
+
+            ret = proc.wait()
+            result["duration_sec"] = time.time() - started
+            if ret == 0:
+                result["success"] = True
+                result["reason"] = f"Rclone 6청크 가상 분할 업로드 완료 ({archive_name})"
+                self._log(f"🎉 [구글 드라이브 6청크 완료] {result['reason']} ({result['duration_sec']:.1f}초)")
+            else:
+                result["reason"] = f"Rclone 종료 코드: {ret}"
+                self._log(f"[구글 드라이브 6청크 실패] {result['reason']}", level="ERROR")
+
+            return result
+
+        except Exception as e:
+            result["reason"] = f"Rclone 프로세스 실행 예외: {e}"
+            result["duration_sec"] = time.time() - started
+            self._log(f"[구글 드라이브 6청크 오류] {e}", level="ERROR")
+            return result
+
+
+def upload_baremetal_to_gdrive(
+    archive_path: str,
+    local_repo_dir: str = "",
+    gdrive_credentials_file: str = "",
+    gdrive_folder_id: str = "",
+    transfers: int = 6,
+    log_callback: Optional[Callable[..., None]] = None
+) -> Dict[str, Any]:
+    """
+    베어메탈 OS 아카이브를 구글 드라이브로 6청크 가상 병렬 업로드하는 헬퍼 함수.
+    """
+    if not local_repo_dir and os.path.isfile(archive_path):
+        local_repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(archive_path)))
+    replicator = GoogleDriveOffsiteReplicator(
+        local_repo_dir=local_repo_dir or r"D:\MyBackup_Repository",
+        credentials_file=gdrive_credentials_file,
+        folder_name_or_id=gdrive_folder_id or "BackupSystem_Offsite",
+        timeout_sec=7200,
+        log_callback=log_callback
+    )
+    return replicator.upload_baremetal_chunked(archive_path, transfers=transfers)
+
 
 
 def replicate_offsite(

@@ -27,6 +27,13 @@ if %errorlevel% equ 0 (
     echo   [SUCCESS] Bare-Metal System Image Backup Completed!
     echo   Location: D:\WindowsImageBackup
     echo ======================================================================
+    echo.
+    set /p UPLOAD_GDRIVE="Upload to Google Drive using 6-chunk parallel stream? (Y/N, default N): "
+    if /i "%UPLOAD_GDRIVE%"=="Y" (
+        echo.
+        echo [*] Launching 6-chunk parallel stream upload to Google Drive...
+        python -c "from core.offsite import upload_baremetal_to_gdrive; res = upload_baremetal_to_gdrive(r'D:\WindowsImageBackup', transfers=6); print('[*] Upload Result:', res.get('reason'))"
+    )
 ) else (
     echo.
     echo [ERROR] Backup failed or was cancelled. Exit Code: %errorlevel%

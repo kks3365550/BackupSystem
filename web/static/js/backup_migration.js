@@ -387,6 +387,9 @@ async function loadArchiveList() {
                         </div>
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
+                        <button onclick="uploadArchiveToGdrive('${encodeURIComponent(a.path)}')" class="px-2.5 py-1.5 bg-purple-900/60 hover:bg-purple-800 text-purple-200 rounded-lg text-xs font-medium border border-purple-700/80 transition flex items-center gap-1" title="구글 드라이브로 6청크 초고속 병렬 업로드">
+                            <i data-lucide="cloud-upload" class="w-3.5 h-3.5 text-purple-300"></i> 구글 6청크 업로드
+                        </button>
                         <button onclick="verifySingleArchive('${encodeURIComponent(a.path)}')" class="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-xs font-medium border border-zinc-700 transition flex items-center gap-1">
                             <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i> 실측 검증
                         </button>
@@ -404,14 +407,41 @@ async function loadArchiveList() {
     }
 }
 
+async function uploadArchiveToGdrive(archivePathEncoded) {
+    const archivePath = decodeURIComponent(archivePathEncoded);
+    if (!confirm(`이 베어메탈 백업 아카이브를 구글 드라이브로 업로드하시겠습니까?\n\n- 대상: ${archivePath}\n- 전송 방식: Rclone Chunker (6개 병렬 스트림, 4GB 청크)\n- 로컬 원본 보존: 원본 훼손 및 용량 낭비 없음`)) {
+        return;
+    }
+    appendArchiveConsoleLog(`[START] 구글 드라이브 6청크 병렬 업로드를 시작합니다: ${archivePath}`);
+    try {
+        const res = await fetch("/api/migration/archive/upload-gdrive", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ archive_path: archivePath, transfers: 6 })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            alert("구글 드라이브 업로드 실패: " + (data.detail || data.reason || "오류"));
+            appendArchiveConsoleLog(`[ERROR] 구글 드라이브 업로드 실패: ${data.detail || data.reason}`);
+            return;
+        }
+        alert("구글 드라이브 6청크 병렬 업로드 완료!\n" + data.reason);
+        appendArchiveConsoleLog(`[DONE] ${data.reason} (소요시간: ${Math.round(data.duration_sec || 0)}초)`);
+    } catch (err) {
+        alert("네트워크 오류: " + err.message);
+    }
+}
+
 async function startDriveArchiveBackup() {
     const compressEl = document.getElementById("archive-compress-select");
     const autoVerifyEl = document.getElementById("chk-archive-auto-verify");
+    const uploadGdriveEl = document.getElementById("chk-archive-upload-gdrive");
 
     const compress = compressEl ? compressEl.value : "fast";
     const autoVerify = autoVerifyEl ? autoVerifyEl.checked : true;
+    const uploadGdrive = uploadGdriveEl ? uploadGdriveEl.checked : false;
 
-    if (!confirm(`C: 드라이브 전체를 VSS + DISM WIM 초고속 압축 이미지로 통백업하시겠습니까?\n\n- 백업 엔진: VSS 스냅샷 + DISM WIM (파일 잠금 에러 0%, 15~20분 소요)\n- 4단계 실측 검증: ${autoVerify ? "포함 (권장)" : "미포함"}`)) {
+    if (!confirm(`C: 드라이브 전체를 베어메탈 디스크 이미지로 통백업하시겠습니까?\n\n- 백업 엔진: VSS 스냅샷 + LBA 블록 스트리밍 (.qblk)\n- 4단계 실측 검증: ${autoVerify ? "포함 (권장)" : "미포함"}\n- 구글 드라이브 업로드: ${uploadGdrive ? "6청크 초고속 병렬 스트림 업로드" : "미포함 (로컬 보관)"}`)) {
         return;
     }
 
@@ -422,7 +452,8 @@ async function startDriveArchiveBackup() {
             body: JSON.stringify({
                 source_drive: "C:",
                 compress: compress,
-                auto_verify: autoVerify
+                auto_verify: autoVerify,
+                upload_gdrive: uploadGdrive
             })
         });
         const data = await res.json();
@@ -432,7 +463,7 @@ async function startDriveArchiveBackup() {
             return;
         }
 
-        appendArchiveConsoleLog(`[START] 보험용 VSS + DISM WIM 통백업이 시작되었습니다: ${data.target_wim || "진행 중"}`);
+        appendArchiveConsoleLog(`[START] 베어메탈 블록 스트리밍 통백업이 시작되었습니다: ${data.target_wim || "진행 중"}`);
         startArchivePolling();
     } catch (err) {
         alert("네트워크 오류: " + err.message);

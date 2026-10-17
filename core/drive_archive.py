@@ -1100,7 +1100,8 @@ class DriveArchiveManager:
         source_drive: str = "C:",
         target_wim_path: Optional[str] = None,
         compress: str = "fast",
-        auto_verify: bool = True
+        auto_verify: bool = True,
+        upload_gdrive: bool = False
     ) -> Dict[str, Any]:
         """
         드라이브 통백업(WIM) 캡처 비동기 시작
@@ -1151,13 +1152,13 @@ class DriveArchiveManager:
 
         self._worker_thread = threading.Thread(
             target=self._worker_capture,
-            args=(source_drive, target_wim_path, compress, auto_verify),
+            args=(source_drive, target_wim_path, compress, auto_verify, upload_gdrive),
             daemon=True
         )
         self._worker_thread.start()
         return {"success": True, "message": "드라이브 통백업 캡처가 시작되었습니다.", "target_wim": target_wim_path}
 
-    def _worker_capture(self, source_drive: str, target_wim: str, compress: str, auto_verify: bool):
+    def _worker_capture(self, source_drive: str, target_wim: str, compress: str, auto_verify: bool, upload_gdrive: bool = False):
         start_ts = time.time()
         ipc_file = os.path.join(tempfile.gettempdir(), f"archive_ipc_{uuid.uuid4().hex[:8]}.jsonl")
         worker_done = False
@@ -1277,6 +1278,31 @@ class DriveArchiveManager:
             self.append_log(f"  - 원본 VSN: {worker_result.get('volume_serial_number')}")
             self.append_log(f"  - 실측 검증 여부: {'100% 검증 통과 (부팅/라이선스 무결)' if worker_result.get('is_verified') else '미검증'}")
             self.append_log("=" * 60)
+
+            if upload_gdrive:
+                self.append_log("=" * 60)
+                self.append_log("🚀 [구글 드라이브 업로드 옵션 감지] 6청크 초고속 가상 병렬 스트림 업로드 착수...")
+                with self.state_lock:
+                    self.status = "uploading_gdrive"
+                    self.current_phase = "구글 드라이브 초고속 6청크 병렬 업로드 중"
+                try:
+                    from core.offsite import upload_baremetal_to_gdrive
+                    up_res = upload_baremetal_to_gdrive(
+                        archive_path=target_wim,
+                        transfers=6,
+                        log_callback=lambda msg, level="INFO": self.append_log(msg)
+                    )
+                    if up_res.get("success"):
+                        self.append_log(f"🎉 [구글 드라이브 6청크 업로드 성공] {up_res.get('reason')}")
+                    else:
+                        self.append_log(f"⚠️ [구글 드라이브 6청크 업로드 경고] {up_res.get('reason')}")
+                except Exception as e_up:
+                    self.append_log(f"❌ [구글 드라이브 6청크 업로드 실패] {e_up}")
+                finally:
+                    with self.state_lock:
+                        self.status = "completed"
+                        self.current_phase = "모든 작업 완료 (로컬 통백업 + 구글 드라이브 6청크 업로드)"
+
 
         except Exception as e:
             err_msg = str(e)

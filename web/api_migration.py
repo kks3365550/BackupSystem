@@ -24,6 +24,8 @@ class StartArchiveRequest(BaseModel):
     target_wim_path: Optional[str] = None
     compress: str = "fast"
     auto_verify: bool = True
+    upload_gdrive: bool = False
+
 
 
 class VerifyArchiveRequest(BaseModel):
@@ -108,11 +110,29 @@ async def api_archive_start(req: StartArchiveRequest):
         source_drive=req.source_drive,
         target_wim_path=req.target_wim_path,
         compress=req.compress,
-        auto_verify=req.auto_verify
+        auto_verify=req.auto_verify,
+        upload_gdrive=req.upload_gdrive
     )
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "통백업 시작 실패"))
     return res
+
+
+class UploadArchiveRequest(BaseModel):
+    archive_path: str
+    transfers: int = 6
+
+
+@router.post("/archive/upload-gdrive")
+async def api_archive_upload_gdrive(req: UploadArchiveRequest):
+    """보관 중인 아카이브 파일을 구글 드라이브로 6청크 병렬 업로드"""
+    import os
+    from core.offsite import upload_baremetal_to_gdrive
+    if not req.archive_path or not os.path.isfile(req.archive_path):
+        raise HTTPException(status_code=400, detail="유효한 아카이브 파일 경로가 아닙니다.")
+    res = upload_baremetal_to_gdrive(archive_path=req.archive_path, transfers=req.transfers)
+    return res
+
 
 
 @router.get("/archive/status")
