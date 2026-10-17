@@ -191,6 +191,12 @@ def _background_usb_worker(target_drive: str, iso_path: str):
             if os.path.exists(src_core):
                 shutil.copytree(src_core, os.path.join(rescue_tools_dir, "core"), dirs_exist_ok=True)
 
+            # 초고속 네이티브 Rust 복구 엔진 패키징
+            src_rust_engine = os.path.join(PROJECT_ROOT, "engine_rust", "kova_fast_engine.exe")
+            if os.path.exists(src_rust_engine):
+                shutil.copy2(src_rust_engine, os.path.join(rescue_tools_dir, "kova_fast_engine.exe"))
+                append_usb_log("초고속 네이티브 Rust 복구 엔진(kova_fast_engine.exe) 패키징 완료")
+
             # 최신 인스톨러 배포본
             for f in os.listdir(os.path.join(PROJECT_ROOT, "web", "static")):
                 if f.startswith("BackupSystem_Setup_") and f.endswith(".exe"):

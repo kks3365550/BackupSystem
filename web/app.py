@@ -423,6 +423,8 @@ def dismount_system_image_vhdx(req: VhdxDismountRequest):
 
 
 # --- 3-2-1 Offsite Remote Replication API ---
+offsite_sync_lock = threading.Lock()
+is_offsite_syncing = False
 class OffsiteSaveRequest(BaseModel):
     enabled: bool = False
     provider: Optional[str] = "local"
@@ -769,6 +771,13 @@ def test_offsite_connection(req: OffsiteTestRequest):
 
 @app.post("/api/offsite/sync")
 def trigger_manual_offsite_sync(req: OffsiteSyncRequest):
+    global is_offsite_syncing
+    with offsite_sync_lock:
+        if is_offsite_syncing:
+            append_task_log("[3-2-1 오프사이트] 이미 동기화 작업이 실행 중입니다. 중복 실행을 방지합니다.", level="WARNING")
+            return {"success": False, "message": "이미 동기화 작업이 진행 중입니다."}
+        is_offsite_syncing = True
+
     cfg = ConfigManager.get_offsite_config()
     provider = req.provider or cfg.get("provider", "local")
     remote = (req.remote_path or cfg.get("remote_path", "")).strip().strip('"').strip("'")
@@ -776,6 +785,8 @@ def trigger_manual_offsite_sync(req: OffsiteSyncRequest):
     gdrive_folder = (req.gdrive_folder_id or cfg.get("gdrive_folder_id", "")).strip().strip('"').strip("'")
 
     if provider != "gdrive" and not remote:
+        with offsite_sync_lock:
+            is_offsite_syncing = False
         raise HTTPException(status_code=400, detail="오프사이트 원격 경로가 지정되지 않았습니다.")
 
     source_repo = req.source_repo_dir
@@ -788,11 +799,14 @@ def trigger_manual_offsite_sync(req: OffsiteSyncRequest):
         if not source_repo and cands:
             source_repo = cands[0]
     if not source_repo or not os.path.isdir(source_repo):
+        with offsite_sync_lock:
+            is_offsite_syncing = False
         raise HTTPException(status_code=400, detail="로컬 백업 저장소(Source Repo)를 찾을 수 없습니다.")
 
     dest_desc = f"Google Drive ({gdrive_folder or 'BackupSystem_Offsite'})" if provider == "gdrive" else remote
 
     def _async_sync():
+        global is_offsite_syncing
         try:
             append_task_log(f"[3-2-1 오프사이트] 수동 동기화 시작: {source_repo} -> {dest_desc}")
             from core.offsite import replicate_offsite
@@ -801,7 +815,8 @@ def trigger_manual_offsite_sync(req: OffsiteSyncRequest):
                 remote_repo_dir=remote,
                 provider=provider,
                 gdrive_credentials_file=gdrive_creds,
-                gdrive_folder_id=gdrive_folder
+                gdrive_folder_id=gdrive_folder,
+                log_callback=append_task_log
             )
             if res.get("success"):
                 append_task_log(f"[3-2-1 오프사이트] 동기화 성공: 복사/업로드 {res.get('files_copied', 0)}개 / 전체 {res.get('files_total', 0)}개 ({res.get('duration_sec', 0.0):.1f}초)")
@@ -809,6 +824,9 @@ def trigger_manual_offsite_sync(req: OffsiteSyncRequest):
                 append_task_log(f"[3-2-1 오프사이트] 동기화 실패: {res.get('reason', '알 수 없음')}", level="WARNING")
         except Exception as e_sync:
             append_task_log(f"[3-2-1 오프사이트] 동기화 중 오류: {e_sync}", level="ERROR")
+        finally:
+            with offsite_sync_lock:
+                is_offsite_syncing = False
 
     threading.Thread(target=_async_sync, daemon=True).start()
     return {

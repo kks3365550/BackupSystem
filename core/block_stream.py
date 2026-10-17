@@ -188,6 +188,7 @@ def unpack_header(header_bytes: bytes) -> Dict[str, Any]:
         raise ValueError(f"헤더 CRC32 불일치: 계산값={calc_crc}, 저장값={stored_crc}")
 
     return {
+        "magic": magic,
         "version": ver,
         "cluster_size": c_size,
         "total_clusters": tot_c,
@@ -534,13 +535,18 @@ def create_block_stream_backup(
     out_fp = None
 
     try:
-        # 볼륨 직접 오픈
-        h_vol = open_volume_direct(target_read_path, write=False)
-
-        # $Bitmap 파싱
+        # $Bitmap 파싱 (라이브 볼륨 핸들에서 안전 조회)
         logger.info("NTFS $Bitmap 분석 중...")
-        bitmap_bytes = query_volume_bitmap(h_vol, total_clusters)
+        h_bmp = open_volume_direct(vol_path, write=False)
+        try:
+            bitmap_bytes = query_volume_bitmap(h_bmp, total_clusters)
+        finally:
+            close_volume(h_bmp)
+
         runs = get_allocated_cluster_runs(bitmap_bytes, cluster_size, DEFAULT_CHUNK_BYTES)
+
+        # 볼륨 직접 오픈 (VSS 스냅샷 디바이스 우선으로 파일 잠금 원천 차단)
+        h_vol = open_volume_direct(target_read_path, write=False)
 
         actual_used_clusters = sum(cnt for _, cnt in runs)
         total_data_bytes = actual_used_clusters * cluster_size
@@ -553,51 +559,128 @@ def create_block_stream_backup(
         header = pack_header(cluster_size, total_clusters, actual_used_clusters, vsn, source_label)
         out_fp.write(header)
 
-        # 2. zstd 압축기 초기화
-        compressor = zstd.ZstdCompressor(level=1)
+        # ----------------------------------------------------------------------
+        # 3단계 초고속 비동기 Producer-Consumer 파이프라인
+        # Thread 1 (Reader): Direct DMA로 C: NVMe에서 8~12개 블록 선독(Pre-read, QD 12)
+        # Thread 2 (Compressor): zstd 풀코어(threads=-1) 병렬 압축 + CRC32
+        # Thread 3 (Writer): D: NVMe로 비동기 순차 Direct I/O 쓰기
+        # ----------------------------------------------------------------------
+        queue_depth = 12
+        read_q = queue.Queue(maxsize=queue_depth)
+        write_q = queue.Queue(maxsize=queue_depth)
+        stop_event = threading.Event()
+        pipeline_error = []
 
+        # [Stage 1] Reader 스레드 (C: NVMe 선독)
+        def reader_worker():
+            try:
+                for idx, (lcn, cluster_count) in enumerate(runs):
+                    if stop_event.is_set() or (cancel_event and cancel_event.is_set()):
+                        break
+                    raw_data = read_volume_lcn_chunk(h_vol, lcn, cluster_count, cluster_size)
+                    while not stop_event.is_set():
+                        if cancel_event and cancel_event.is_set():
+                            return
+                        try:
+                            read_q.put((idx, lcn, cluster_count, raw_data), timeout=0.2)
+                            break
+                        except queue.Full:
+                            continue
+            except Exception as e:
+                pipeline_error.append(e)
+                stop_event.set()
+            finally:
+                read_q.put(None)
+
+        # [Stage 2] Compressor 스레드 (풀코어 멀티스레드 압축)
+        def compressor_worker():
+            try:
+                compressor = zstd.ZstdCompressor(level=1, threads=-1)
+                while not stop_event.is_set():
+                    if cancel_event and cancel_event.is_set():
+                        break
+                    try:
+                        item = read_q.get(timeout=0.2)
+                    except queue.Empty:
+                        continue
+                    if item is None:
+                        break
+                    idx, lcn, cluster_count, raw_data = item
+                    crc = zlib.crc32(raw_data) & 0xFFFFFFFF
+                    comp_data = compressor.compress(raw_data)
+                    chunk_hdr = pack_chunk_header(lcn, cluster_count, len(raw_data), len(comp_data), crc)
+                    payload = (idx, chunk_hdr, comp_data, len(raw_data), len(comp_data))
+                    while not stop_event.is_set():
+                        if cancel_event and cancel_event.is_set():
+                            return
+                        try:
+                            write_q.put(payload, timeout=0.2)
+                            break
+                        except queue.Full:
+                            continue
+            except Exception as e:
+                pipeline_error.append(e)
+                stop_event.set()
+            finally:
+                write_q.put(None)
+
+        t_reader = threading.Thread(target=reader_worker, daemon=True, name="Backup-Reader")
+        t_comp = threading.Thread(target=compressor_worker, daemon=True, name="Backup-Compressor")
+        t_reader.start()
+        t_comp.start()
+
+        # [Stage 3] Writer (메인 스레드: D: NVMe 파일 쓰기 및 진행률 보고)
         processed_bytes = 0
         compressed_total_bytes = 0
         last_log_time = time.time()
 
-        for idx, (lcn, cluster_count) in enumerate(runs):
-            if cancel_event and cancel_event.is_set():
-                raise InterruptedError("사용자에 의해 블록 스트리밍 백업이 취소되었습니다.")
+        try:
+            while True:
+                if cancel_event and cancel_event.is_set():
+                    stop_event.set()
+                    raise InterruptedError("사용자에 의해 블록 스트리밍 백업이 취소되었습니다.")
+                if pipeline_error:
+                    stop_event.set()
+                    raise pipeline_error[0]
 
-            # 볼륨에서 데이터 직접 읽기
-            raw_data = read_volume_lcn_chunk(h_vol, lcn, cluster_count, cluster_size)
-            crc = zlib.crc32(raw_data) & 0xFFFFFFFF
+                try:
+                    item = write_q.get(timeout=0.2)
+                except queue.Empty:
+                    continue
 
-            # 초고속 압축
-            comp_data = compressor.compress(raw_data)
+                if item is None:
+                    break
 
-            # 청크 헤더 쓰기
-            chunk_hdr = pack_chunk_header(lcn, cluster_count, len(raw_data), len(comp_data), crc)
-            out_fp.write(chunk_hdr)
-            out_fp.write(comp_data)
+                idx, chunk_hdr, comp_data, raw_len, comp_len = item
+                out_fp.write(chunk_hdr)
+                out_fp.write(comp_data)
 
-            processed_bytes += len(raw_data)
-            compressed_total_bytes += len(comp_data)
+                processed_bytes += raw_len
+                compressed_total_bytes += comp_len
 
-            now = time.time()
-            if now - last_log_time >= 0.5 or idx == len(runs) - 1:
-                elapsed = max(0.1, now - start_time)
-                pct = min(100.0, round((processed_bytes / max(1, total_data_bytes)) * 100.0, 1))
-                speed_mb = (processed_bytes / (1024 * 1024)) / elapsed
+                now = time.time()
+                if now - last_log_time >= 0.5 or idx == len(runs) - 1:
+                    elapsed = max(0.1, now - start_time)
+                    pct = min(100.0, round((processed_bytes / max(1, total_data_bytes)) * 100.0, 1))
+                    speed_mb = (processed_bytes / (1024 * 1024)) / elapsed
 
-                if progress_callback:
-                    progress_callback({
-                        "percent": pct,
-                        "processed_bytes": processed_bytes,
-                        "total_bytes": total_data_bytes,
-                        "speed_mb_s": round(speed_mb, 1),
-                        "chunk_index": idx + 1,
-                        "total_chunks": len(runs),
-                        "phase": f"LBA 블록 스트리밍 백업 중 ({pct}%)"
-                    })
-                last_log_time = now
+                    if progress_callback:
+                        progress_callback({
+                            "percent": pct,
+                            "processed_bytes": processed_bytes,
+                            "total_bytes": total_data_bytes,
+                            "speed_mb_s": round(speed_mb, 1),
+                            "chunk_index": idx + 1,
+                            "total_chunks": len(runs),
+                            "phase": f"LBA 블록 스트리밍 백업 중 ({pct}%)"
+                        })
+                    last_log_time = now
 
-        out_fp.flush()
+            out_fp.flush()
+        finally:
+            stop_event.set()
+            t_reader.join(timeout=2.0)
+            t_comp.join(timeout=2.0)
         elapsed_total = time.time() - start_time
         avg_speed = (processed_bytes / (1024 * 1024)) / max(0.1, elapsed_total)
 

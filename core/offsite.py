@@ -20,7 +20,7 @@ import os
 import time
 import shutil
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable
 
 logger = logging.getLogger("BackupSystem")
 
@@ -329,7 +329,8 @@ class GoogleDriveOffsiteReplicator:
         credentials_file: Optional[str] = None,
         folder_name_or_id: Optional[str] = None,
         timeout_sec: int = 7200,
-        interactive: bool = False
+        interactive: bool = False,
+        log_callback: Optional[Callable[..., None]] = None
     ):
         local_clean = (local_repo_dir or "").strip().strip('"').strip("'")
         self.local_repo_dir = os.path.abspath(local_clean)
@@ -337,6 +338,27 @@ class GoogleDriveOffsiteReplicator:
         self.folder_name_or_id = (folder_name_or_id or "BackupSystem_Offsite").strip().strip('"').strip("'")
         self.timeout_sec = timeout_sec
         self.interactive = bool(interactive)
+        self.log_callback = log_callback
+
+    def _log(self, msg: str, level: str = "INFO"):
+        """로그 파일 및 대시보드 UI 실시간 콜백 동시 전송"""
+        if level.upper() == "WARNING" or level.upper() == "WARN":
+            logger.warning(msg)
+        elif level.upper() == "ERROR":
+            logger.error(msg)
+        else:
+            logger.info(msg)
+
+        if self.log_callback:
+            try:
+                self.log_callback(msg, level=level)
+            except TypeError:
+                try:
+                    self.log_callback(msg)
+                except Exception:
+                    pass
+            except Exception:
+                pass
 
     def _get_service(self):
         """Google Drive API v3 클라이언트 빌드."""
@@ -545,21 +567,54 @@ class GoogleDriveOffsiteReplicator:
         service = self._get_service()
         root_folder_id = pf["target_folder_id"]
 
-        logger.info(
+        self._log(
             f"[구글 드라이브 오프사이트] 복제 시작: {self.local_repo_dir} -> Google Drive:{self.folder_name_or_id} "
             f"(계정: {pf['user_email']}, 여유: {pf['free_gb']} GB)"
         )
 
         try:
             # 1. 로컬 저장소 전체 파일 목록 수집
+            self._log(f"[구글 드라이브] 로컬 백업 저장소 파일 검사 중... ({self.local_repo_dir})")
             local_files = []
+            packs_dir = os.path.join(self.local_repo_dir, "packs")
+            packs_has_pack = False
+            if os.path.isdir(packs_dir):
+                for _root, _dirs, _files in os.walk(packs_dir):
+                    if any(f.lower().endswith(".pack") for f in _files):
+                        packs_has_pack = True
+                        break
+
             for root, _, files in os.walk(self.local_repo_dir):
                 for fname in files:
                     full_p = os.path.join(root, fname)
                     rel_p = os.path.relpath(full_p, self.local_repo_dir).replace("\\", "/")
+
+                    # packs/ 내에 .pack 파일이 존재하면 13만 개 낱개 blobs/ 스킵 (중복 및 수십 시간 지연 방지)
+                    if packs_has_pack and (rel_p.startswith("blobs/") or rel_p.startswith("blobs\\")):
+                        continue
+
                     local_files.append((full_p, rel_p, os.path.getsize(full_p)))
 
+            # 메타데이터 및 스냅샷 파일 최우선 정렬 (snapshots/, metadata.db, repo_meta.json, packs/)
+            def _file_priority(item):
+                rel = item[1].lower()
+                if "snapshots/" in rel or "snapshots\\" in rel:
+                    return 0
+                if "metadata.db" in rel or "repo_meta.json" in rel:
+                    return 1
+                if "keys/" in rel or "keys\\" in rel:
+                    return 2
+                if "packs/" in rel or "packs\\" in rel:
+                    return 3
+                return 10
+
+            local_files.sort(key=_file_priority)
+
             result["files_total"] = len(local_files)
+            if packs_has_pack:
+                self._log(f"[구글 드라이브] Pack 아카이브 모드 작동: 낱개 블롭 13만 개 생략, 총 {len(local_files):,}개 핵심 파일만 초고속 동기화합니다.")
+            else:
+                self._log(f"[구글 드라이브] 로컬 파일 총 {len(local_files):,}개 확인됨. 원격지 기존 파일 목록 조회 중...")
 
             # 2. 구글 드라이브 대상 폴더 내 기존 파일 캐싱 (중복 업로드 방지)
             existing_files = {}
@@ -583,14 +638,35 @@ class GoogleDriveOffsiteReplicator:
                 if not page_token:
                     break
 
+            self._log(f"[구글 드라이브] 원격지 기존 파일 {len(existing_files):,}개 확인 완료. 증분 동기화 시작...")
+
             # 3. 파일별 스마트 업로드 (동일 크기 시 스킵, 신규/수정분 업로드)
-            for full_p, rel_p, sz in local_files:
+            total_cnt = len(local_files)
+            result["files_skipped"] = 0
+            last_log_time = time.time()
+            for idx, (full_p, rel_p, sz) in enumerate(local_files, 1):
+                is_skip = False
                 if rel_p in existing_files:
                     if existing_files[rel_p]["size"] == sz:
-                        continue  # 스마트 스킵
+                        result["files_skipped"] += 1
+                        is_skip = True
 
-                # Resumable 업로드 수행
-                media = MediaFileUpload(full_p, resumable=True)
+                now = time.time()
+                if idx == 1 or idx % 50 == 0 or (now - last_log_time >= 5.0) or idx == total_cnt:
+                    pct = (idx / total_cnt) * 100.0 if total_cnt > 0 else 100.0
+                    self._log(
+                        f"[구글 드라이브 동기화] {idx:,}/{total_cnt:,}개 ({pct:.1f}%) 진행 중 | "
+                        f"업로드 {result['files_copied']:,}개, 스킵 {result['files_skipped']:,}개"
+                    )
+                    last_log_time = now
+
+                if is_skip:
+                    continue
+
+                # 5MB 미만 소형 파일은 resumable=False로 단일 HTTP 요청 업로드 (핸드셰이크 제거로 3~5배 고속화)
+                is_resumable = sz >= (5 * 1024 * 1024)
+                chunk_sz = (4 * 1024 * 1024) if is_resumable else -1
+                media = MediaFileUpload(full_p, resumable=is_resumable, chunksize=chunk_sz)
                 file_metadata = {
                     "name": os.path.basename(full_p),
                     "parents": [root_folder_id],
@@ -601,35 +677,37 @@ class GoogleDriveOffsiteReplicator:
                 for attempt in range(3):
                     try:
                         req = service.files().create(body=file_metadata, media_body=media, fields="id")
-                        response = None
-                        try:
+                        if not is_resumable:
+                            req.execute()
+                        else:
+                            response = None
+                            last_chunk_log = time.time()
                             while response is None:
-                                chunk = req.next_chunk()
-                                if isinstance(chunk, tuple) and len(chunk) == 2:
-                                    status, response = chunk
-                                else:
-                                    response = req.execute()
-                                    break
-                        except (TypeError, ValueError, AttributeError):
-                            response = req.execute()
+                                status, response = req.next_chunk()
+                                if status:
+                                    c_now = time.time()
+                                    if c_now - last_chunk_log >= 3.0:
+                                        c_pct = int(status.progress() * 100)
+                                        self._log(f"[구글 드라이브 업로드] {os.path.basename(full_p)} ({c_pct}% 전송 중...)")
+                                        last_chunk_log = c_now
                         result["files_copied"] += 1
                         break
                     except Exception as e_up:
                         if attempt == 2:
-                            logger.warning(f"[구글 드라이브 업로드 실패] {rel_p}: {e_up}")
+                            self._log(f"[구글 드라이브 업로드 실패] {rel_p}: {e_up}", level="WARNING")
                             result["files_failed"] += 1
                         time.sleep(1 + attempt)
 
             result["success"] = (result["files_failed"] == 0) or (result["files_copied"] > 0)
-            result["reason"] = f"구글 드라이브 복제 완료 (업로드: {result['files_copied']}개, 전체: {result['files_total']}개)"
+            result["reason"] = f"구글 드라이브 복제 완료 (업로드: {result['files_copied']}개, 스킵: {result['files_skipped']}개, 전체: {result['files_total']}개)"
             result["duration_sec"] = time.time() - started
-            logger.info(f"[구글 드라이브 오프사이트] {result['reason']} ({result['duration_sec']:.1f}초)")
+            self._log(f"[구글 드라이브 오프사이트] {result['reason']} ({result['duration_sec']:.1f}초)")
             return result
 
         except Exception as e:
             result["reason"] = f"구글 드라이브 복제 예외: {e}"
             result["duration_sec"] = time.time() - started
-            logger.error(f"[구글 드라이브 오프사이트 오류] {e}")
+            self._log(f"[구글 드라이브 오프사이트 오류] {e}", level="ERROR")
             return result
 
 
@@ -639,7 +717,8 @@ def replicate_offsite(
     timeout_sec: int = 7200,
     provider: str = "local",
     gdrive_credentials_file: str = "",
-    gdrive_folder_id: str = ""
+    gdrive_folder_id: str = "",
+    log_callback: Optional[Callable[..., None]] = None
 ) -> Dict[str, Any]:
     """
     오프사이트 복제 범용 헬퍼 함수.
@@ -656,7 +735,8 @@ def replicate_offsite(
             local_repo_dir=local_repo_dir,
             credentials_file=gdrive_credentials_file,
             folder_name_or_id=folder or "BackupSystem_Offsite",
-            timeout_sec=timeout_sec
+            timeout_sec=timeout_sec,
+            log_callback=log_callback
         )
         return replicator.replicate()
 

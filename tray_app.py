@@ -190,6 +190,9 @@ class BackupTrayApp:
         # 백그라운드 태스크 모니터링 스레드 시작
         threading.Thread(target=self._monitor_server_status, daemon=True).start()
 
+        # 백업 서버 미실행 시 자동 무음 구동
+        threading.Thread(target=self._ensure_server_running, daemon=True).start()
+
         # 최초 시작 알림
         self.show_notification(
             "백업 시스템 활성화",
@@ -339,6 +342,26 @@ class BackupTrayApp:
                 self.show_notification("서버 상태", "백업 서버 응답 없음 (오프라인)", NIIF_WARNING)
 
         threading.Thread(target=_call, daemon=True).start()
+
+    def _ensure_server_running(self):
+        """서버가 실행 중이지 않으면 백그라운드로 start_silent.vbs를 실행합니다."""
+        try:
+            with urllib.request.urlopen(f"{SERVER_URL}/api/task/status", timeout=2) as res:
+                if res.status == 200:
+                    return
+        except Exception:
+            pass
+
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        vbs_path = os.path.join(base_dir, "start_silent.vbs")
+        if os.path.exists(vbs_path):
+            try:
+                subprocess.run(
+                    ["wscript.exe", vbs_path],
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+            except Exception:
+                pass
 
     def restart_server(self):
         def _call():

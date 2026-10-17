@@ -5,6 +5,9 @@ web/api_backup.py
 백업, 복원, 무결성 검증, 작업 상태, 로그 및 스토리지 정리 APIRouter 모듈
 """
 import os
+import sys
+import json
+import subprocess
 import time
 import threading
 import tempfile
@@ -223,16 +226,89 @@ def _background_custom_backup_task(params: Dict[str, Any]):
             if p_data.get("processed_files", 0) % 50 == 0:
                 append_task_log(f"진행 중: {p_data.get('percent')}% ({p_data.get('processed_files')}/{p_data.get('total_files')} 파일)")
 
-        manifest = SnapshotEngine.create_snapshot(
-            repo_dir=repo_dir,
-            sources=all_sources,
-            profile_id=profile_id,
-            profile_name=profile_name,
-            exclude_patterns=excludes,
-            compress_level=effective_compress,
-            progress_callback=on_progress,
-            cancel_event=cancel_evt
-        )
+        engine_exe = os.path.join(BASE_DIR, "engine_rust", "kova_fast_engine.exe")
+        manifest = None
+        if os.path.exists(engine_exe):
+            session_id = f"snap_custom_{time.strftime('%Y%m%d_%H%M%S')}_{os.urandom(2).hex()}"
+            append_task_log(f"[초고속 네이티브 Rust 엔진 가동 - 선택 백업] 세션: {session_id}")
+            cmd = [engine_exe, "backup", "--repo", repo_dir, "--session-id", session_id, "--json"]
+            for s in all_sources:
+                cmd.extend(["--source", s])
+
+            creationflags = subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=creationflags
+            )
+
+            last_summary = None
+            if proc.stdout:
+                for line in proc.stdout:
+                    line_str = line.strip()
+                    if not line_str:
+                        continue
+                    try:
+                        event = json.loads(line_str)
+                        etype = event.get("type")
+                        if etype == "progress":
+                            pct = event.get("percent", 0)
+                            done = event.get("processed_files", 0)
+                            tot = event.get("total_files", 0)
+                            spd = event.get("speed", 0.0)
+                            cur_f = event.get("current_file", "")
+                            with task_lock:
+                                current_task["progress"] = {
+                                    "percent": pct,
+                                    "processed_files": done,
+                                    "total_files": tot,
+                                    "speed": f"{spd:.1f} MB/s",
+                                    "current_file": cur_f
+                                }
+                            if done % 100 == 0 or done == tot:
+                                append_task_log(f"선택 백업 진행: {pct}% ({done}/{tot} 파일 | {spd:.1f} MB/s)")
+                        elif etype == "summary":
+                            last_summary = event
+                    except Exception:
+                        pass
+
+            proc.wait()
+            if proc.returncode != 0:
+                err_msg = proc.stderr.read() if proc.stderr else "Unknown error"
+                append_task_log(f"[경고] Rust 엔진 오류(Code {proc.returncode}): {err_msg}, 레거시 엔진으로 폴백합니다.", level="WARNING")
+            elif last_summary:
+                duration = last_summary.get("elapsed_seconds", 0.0)
+                manifest = {
+                    "id": session_id,
+                    "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "vss_enabled": False,
+                    "summary": {
+                        "total_files": last_summary.get("total_files", 0),
+                        "total_bytes": last_summary.get("total_bytes", 0),
+                        "dedup_saved_bytes": last_summary.get("dedup_bytes", 0),
+                        "compressed_bytes": last_summary.get("compressed_bytes", 0),
+                        "new_files": last_summary.get("total_files", 0),
+                        "modified_files": 0,
+                        "duration_seconds": round(duration, 3)
+                    }
+                }
+
+        if not manifest:
+            # Fallback to legacy Python SnapshotEngine
+            manifest = SnapshotEngine.create_snapshot(
+                repo_dir=repo_dir,
+                sources=all_sources,
+                profile_id=profile_id,
+                profile_name=profile_name,
+                exclude_patterns=excludes,
+                compress_level=effective_compress,
+                progress_callback=on_progress,
+                cancel_event=cancel_evt
+            )
 
         pruned = SnapshotEngine.prune_snapshots(repo_dir, effective_retention_count, effective_retention_days, authorized=True)
         append_task_log(f"[보존 정책] 만료된 스냅샷 {len(pruned)}개 정리 완료")
@@ -271,7 +347,8 @@ def _background_custom_backup_task(params: Dict[str, Any]):
                             local_repo_dir=repo_dir,
                             provider="gdrive",
                             gdrive_credentials_file=creds,
-                            gdrive_folder_id=folder
+                            gdrive_folder_id=folder,
+                            log_callback=append_task_log
                         )
                         if off_res.get("success"):
                             append_task_log(f"[3-2-1 오프사이트] 구글 드라이브 동기화 성공: 복제 {off_res.get('files_copied', 0)}개 / 전체 {off_res.get('files_total', 0)}개 ({off_res.get('duration_sec', 0.0):.1f}초)")
@@ -419,16 +496,89 @@ def _background_backup_task(params: Dict[str, Any]):
             if p_data.get("processed_files", 0) % 50 == 0:
                 append_task_log(f"진행 중: {p_data.get('percent')}% ({p_data.get('processed_files')}/{p_data.get('total_files')} 파일)")
 
-        manifest = SnapshotEngine.create_snapshot(
-            repo_dir=repo_dir,
-            sources=sources,
-            profile_id=profile_id,
-            profile_name=profile_name,
-            exclude_patterns=excludes,
-            compress_level=compress,
-            progress_callback=on_progress,
-            cancel_event=cancel_evt
-        )
+        engine_exe = os.path.join(BASE_DIR, "engine_rust", "kova_fast_engine.exe")
+        manifest = None
+        if os.path.exists(engine_exe):
+            session_id = f"snap_{time.strftime('%Y%m%d_%H%M%S')}_{os.urandom(2).hex()}"
+            append_task_log(f"[초고속 네이티브 Rust 엔진 가동] 세션: {session_id}")
+            cmd = [engine_exe, "backup", "--repo", repo_dir, "--session-id", session_id, "--json"]
+            for s in sources:
+                cmd.extend(["--source", s])
+
+            creationflags = subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=creationflags
+            )
+
+            last_summary = None
+            if proc.stdout:
+                for line in proc.stdout:
+                    line_str = line.strip()
+                    if not line_str:
+                        continue
+                    try:
+                        event = json.loads(line_str)
+                        etype = event.get("type")
+                        if etype == "progress":
+                            pct = event.get("percent", 0)
+                            done = event.get("processed_files", 0)
+                            tot = event.get("total_files", 0)
+                            spd = event.get("speed", 0.0)
+                            cur_f = event.get("current_file", "")
+                            with task_lock:
+                                current_task["progress"] = {
+                                    "percent": pct,
+                                    "processed_files": done,
+                                    "total_files": tot,
+                                    "speed": f"{spd:.1f} MB/s",
+                                    "current_file": cur_f
+                                }
+                            if done % 100 == 0 or done == tot:
+                                append_task_log(f"진행 중: {pct}% ({done}/{tot} 파일 | {spd:.1f} MB/s)")
+                        elif etype == "summary":
+                            last_summary = event
+                    except Exception:
+                        pass
+
+            proc.wait()
+            if proc.returncode != 0:
+                err_msg = proc.stderr.read() if proc.stderr else "Unknown error"
+                append_task_log(f"[경고] Rust 엔진 오류(Code {proc.returncode}): {err_msg}, 레거시 엔진으로 폴백합니다.", level="WARNING")
+            elif last_summary:
+                duration = last_summary.get("elapsed_seconds", 0.0)
+                manifest = {
+                    "id": session_id,
+                    "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "vss_enabled": False,
+                    "summary": {
+                        "total_files": last_summary.get("total_files", 0),
+                        "total_bytes": last_summary.get("total_bytes", 0),
+                        "dedup_saved_bytes": last_summary.get("dedup_bytes", 0),
+                        "compressed_bytes": last_summary.get("compressed_bytes", 0),
+                        "new_files": last_summary.get("total_files", 0),
+                        "modified_files": 0,
+                        "duration_seconds": round(duration, 3)
+                    }
+                }
+
+        if not manifest:
+            # Fallback to legacy Python SnapshotEngine
+            manifest = SnapshotEngine.create_snapshot(
+                repo_dir=repo_dir,
+                sources=sources,
+                profile_id=profile_id,
+                profile_name=profile_name,
+                exclude_patterns=excludes,
+                compress_level=compress,
+                progress_callback=on_progress,
+                cancel_event=cancel_evt
+            )
 
         # Retention check
         retention_count = profile.get("retention_count", 30)
@@ -469,7 +619,8 @@ def _background_backup_task(params: Dict[str, Any]):
                             local_repo_dir=repo_dir,
                             provider="gdrive",
                             gdrive_credentials_file=creds,
-                            gdrive_folder_id=folder
+                            gdrive_folder_id=folder,
+                            log_callback=append_task_log
                         )
                         if off_res.get("success"):
                             append_task_log(f"[3-2-1 오프사이트] 구글 드라이브 동기화 성공: 복제 {off_res.get('files_copied', 0)}개 / 전체 {off_res.get('files_total', 0)}개 ({off_res.get('duration_sec', 0.0):.1f}초)")
@@ -669,16 +820,45 @@ def _background_restore_task(params: Dict[str, Any]):
             current_task["progress"] = p_data
 
     try:
-        result = RestoreEngine.restore_snapshot(
-            repo_dir=repo_dir,
-            snapshot_id=snap_id,
-            target_dir=target_dir,
-            selected_rel_paths=selected,
-            overwrite=overwrite,
-            in_place=in_place,
-            progress_callback=on_progress,
-            cancel_event=cancel_evt
-        )
+        engine_exe = os.path.join(BASE_DIR, "engine_rust", "kova_fast_engine.exe")
+        rust_snapshot_file = os.path.join(repo_dir, "snapshots", f"{snap_id}.json")
+        result = None
+        if os.path.exists(engine_exe) and os.path.exists(rust_snapshot_file) and not selected and not in_place:
+            append_task_log(f"[초고속 네이티브 Rust 엔진 가동 - 복원] 스냅샷: {snap_id}")
+            start_rest = time.time()
+            cmd = [engine_exe, "restore", "--session-id", snap_id, "--repo", repo_dir, "--target", target_dir]
+            creationflags = subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0
+            proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=creationflags)
+            if proc.returncode == 0:
+                elapsed = time.time() - start_rest
+                try:
+                    with open(rust_snapshot_file, "r", encoding="utf-8") as f:
+                        m_data = json.load(f)
+                    total_f = m_data.get("total_files", 0)
+                    total_b = m_data.get("total_bytes", 0)
+                except Exception:
+                    total_f, total_b = 0, 0
+                result = {
+                    "restored_files": total_f,
+                    "restored_bytes": total_b,
+                    "skipped_files": 0,
+                    "failed_files": [],
+                    "duration_seconds": round(elapsed, 3)
+                }
+            else:
+                append_task_log(f"[경고] Rust 복원 엔진 경고(Code {proc.returncode}): {proc.stderr.strip()}, 레거시 복원으로 폴백합니다.", level="WARNING")
+
+        if not result:
+            result = RestoreEngine.restore_snapshot(
+                repo_dir=repo_dir,
+                snapshot_id=snap_id,
+                target_dir=target_dir,
+                selected_rel_paths=selected,
+                overwrite=overwrite,
+                in_place=in_place,
+                progress_callback=on_progress,
+                cancel_event=cancel_evt
+            )
 
         append_task_log(
             f"복원 완료! 복원된 파일: {result['restored_files']}개 ({round(result['restored_bytes']/(1024*1024), 2)}MB), "

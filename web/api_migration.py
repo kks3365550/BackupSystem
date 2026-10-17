@@ -69,6 +69,17 @@ async def api_migration_status():
     return {"success": True, "status": status}
 
 
+@router.get("/baremetal/layout")
+async def api_baremetal_layout(disk_number: int = 0, volume: str = "C:"):
+    """삼성 매지션(WinClon) 방식 GPT 레이아웃 및 $Bitmap 스파스 분석 정보 조회"""
+    try:
+        from core.baremetal_clonix import BareMetalClonixEngine
+        manifest = BareMetalClonixEngine.create_baremetal_manifest(disk_number, volume)
+        return {"success": True, "manifest": manifest}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"베어메탈 레이아웃 분석 실패: {str(e)}")
+
+
 @router.get("/logs")
 async def api_migration_logs(limit: int = 100):
     """마이그레이션 실시간 로그 조회"""

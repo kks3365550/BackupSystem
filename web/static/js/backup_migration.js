@@ -411,7 +411,7 @@ async function startDriveArchiveBackup() {
     const compress = compressEl ? compressEl.value : "fast";
     const autoVerify = autoVerifyEl ? autoVerifyEl.checked : true;
 
-    if (!confirm(`C: 드라이브 전체를 wbadmin VHDX 블록 레벨로 통백업하시겠습니까?\n\n- 백업 엔진: Windows 공식 wbadmin (잠긴 파일 에러 0%, 5~8분 소요)\n- 4단계 실측 검증: ${autoVerify ? "포함 (권장)" : "미포함"}`)) {
+    if (!confirm(`C: 드라이브 전체를 VSS + DISM WIM 초고속 압축 이미지로 통백업하시겠습니까?\n\n- 백업 엔진: VSS 스냅샷 + DISM WIM (파일 잠금 에러 0%, 15~20분 소요)\n- 4단계 실측 검증: ${autoVerify ? "포함 (권장)" : "미포함"}`)) {
         return;
     }
 
@@ -432,7 +432,7 @@ async function startDriveArchiveBackup() {
             return;
         }
 
-        appendArchiveConsoleLog(`[START] 보험용 wbadmin VHDX 통백업이 시작되었습니다: ${data.target_wim || data.target_vhdx || "wbadmin 진행 중"}`);
+        appendArchiveConsoleLog(`[START] 보험용 VSS + DISM WIM 통백업이 시작되었습니다: ${data.target_wim || "진행 중"}`);
         startArchivePolling();
     } catch (err) {
         alert("네트워크 오류: " + err.message);

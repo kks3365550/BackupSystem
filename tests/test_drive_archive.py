@@ -132,27 +132,39 @@ class TestDriveArchiveCore(unittest.TestCase):
         self.assertIsNotNone(res["error"])
         self.assertIn("필수 부팅 아티팩트 일부 누락", res["error"])
 
-    @patch("core.drive_archive.is_admin", return_value=True)
-    @patch("core.drive_archive.VSS_AVAILABLE", False)
-    @patch("subprocess.Popen")
-    @patch.object(DriveArchiveManager, "verify_archive")
-    def test_worker_capture_flow(self, mock_verify, mock_popen, mock_is_admin):
+    @patch("core.disk_clone.run_elevated_command")
+    def test_worker_capture_flow(self, mock_run_elevated):
         """WIM 캡처 전체 워커 흐름 (VSS 스냅샷 + DISM + VSN 저장 + 실측 검증 연동)"""
         target_wim = os.path.join(self.test_dir, "System_Test.wim")
-        temp_wim = target_wim + ".tmp"
 
-        def create_temp_wim(*args, **kwargs):
-            with open(temp_wim, "wb") as f:
+        def side_effect_worker(cmd, *args, **kwargs):
+            ipc_idx = cmd.index("--ipc-file") + 1
+            ipc_path = cmd[ipc_idx]
+            with open(target_wim, "wb") as f:
                 f.write(b"WIM_CAPTURE_DATA")
-            mock_p = MagicMock()
-            mock_p.poll.side_effect = [None, 0]
-            mock_p.returncode = 0
-            mock_p.wait.return_value = 0
-            mock_p.stdout.readline.side_effect = ["[  50.0%  ] 캡처 중...", ""]
-            return mock_p
+            meta = {
+                "backup_type": "wim",
+                "source_volume": "C:",
+                "volume_serial_number": "5AEF-9960",
+                "target_drive": "C:",
+                "compress": "fast",
+                "created_at": "2026-10-17 07:00:00",
+                "wim_path": target_wim,
+                "size_bytes": 16,
+                "size_gb": 0.0,
+                "is_verified": True,
+                "verification_stage": 4,
+                "artifacts_checked": {},
+                "wim_file": os.path.basename(target_wim)
+            }
+            with open(target_wim + ".meta.json", "w", encoding="utf-8") as f:
+                json.dump(meta, f)
+            with open(ipc_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps({"type": "progress", "percent": 50.0, "phase": "DISM 캡처 중"}) + "\n")
+                f.write(json.dumps({"type": "done", "result": meta}) + "\n")
+            return 0, "SUCCESS", ""
 
-        mock_popen.side_effect = create_temp_wim
-        mock_verify.return_value = {"verified": True, "stage": 4, "artifacts": {}}
+        mock_run_elevated.side_effect = side_effect_worker
 
         self.manager._worker_capture("C:", target_wim, compress="fast", auto_verify=True)
 

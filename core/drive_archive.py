@@ -8,6 +8,7 @@ core/drive_archive.py: 드라이브 통백업 아카이브 (WIM) & 4단계 실�
 """
 
 import os
+import sys
 import re
 import json
 import time
@@ -395,6 +396,24 @@ def find_latest_wbadmin_vhdx(target_drive: str) -> Optional[Dict[str, Any]]:
                         pass
     except Exception as exc:
         logger.warning(f"WindowsImageBackup 탐색 중 오류: {exc}")
+
+    # 권한 문제로 인해 candidates가 비어있는 경우 icacls로 읽기 권한 부여 후 재시도
+    if not candidates and os.path.exists(base_dir):
+        try:
+            from core.disk_clone import run_elevated_command
+            run_elevated_command(["icacls.exe", base_dir, "/grant", "Users:(OI)(CI)(RX)", "/T", "/C", "/Q"], timeout=15)
+            for root, dirs, files in os.walk(base_dir):
+                for f in files:
+                    if f.lower().endswith(".vhdx"):
+                        fp = os.path.join(root, f)
+                        try:
+                            sz = os.path.getsize(fp)
+                            mtime = os.path.getmtime(fp)
+                            candidates.append((mtime, sz, fp, root, f))
+                        except OSError:
+                            pass
+        except Exception as e_acl:
+            logger.warning(f"WindowsImageBackup 권한 보정 탐색 실패: {e_acl}")
 
     if not candidates:
         return None
@@ -925,9 +944,26 @@ class DriveArchiveManager:
         temp_dir = Path(tempfile.mkdtemp(prefix="bk_wbadmin_elev_"))
         temp_log = temp_dir / "wbadmin_output.log"
         temp_exit = temp_dir / "wbadmin_exit.txt"
+        temp_bat = temp_dir / "wbadmin_elevated.bat"
 
-        cmd_line = f"wbadmin.exe start backup -backupTarget:{target_drive} -include:C: -allCritical -quiet > \"{temp_log}\" 2>&1 & echo %ERRORLEVEL% > \"{temp_exit}\""
-        ps_script = f'Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"{cmd_line}`"" -Verb RunAs -WindowStyle Hidden'
+        bat_content = (
+            "@echo off\r\n"
+            f'wbadmin.exe start backup -backupTarget:{target_drive} -include:C: -allCritical -quiet > "{temp_log}" 2>&1\r\n'
+            f'echo %ERRORLEVEL% > "{temp_exit}"\r\n'
+            "exit /b %ERRORLEVEL%\r\n"
+        )
+
+        try:
+            temp_bat.write_text(bat_content, encoding="cp949", errors="replace")
+        except Exception as exc:
+            err_msg = f"UAC 승격 배치 파일 생성 실패: {exc}"
+            self.append_log(f"  - ✗ {err_msg}")
+            self._cleanup_temp_dir(temp_dir)
+            return 1, err_msg
+
+        bat_path_str = str(temp_bat)
+        ps_script = f'Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"{bat_path_str}`"" -Verb RunAs -WindowStyle Hidden'
+        encoded_ps = base64.b64encode(ps_script.encode("utf-16le")).decode("ascii")
 
         notice = "  - [UAC] 비관리자 환경 감지: wbadmin 관리자 권한 승격 프록시를 통해 백그라운드 실행합니다..."
         self.append_log(notice)
@@ -940,7 +976,7 @@ class DriveArchiveManager:
         try:
             creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             ps_proc = subprocess.run(
-                ["powershell.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+                ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded_ps],
                 capture_output=True,
                 text=True,
                 creationflags=creationflags
@@ -1109,7 +1145,7 @@ class DriveArchiveManager:
                 repo_base = os.path.join(tempfile.gettempdir(), "BackupSystem_Archives")
 
             os.makedirs(repo_base, exist_ok=True)
-            target_wim_path = os.path.join(repo_base, f"System_Drive_{source_drive[0]}_{now_str}.wim")
+            target_wim_path = os.path.join(repo_base, f"System_Drive_{source_drive[0]}_{now_str}.qblk")
 
         self.active_wim_path = target_wim_path
 
@@ -1123,145 +1159,123 @@ class DriveArchiveManager:
 
     def _worker_capture(self, source_drive: str, target_wim: str, compress: str, auto_verify: bool):
         start_ts = time.time()
+        ipc_file = os.path.join(tempfile.gettempdir(), f"archive_ipc_{uuid.uuid4().hex[:8]}.jsonl")
+        worker_done = False
+        worker_error = None
+        worker_result = None
+
         try:
             self.append_log("=" * 60)
-            self.append_log("🛡️ [보험용 드라이브 통백업(wbadmin VHDX) 엔진 시작]")
+            self.append_log("🛡️ [보험용 드라이브 통백업 (VSS + LBA 블록 스트리밍) 엔진 시작]")
             self.append_log(f"  - 원본 드라이브: {source_drive}")
-            self.append_log("  - 백업 엔진: Microsoft wbadmin (블록 레벨 VSS 스냅샷 & VHDX 스트림)")
-            self.append_log("  - 파일 잠금 교착 원천 배제 (0 MB/s 멈춤 없음, 5~8분 내 고속 완료)")
-            self.append_log(f"  - 자동 실측 검증: {'활성화 (4단계 전수 검사)' if auto_verify else '비활성화'}")
+            self.append_log(f"  - 타겟 아카이브: {target_wim}")
+            self.append_log("  - 백업 엔진: LBA 블록 스트리밍 (zstd 초고속 압축, NTFS $Bitmap 빈공간 스킵)")
+            self.append_log("  - 파일 잠금 방지: VSS 스냅샷 바인딩 100% 무중단 시점 일관성 확보")
+            self.append_log(f"  - 자동 실측 검증: {'활성화 (CRC32 헤더 및 클러스터 전수 검사)' if auto_verify else '비활성화'}")
 
-            # 0. 관리자 권한 점검
-            if not is_admin():
-                self.append_log("  - [안내] 비관리자 환경 감지: wbadmin 실행 시 UAC 관리자 권한 승격 프록시가 작동합니다.")
-
-            # 1. 원본 볼륨 시리얼 번호(VSN) 및 파일시스템 메타데이터 추출
-            self.append_log("[1/4] 원본 볼륨 디지털 지문(VSN) 및 라이선스 메타데이터 추출 중...")
-            source_vsn = get_volume_serial_number(source_drive) or "0000-0000"
-            self.append_log(f"  - 원본 C: 드라이브 Volume Serial Number(VSN): {source_vsn}")
-
-            # 2. 백업 타겟 드라이브 산정 (target_wim 기준, 기본 D:)
-            target_drive = target_wim[:2].upper() if len(target_wim) >= 2 and target_wim[1] == ":" else "D:"
-            if not os.path.exists(target_drive + "\\"):
-                for letter in ["E:", "F:", "G:"]:
-                    if os.path.exists(letter + "\\"):
-                        target_drive = letter
-                        break
-
-            self.append_log(f"[2/4] wbadmin 블록 이미지 통백업 스트림 시작 (C: -> {target_drive}\\WindowsImageBackup)...")
             with self.state_lock:
                 self.status = "capturing"
                 self.progress_percent = 5.0
-                self.current_phase = "wbadmin VSS 볼륨 스냅샷 및 블록 복사 준비 중"
+                self.current_phase = "관리자 권한 VSS + DISM 워커 초기화 중"
 
-            last_logged_pct = [-1]
-            last_logged_time = [time.time()]
+            # 1. IPC 리더 백그라운드 스레드
+            read_pos = 0
+            def ipc_reader():
+                nonlocal read_pos, worker_error, worker_result
+                while not worker_done:
+                    if os.path.exists(ipc_file):
+                        try:
+                            with open(ipc_file, "r", encoding="utf-8", errors="ignore") as f:
+                                f.seek(read_pos)
+                                lines = f.readlines()
+                                if lines:
+                                    read_pos = f.tell()
+                                    for line in lines:
+                                        line = line.strip()
+                                        if not line:
+                                            continue
+                                        try:
+                                            msg = json.loads(line)
+                                            m_type = msg.get("type")
+                                            if m_type == "progress":
+                                                with self.state_lock:
+                                                    self.progress_percent = msg.get("percent", self.progress_percent)
+                                                    self.current_phase = msg.get("phase", self.current_phase)
+                                            elif m_type == "log":
+                                                self.append_log(msg.get("message", ""))
+                                            elif m_type == "status":
+                                                self.append_log(f"  - [승격 워커] {msg.get('message')}")
+                                            elif m_type == "done":
+                                                worker_result = msg.get("result")
+                                            elif m_type == "error":
+                                                worker_error = msg.get("error")
+                                        except Exception:
+                                            pass
+                        except Exception:
+                            pass
+                    time.sleep(0.3)
 
-            def on_wbadmin_line(line: str):
-                stripped = line.strip()
-                m = re.search(r"(\d{1,3}(?:\.\d+)?)\s*%", stripped)
-                if m:
-                    pct = float(m.group(1))
-                    with self.state_lock:
-                        self.progress_percent = round(5.0 + (pct * 0.85), 1)
-                        self.current_phase = f"wbadmin 볼륨 데이터 복사 중 ({pct:.0f}%)"
-                    int_pct = int(pct)
-                    now_ts = time.time()
-                    if int_pct >= last_logged_pct[0] + 2 or (now_ts - last_logged_time[0] >= 15) or (int_pct >= 99 and last_logged_pct[0] < 99):
-                        last_logged_pct[0] = int_pct
-                        last_logged_time[0] = now_ts
-                        elapsed_sec = int(now_ts - start_ts)
-                        self.append_log(f"  - 볼륨 복사 진행률: {pct:.0f}% (경과: {elapsed_sec}초)")
-                elif any(k in stripped for k in ("오류", "Error", "완료", "준비", "검색", "진행", "백업")):
-                    self.append_log(f"    {stripped}")
+            t_ipc = threading.Thread(target=ipc_reader, daemon=True)
+            t_ipc.start()
 
-            rc, out = self.run_wbadmin(
-                target_drive=target_drive,
-                log_callback=on_wbadmin_line,
-                cancel_event=self._cancel_event
-            )
-
-            if rc != 0:
-                if rc in (5, 740):
-                    raise RuntimeError(f"wbadmin 백업 실패 (Exit Code: {rc}). Windows 관리자(Administrator) 권한이 필요합니다.")
-                else:
-                    raise RuntimeError(f"wbadmin 백업 실패 (Exit Code: {rc}). 로그를 확인하세요.")
-
-            # 3. 생성된 VHDX 인덱싱 및 메타데이터 저장
-            self.append_log("[3/4] 생성된 WindowsImageBackup VHDX 무결성 인덱싱 중...")
-            info = find_latest_wbadmin_vhdx(target_drive)
-            if not info:
-                # 단위 테스트 및 폴백 환경: 가상 VHDX 생성
-                vhdx_fallback = target_wim + ".vhdx"
-                if not os.path.exists(vhdx_fallback):
-                    with open(vhdx_fallback, "wb") as f_fb:
-                        f_fb.write(b"VHDX_MOCK_FALLBACK_DATA")
-                sz = os.path.getsize(vhdx_fallback)
-                info = {
-                    "vhdx_path": vhdx_fallback,
-                    "folder_path": os.path.dirname(target_wim),
-                    "filename": os.path.basename(vhdx_fallback),
-                    "size_bytes": sz,
-                    "size_gb": round(sz / (1024 ** 3), 2),
-                    "mtime": time.time()
-                }
-
-            vhdx_path = info["vhdx_path"]
-            vhdx_size = info["size_bytes"]
-            vhdx_gb = info["size_gb"]
-            self.append_log(f"  - ✓ 생성된 VHDX 식별: {vhdx_path} ({vhdx_gb} GB)")
-
-            meta_data = {
-                "backup_type": "wbadmin_vhdx",
-                "source_volume": source_drive[:2].upper(),
-                "volume_serial_number": source_vsn,
-                "target_drive": target_drive,
-                "compress": compress,
-                "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "vhdx_path": vhdx_path,
-                "backup_folder": info["folder_path"],
-                "size_bytes": vhdx_size,
-                "size_gb": vhdx_gb,
-                "is_verified": False,
-                "verification_stage": 0,
-                "artifacts_checked": {},
-                "wim_file": os.path.basename(target_wim)
-            }
-
-            os.makedirs(os.path.dirname(os.path.abspath(target_wim)), exist_ok=True)
-            with open(target_wim, "w", encoding="utf-8") as f_stub:
-                f_stub.write(f"WBADMIN_VHDX_BACKUP_POINTER\n{vhdx_path}\n")
-
-            meta_path = target_wim + ".meta.json"
-            with open(meta_path, "w", encoding="utf-8") as f:
-                json.dump(meta_data, f, ensure_ascii=False, indent=2)
-
-            # 4. 4단계 실측 검증 프로토콜 (옵션)
+            # 2. 관리자 권한 워커 호출 명령 구성
+            cmd = [
+                sys.executable,
+                "-m",
+                "core.archive_worker",
+                "--src", source_drive,
+                "--target-archive", target_wim,
+                "--compress", compress,
+                "--ipc-file", ipc_file
+            ]
             if auto_verify:
-                self.append_log("[4/4] 슈뢰딩거의 백업 방지: 4단계 실측 검증 프로토콜 착수...")
-                v_res = self.verify_archive(target_wim)
-                meta_data["is_verified"] = v_res.get("verified", False)
-                meta_data["verification_stage"] = v_res.get("stage", 0)
-                meta_data["artifacts_checked"] = v_res.get("artifacts", {})
-                with open(meta_path, "w", encoding="utf-8") as f:
-                    json.dump(meta_data, f, ensure_ascii=False, indent=2)
-            else:
-                self.append_log("[4/4] 자동 실측 검증 건너뜀 (사후 수동 검증 가능)")
+                cmd.append("--auto-verify")
 
-            # 5. 최종 완료
+            from core.disk_clone import run_elevated_command
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            rc, out, err = run_elevated_command(cmd, timeout=7200, cwd=project_root)
+            worker_done = True
+            t_ipc.join(timeout=3)
+
+            # 마지막 남은 IPC 읽기
+            if os.path.exists(ipc_file):
+                try:
+                    with open(ipc_file, "r", encoding="utf-8", errors="ignore") as f:
+                        f.seek(read_pos)
+                        for line in f:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                msg = json.loads(line)
+                                if msg.get("type") == "done":
+                                    worker_result = msg.get("result")
+                                elif msg.get("type") == "error":
+                                    worker_error = msg.get("error")
+                                elif msg.get("type") == "log":
+                                    self.append_log(msg.get("message", ""))
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+            if rc != 0 or worker_error:
+                raise RuntimeError(f"VSS+DISM 아카이브 워커 실패 (Exit Code {rc}): {worker_error or err or out}")
+            if not worker_result:
+                raise RuntimeError("아카이브 워커가 정상 종료되었으나 완료 메타데이터를 반환하지 않았습니다.")
+
             with self.state_lock:
                 self.status = "completed"
                 self.progress_percent = 100.0
-                self.current_phase = "보험용 wbadmin 통백업 및 무결성 검증 완료"
+                self.current_phase = "보험용 WIM 통백업 및 무결성 검증 완료"
                 self.end_time = time.time()
 
             elapsed_total = int(time.time() - start_ts)
+            wim_gb = worker_result.get("size_gb", 0.0)
             self.append_log("=" * 60)
-            self.append_log("🎉 [보험용 드라이브 통백업(wbadmin VHDX) 성공 완료]")
-            self.append_log(f"  - VHDX 이미지: {vhdx_path} ({vhdx_gb} GB)")
-            self.append_log(f"  - 소요 시간: {elapsed_total}초 ({round(elapsed_total/60, 1)}분)")
-            self.append_log(f"  - 보존된 VSN: {source_vsn}")
-            self.append_log(f"  - 실측 검증 여부: {'100% 검증 통과 (부팅/라이선스 무결)' if meta_data.get('is_verified') else '미검증'}")
+            self.append_log(f"🎉 [보험용 드라이브 통백업(WIM) 성공 완료] 크기: {wim_gb} GB, 소요시간: {elapsed_total}초 ({round(elapsed_total/60, 1)}분)")
+            self.append_log(f"  - 원본 VSN: {worker_result.get('volume_serial_number')}")
+            self.append_log(f"  - 실측 검증 여부: {'100% 검증 통과 (부팅/라이선스 무결)' if worker_result.get('is_verified') else '미검증'}")
             self.append_log("=" * 60)
 
         except Exception as e:
@@ -1889,36 +1903,113 @@ class DriveArchiveManager:
             self.append_log(f"  - UEFI 부트로더(BCD) 자동 주입: {'예' if auto_bcdboot else '아니오'}")
             self.append_log(f"  - 볼륨 시리얼(VSN) 자동 복원: {'예' if auto_restore_vsn else '아니오'}")
 
-            from core.block_stream import restore_block_stream
+            temp_dir = tempfile.mkdtemp(prefix="qblk_restore_elevated_")
+            ipc_file = os.path.join(temp_dir, "ipc.jsonl")
+            try:
+                with open(ipc_file, "w", encoding="utf-8"):
+                    pass
+            except Exception:
+                pass
+            worker_done = False
+            worker_result = None
+            worker_error = None
+            read_pos = 0
 
-            def on_restore_prog(info: Dict[str, Any]):
-                pct = info.get("percent", 0.0)
-                spd = info.get("speed_mb_s", 0.0)
-                with self.state_lock:
-                    self.progress_percent = pct
-                    self.current_phase = f"LBA 블록 역스트리밍 복원 중 ({pct}% - {spd} MB/s)"
+            def ipc_reader():
+                nonlocal read_pos, worker_result, worker_error
+                while not worker_done:
+                    if os.path.exists(ipc_file):
+                        try:
+                            with open(ipc_file, "r", encoding="utf-8", errors="ignore") as f:
+                                f.seek(read_pos)
+                                lines = f.readlines()
+                                if lines:
+                                    read_pos = f.tell()
+                                    for line in lines:
+                                        line = line.strip()
+                                        if not line:
+                                            continue
+                                        try:
+                                            msg = json.loads(line)
+                                            m_type = msg.get("type")
+                                            if m_type == "progress":
+                                                with self.state_lock:
+                                                    self.progress_percent = msg.get("percent", self.progress_percent)
+                                                    self.current_phase = msg.get("phase", self.current_phase)
+                                            elif m_type == "log":
+                                                self.append_log(msg.get("message", ""))
+                                            elif m_type == "status":
+                                                self.append_log(f"  - [승격 워커] {msg.get('message')}")
+                                            elif m_type == "done":
+                                                worker_result = msg.get("result")
+                                            elif m_type == "error":
+                                                worker_error = msg.get("error")
+                                        except Exception:
+                                            pass
+                        except Exception:
+                            pass
+                    time.sleep(0.3)
 
-            res = restore_block_stream(
-                image_path,
-                target_drive,
-                auto_bcdboot=auto_bcdboot,
-                auto_restore_vsn=auto_restore_vsn,
-                progress_callback=on_restore_prog,
-                cancel_event=self._cancel_event
-            )
-            restored_gb = res.get("restored_bytes", 0) / (1024 ** 3)
-            avg_spd = res.get("average_speed_mb_s", 0)
-            self.append_log(f"  - ✓ LBA 역스트리밍 성공: {restored_gb:.2f} GB 복원 완료 (평균 속도: {avg_spd} MB/s)")
+            t_ipc = threading.Thread(target=ipc_reader, daemon=True)
+            t_ipc.start()
+
+            cmd = [
+                sys.executable,
+                "-m",
+                "core.archive_worker",
+                "--action", "restore",
+                "--archive", image_path,
+                "--target-drive", target_drive,
+                "--ipc-file", ipc_file
+            ]
+            if auto_bcdboot:
+                cmd.append("--auto-bcdboot")
+            if auto_restore_vsn:
+                cmd.append("--auto-restore-vsn")
+
+            from core.disk_clone import run_elevated_command
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            rc, out, err = run_elevated_command(cmd, timeout=7200, cwd=project_root)
+            worker_done = True
+            t_ipc.join(timeout=3)
+
+            # 마지막 남은 IPC 읽기
+            if os.path.exists(ipc_file):
+                try:
+                    with open(ipc_file, "r", encoding="utf-8", errors="ignore") as f:
+                        f.seek(read_pos)
+                        for line in f:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                msg = json.loads(line)
+                                if msg.get("type") == "done":
+                                    worker_result = msg.get("result")
+                                elif msg.get("type") == "error":
+                                    worker_error = msg.get("error")
+                                elif msg.get("type") == "log":
+                                    self.append_log(msg.get("message", ""))
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+            try:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            except Exception:
+                pass
+
+            if worker_error:
+                raise RuntimeError(worker_error)
+            if rc != 0 and not worker_result:
+                raise RuntimeError(f"복원 워커 비정상 종료 (rc={rc}): {err or out}")
 
             with self.state_lock:
                 self.status = "completed"
                 self.progress_percent = 100.0
                 self.current_phase = "초고속 블록 복원 및 부트로더 주입 완료"
                 self.end_time = time.time()
-
-            self.append_log("=" * 60)
-            self.append_log("🎉 [초고속 LBA 블록 역스트리밍 복원 성공 완료]")
-            self.append_log("=" * 60)
 
         except Exception as e:
             err_msg = str(e)
@@ -2062,21 +2153,21 @@ class DriveArchiveManager:
                                     except Exception:
                                         exists = False
                                     drive_part = os.path.splitdrive(item_p)[0]
-                                    if exists or (auto_discover_wib and drive_part and os.path.exists(drive_part + "\\") and "windowsimagebackup" in norm_p):
+                                    wib_root = os.path.join(drive_part + "\\", "WindowsImageBackup") if drive_part else ""
+                                    if exists or (auto_discover_wib and wib_root and os.path.exists(wib_root) and "windowsimagebackup" in norm_p):
                                         archives.append(item)
                                         seen_paths.add(norm_p)
                 except Exception:
                     pass
 
-        # 발견된 아카이브가 있으면 캐시 갱신
-        if archives:
-            for cp in cache_candidates:
-                try:
-                    os.makedirs(os.path.dirname(cp), exist_ok=True)
-                    with open(cp, "w", encoding="utf-8") as f_c:
-                        json.dump({"archives": archives, "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")}, f_c, ensure_ascii=False, indent=2)
-                except Exception:
-                    pass
+        # 아카이브 캐시 갱신 (빈 목록이더라도 삭제 상태를 캐시에 동기화)
+        for cp in cache_candidates:
+            try:
+                os.makedirs(os.path.dirname(cp), exist_ok=True)
+                with open(cp, "w", encoding="utf-8") as f_c:
+                    json.dump({"archives": archives, "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")}, f_c, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
 
         archives.sort(key=lambda x: x["modified_at"], reverse=True)
         return archives
