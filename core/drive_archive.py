@@ -2105,6 +2105,7 @@ class DriveArchiveManager:
                         "verification_stage": meta_data.get("verification_stage", 0),
                         "created_at": meta_data.get("created_at", mtime_str)
                     })
+                    seen_paths.add(os.path.abspath(file_path).lower())
                     if vhdx_path:
                         seen_paths.add(os.path.abspath(vhdx_path).lower())
 
