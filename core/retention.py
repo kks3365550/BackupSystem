@@ -10,10 +10,32 @@ core/retention.py: 스마트 저장소 롤링 및 세대 보존 정책 관리자
 import os
 import time
 import logging
+from datetime import datetime
 from typing import Dict, Any, Optional
 from core.storage import get_disk_free_gb
 
 log = logging.getLogger(__name__)
+
+
+def _parse_timestamp(val: Any) -> float:
+    """created_at 값을 float 초 단위 타임스탬프로 안전하게 변환 (ISO 8601 문자열 및 float/int 지원)"""
+    if val is None:
+        return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, str):
+        val = val.strip()
+        if not val:
+            return 0.0
+        try:
+            return float(val)
+        except ValueError:
+            pass
+        try:
+            return datetime.fromisoformat(val).timestamp()
+        except Exception:
+            pass
+    return 0.0
 
 
 class RetentionManager:
@@ -56,8 +78,8 @@ class RetentionManager:
             # 안전 장치: 스냅샷이 1개 이하일 때는 절대 삭제하지 않음
             return {"deleted_snapshots": [], "freed_bytes": 0, "status": "safe_minimum"}
 
-        # 최신순 정렬 (newest first, float 안전 변환)
-        snapshots.sort(key=lambda s: float(s.get("created_at", 0) or 0), reverse=True)
+        # 최신순 정렬 (newest first, float/ISO 문자열 안전 변환)
+        snapshots.sort(key=lambda s: _parse_timestamp(s.get("created_at")), reverse=True)
 
         deleted_ids = set()
         # 안전 보장: 가장 최신 스냅샷(index 0)은 어떤 경우에도 삭제 대상에서 제외
@@ -75,7 +97,7 @@ class RetentionManager:
         if retention_days and retention_days > 0:
             cutoff_ts = time.time() - (retention_days * 86400)
             for s in snapshots[1:]: # 최신 스냅샷 제외
-                if float(s.get("created_at", 0) or 0) < cutoff_ts:
+                if _parse_timestamp(s.get("created_at")) < cutoff_ts:
                     sid = s.get("id")
                     if sid:
                         deleted_ids.add(sid)

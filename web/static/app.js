@@ -63,6 +63,9 @@ async function loadDashboard() {
         renderStorageHealth();
         renderOffsiteStatusWidget();
         checkOnboardingWizard();
+        if (typeof loadSystemImageStatus === 'function') {
+            loadSystemImageStatus();
+        }
     } catch (err) {
         console.error('Failed to load dashboard:', err);
     }
@@ -1267,6 +1270,9 @@ async function shutdownServer() {
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
     loadDashboard();
+    if (typeof loadSystemImageStatus === 'function') {
+        loadSystemImageStatus();
+    }
 
     const driveSelect = document.getElementById('sysimg-drive-select');
     if (driveSelect) {

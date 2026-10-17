@@ -9,7 +9,7 @@
   "offsite_enabled": true,
   "offsite_provider": "gdrive",
   "offsite_remote_path": "",
-  "offsite_auto_sync": false,
+  "offsite_auto_sync": true,
   "offsite_gdrive_credentials_file": "C:\\Users\\kksjmj\\Desktop\\ai\\백업시스템\\client_secret_333866351629-873p5lf4sl3g8ekac0rjjd8jvpbana49.apps.googleusercontent.com.json",
   "offsite_gdrive_folder_id": "1V6M4zO0bfKcN78CBb1DL_zaivHsJtCXK"
 }
