@@ -3,7 +3,7 @@
 ; =========================================================================
 
 #define MyAppName "Kova"
-#define MyAppVersion "2.15.28"
+#define MyAppVersion "2.15.29"
 #define MyAppPublisher "kks3365550"
 #define MyAppURL "http://127.0.0.1:8765"
 #define MyAppExeName "Kova.exe"
@@ -54,6 +54,7 @@ Source: "..\run.py"; DestDir: "{app}"; Flags: ignoreversion restartreplace
 Source: "..\VERSION"; DestDir: "{app}"; Flags: ignoreversion restartreplace
 Source: "..\keys\*.pub"; DestDir: "{app}\keys"; Flags: ignoreversion restartreplace
 Source: "..\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion restartreplace
+Source: "..\tools\bin\rclone.exe"; DestDir: "{app}\tools\bin"; Flags: ignoreversion restartreplace onlyifdoesntexist
 
 ; 3. VBScript 래퍼 및 운영 스크립트
 Source: "start_silent.vbs"; DestDir: "{app}"; Flags: ignoreversion

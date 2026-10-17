@@ -20,6 +20,9 @@ import os
 import time
 import shutil
 import logging
+import subprocess
+import re
+import glob
 from typing import Dict, Any, Optional, Callable
 
 logger = logging.getLogger("BackupSystem")
@@ -306,7 +309,6 @@ try:
     import google.oauth2.service_account as g_service_account
     import google.oauth2.credentials as g_credentials
     import googleapiclient.discovery as g_discovery
-    from googleapiclient.http import MediaFileUpload
     GDRIVE_SDK_AVAILABLE = True
 except ImportError:
     GDRIVE_SDK_AVAILABLE = False
@@ -543,8 +545,75 @@ class GoogleDriveOffsiteReplicator:
             logger.warning(f"[구글 드라이브 사전 점검 실패] {e}")
             return result
 
+    def _get_rclone_exe(self) -> Optional[str]:
+        """rclone 실행 파일 탐색 (프로젝트 내장 tools/bin, PATH, Winget 순)."""
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        candidates = [
+            os.path.join(base_dir, "tools", "bin", "rclone.exe"),
+            shutil.which("rclone"),
+            os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Packages\Rclone.Rclone_Microsoft.Winget.Source_8wekyb3d8bbwe\rclone-v1.75.1-windows-amd64\rclone.exe")
+        ]
+        for c in candidates:
+            if c and os.path.isfile(c):
+                return os.path.abspath(c)
+        return None
+
+    def _ensure_rclone_config(self, target_folder_id: str) -> str:
+        """data/gdrive_oauth_token.json 및 client_secret 으로부터 data/rclone.conf 자동 생성/동기화."""
+        import json
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        base_data_dir = os.path.join(base_dir, "data")
+        os.makedirs(base_data_dir, exist_ok=True)
+        conf_path = os.path.join(base_data_dir, "rclone.conf")
+        token_path = os.path.join(base_data_dir, "gdrive_oauth_token.json")
+
+        if not os.path.exists(token_path):
+            raise FileNotFoundError("Google Drive OAuth 토큰(data/gdrive_oauth_token.json)이 없습니다. 먼저 로그인을 완료해 주십시오.")
+
+        with open(token_path, "r", encoding="utf-8") as f:
+            t = json.load(f)
+
+        client_id = t.get("client_id", "")
+        client_secret = t.get("client_secret", "")
+
+        # client_secret.json 보조 탐색
+        if not client_id or not client_secret:
+            cs_files = [self.credentials_file] if self.credentials_file else glob.glob(os.path.join(base_dir, "client_secret_*.json"))
+            for csf in cs_files:
+                if csf and os.path.isfile(csf):
+                    try:
+                        with open(csf, "r", encoding="utf-8") as f_cs:
+                            cs_data = json.load(f_cs)
+                            inst = cs_data.get("installed") or cs_data.get("web") or cs_data
+                            client_id = client_id or inst.get("client_id", "")
+                            client_secret = client_secret or inst.get("client_secret", "")
+                            if client_id and client_secret:
+                                break
+                    except Exception:
+                        pass
+
+        tok_obj = {
+            "access_token": t.get("token") or t.get("access_token", ""),
+            "token_type": "Bearer",
+            "refresh_token": t.get("refresh_token", ""),
+            "expiry": t.get("expiry", "")
+        }
+        tok_str = json.dumps(tok_obj)
+
+        conf_content = f"""[gdrive]
+type = drive
+client_id = {client_id}
+client_secret = {client_secret}
+scope = drive
+root_folder_id = {target_folder_id}
+token = {tok_str}
+"""
+        with open(conf_path, "w", encoding="utf-8") as f:
+            f.write(conf_content)
+        return conf_path
+
     def replicate(self) -> Dict[str, Any]:
-        """로컬 저장소를 구글 드라이브로 동기화 업로드."""
+        """Rclone 기반 고속 멀티스레드 구글 드라이브 동기화."""
         started = time.time()
         result = {
             "success": False,
@@ -564,148 +633,98 @@ class GoogleDriveOffsiteReplicator:
             result["duration_sec"] = time.time() - started
             return result
 
-        service = self._get_service()
         root_folder_id = pf["target_folder_id"]
+        rclone_exe = self._get_rclone_exe()
+        if not rclone_exe:
+            result["reason"] = "Rclone 실행 바이너리(rclone.exe)를 찾을 수 없습니다."
+            result["duration_sec"] = time.time() - started
+            self._log(f"[구글 드라이브 오류] {result['reason']}", level="ERROR")
+            return result
+
+        try:
+            rclone_conf = self._ensure_rclone_config(root_folder_id)
+        except Exception as e_conf:
+            result["reason"] = f"Rclone 설정 생성 실패: {e_conf}"
+            result["duration_sec"] = time.time() - started
+            self._log(f"[구글 드라이브 오류] {result['reason']}", level="ERROR")
+            return result
 
         self._log(
-            f"[구글 드라이브 오프사이트] 복제 시작: {self.local_repo_dir} -> Google Drive:{self.folder_name_or_id} "
+            f"[구글 드라이브 Rclone] 초고속 멀티스레드 동기화 시작: {self.local_repo_dir} -> Google Drive:{self.folder_name_or_id} "
             f"(계정: {pf['user_email']}, 여유: {pf['free_gb']} GB)"
         )
 
-        try:
-            # 1. 로컬 저장소 전체 파일 목록 수집
-            self._log(f"[구글 드라이브] 로컬 백업 저장소 파일 검사 중... ({self.local_repo_dir})")
-            local_files = []
-            packs_dir = os.path.join(self.local_repo_dir, "packs")
-            packs_has_pack = False
-            if os.path.isdir(packs_dir):
-                for _root, _dirs, _files in os.walk(packs_dir):
-                    if any(f.lower().endswith(".pack") for f in _files):
-                        packs_has_pack = True
-                        break
-
-            for root, _, files in os.walk(self.local_repo_dir):
-                for fname in files:
-                    full_p = os.path.join(root, fname)
-                    rel_p = os.path.relpath(full_p, self.local_repo_dir).replace("\\", "/")
-
-                    # packs/ 내에 .pack 파일이 존재하면 13만 개 낱개 blobs/ 스킵 (중복 및 수십 시간 지연 방지)
-                    if packs_has_pack and (rel_p.startswith("blobs/") or rel_p.startswith("blobs\\")):
-                        continue
-
-                    local_files.append((full_p, rel_p, os.path.getsize(full_p)))
-
-            # 메타데이터 및 스냅샷 파일 최우선 정렬 (snapshots/, metadata.db, repo_meta.json, packs/)
-            def _file_priority(item):
-                rel = item[1].lower()
-                if "snapshots/" in rel or "snapshots\\" in rel:
-                    return 0
-                if "metadata.db" in rel or "repo_meta.json" in rel:
-                    return 1
-                if "keys/" in rel or "keys\\" in rel:
-                    return 2
-                if "packs/" in rel or "packs\\" in rel:
-                    return 3
-                return 10
-
-            local_files.sort(key=_file_priority)
-
-            result["files_total"] = len(local_files)
-            if packs_has_pack:
-                self._log(f"[구글 드라이브] Pack 아카이브 모드 작동: 낱개 블롭 13만 개 생략, 총 {len(local_files):,}개 핵심 파일만 초고속 동기화합니다.")
-            else:
-                self._log(f"[구글 드라이브] 로컬 파일 총 {len(local_files):,}개 확인됨. 원격지 기존 파일 목록 조회 중...")
-
-            # 2. 구글 드라이브 대상 폴더 내 기존 파일 캐싱 (중복 업로드 방지)
-            existing_files = {}
-            page_token = None
-            while True:
-                q = f"'{root_folder_id}' in parents and trashed = false"
-                res = service.files().list(
-                    q=q,
-                    fields="nextPageToken, files(id, name, size, md5Checksum, properties)",
-                    pageToken=page_token,
-                    pageSize=1000
-                ).execute()
-                for f in res.get("files", []):
-                    # properties['rel_path'] 또는 파일명 기준 매핑
-                    rel = (f.get("properties") or {}).get("rel_path") or f.get("name")
-                    existing_files[rel] = {
-                        "id": f["id"],
-                        "size": int(f.get("size", 0))
-                    }
-                page_token = res.get("nextPageToken")
-                if not page_token:
+        # packs/ 내에 .pack 파일이 존재하면 낱개 blobs/ 스킵
+        packs_dir = os.path.join(self.local_repo_dir, "packs")
+        packs_has_pack = False
+        if os.path.isdir(packs_dir):
+            for _root, _dirs, _files in os.walk(packs_dir):
+                if any(f.lower().endswith(".pack") for f in _files):
+                    packs_has_pack = True
                     break
 
-            self._log(f"[구글 드라이브] 원격지 기존 파일 {len(existing_files):,}개 확인 완료. 증분 동기화 시작...")
+        cmd = [
+            rclone_exe,
+            "copy",
+            self.local_repo_dir,
+            "gdrive:",
+            "--config", rclone_conf,
+            "--drive-chunk-size", "128M",
+            "--transfers", "4",
+            "--checkers", "8",
+            "--fast-list",
+            "--stats", "5s",
+            "--stats-one-line",
+            "--exclude", ".quarantine_blobs/**",
+            "--exclude", "*.db-wal",
+            "--exclude", "*.db-shm",
+        ]
+        if packs_has_pack:
+            cmd.extend(["--exclude", "blobs/**"])
+            self._log("[구글 드라이브 Rclone] Pack 아카이브 모드: 낱개 blobs 13만 개 생략, 핵심 파일 및 대형 청크 전송.")
 
-            # 3. 파일별 스마트 업로드 (동일 크기 시 스킵, 신규/수정분 업로드)
-            total_cnt = len(local_files)
-            result["files_skipped"] = 0
-            last_log_time = time.time()
-            for idx, (full_p, rel_p, sz) in enumerate(local_files, 1):
-                is_skip = False
-                if rel_p in existing_files:
-                    if existing_files[rel_p]["size"] == sz:
-                        result["files_skipped"] += 1
-                        is_skip = True
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=creationflags
+            )
 
-                now = time.time()
-                if idx == 1 or idx % 50 == 0 or (now - last_log_time >= 5.0) or idx == total_cnt:
-                    pct = (idx / total_cnt) * 100.0 if total_cnt > 0 else 100.0
-                    self._log(
-                        f"[구글 드라이브 동기화] {idx:,}/{total_cnt:,}개 ({pct:.1f}%) 진행 중 | "
-                        f"업로드 {result['files_copied']:,}개, 스킵 {result['files_skipped']:,}개"
-                    )
-                    last_log_time = now
+            last_log_t = time.time()
+            if proc.stdout:
+                for line in proc.stdout:
+                    line_s = line.strip()
+                    if not line_s:
+                        continue
+                    now = time.time()
+                    # Rclone stats line 실시간 UI 반영
+                    if ("ETA" in line_s or "%" in line_s or "Transferred:" in line_s) and (now - last_log_t >= 3.0):
+                        clean_msg = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", line_s)
+                        clean_msg = re.sub(r"^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} (NOTICE|INFO): ", "", clean_msg)
+                        self._log(f"[구글 드라이브 Rclone] {clean_msg}")
+                        last_log_t = now
+                    elif "ERROR" in line_s:
+                        self._log(f"[구글 드라이브 Rclone 에러] {line_s}", level="WARNING")
 
-                if is_skip:
-                    continue
-
-                # 5MB 미만 소형 파일은 resumable=False로 단일 HTTP 요청 업로드 (핸드셰이크 제거로 3~5배 고속화)
-                is_resumable = sz >= (5 * 1024 * 1024)
-                chunk_sz = (4 * 1024 * 1024) if is_resumable else -1
-                media = MediaFileUpload(full_p, resumable=is_resumable, chunksize=chunk_sz)
-                file_metadata = {
-                    "name": os.path.basename(full_p),
-                    "parents": [root_folder_id],
-                    "properties": {"rel_path": rel_p}
-                }
-
-                # 408/500대 에러 자동 재시도
-                for attempt in range(3):
-                    try:
-                        req = service.files().create(body=file_metadata, media_body=media, fields="id")
-                        if not is_resumable:
-                            req.execute()
-                        else:
-                            response = None
-                            last_chunk_log = time.time()
-                            while response is None:
-                                status, response = req.next_chunk()
-                                if status:
-                                    c_now = time.time()
-                                    if c_now - last_chunk_log >= 3.0:
-                                        c_pct = int(status.progress() * 100)
-                                        self._log(f"[구글 드라이브 업로드] {os.path.basename(full_p)} ({c_pct}% 전송 중...)")
-                                        last_chunk_log = c_now
-                        result["files_copied"] += 1
-                        break
-                    except Exception as e_up:
-                        if attempt == 2:
-                            self._log(f"[구글 드라이브 업로드 실패] {rel_p}: {e_up}", level="WARNING")
-                            result["files_failed"] += 1
-                        time.sleep(1 + attempt)
-
-            result["success"] = (result["files_failed"] == 0) or (result["files_copied"] > 0)
-            result["reason"] = f"구글 드라이브 복제 완료 (업로드: {result['files_copied']}개, 스킵: {result['files_skipped']}개, 전체: {result['files_total']}개)"
+            ret = proc.wait()
             result["duration_sec"] = time.time() - started
-            self._log(f"[구글 드라이브 오프사이트] {result['reason']} ({result['duration_sec']:.1f}초)")
+            if ret == 0:
+                result["success"] = True
+                result["reason"] = "Rclone 기반 구글 드라이브 초고속 복제 완료"
+                self._log(f"[구글 드라이브 오프사이트] {result['reason']} ({result['duration_sec']:.1f}초)")
+            else:
+                result["reason"] = f"Rclone 종료 코드: {ret}"
+                self._log(f"[구글 드라이브 오프사이트 실패] {result['reason']}", level="ERROR")
+
             return result
 
         except Exception as e:
-            result["reason"] = f"구글 드라이브 복제 예외: {e}"
+            result["reason"] = f"Rclone 프로세스 실행 예외: {e}"
             result["duration_sec"] = time.time() - started
             self._log(f"[구글 드라이브 오프사이트 오류] {e}", level="ERROR")
             return result
