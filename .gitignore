@@ -69,3 +69,5 @@ backup/v2.9.10/
 # 빌드/배포 산출물
 dist/
 installer/runtime/
+
+data/rclone.conf

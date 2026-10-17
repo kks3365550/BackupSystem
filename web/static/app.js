@@ -1142,7 +1142,7 @@ async function triggerOffsiteSyncFromUI() {
     const remote_path = (pathInput ? pathInput.value : '').trim();
 
     const engineMsg = isGdrive 
-        ? '(Google Drive Cloud API 클라우드 스트리밍 엔진 가동)'
+        ? '(Rclone 멀티스레드 128MB 청크 초고속 클라우드 엔진 가동)'
         : '(Windows 순정 robocopy /MT:32 고속 백그라운드 엔진 가동)';
 
     if (!confirm(`현재 로컬 백업 저장소 전체를 원격지로 지금 즉시 동기화(복제)하시겠습니까?\n${engineMsg}`)) return;
