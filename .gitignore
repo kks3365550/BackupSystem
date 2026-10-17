@@ -20,6 +20,12 @@ emergency_restore/python/
 
 # Sensitive credentials & runtime states
 config/deep_scan_state.json
+client_secret*.json
+project-*.json
+*token*.json
+*credential*.json
+data/*token*.json
+data/gdrive_oauth_token.json
 
 # OS specific
 Thumbs.db

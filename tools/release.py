@@ -63,6 +63,38 @@ def run_preflight_lint_gate():
 
     print("      [OK] pyflakes 무결성 검증 통과 (린트 오류 0건)")
 
+
+def run_preflight_security_gate():
+    """
+    릴리즈 전 비밀정보/인증토큰 유출 방지 사전 검증 (scan_secrets CI gate).
+    비밀키, OAuth 토큰, 서비스 계정 등이 Git 추적에 단 1건이라도 있으면 즉시 차단(Fail-Closed)한다.
+    """
+    print("[0/5] Pre-flight Security Audit (scan_secrets CI gate)...")
+    sec_scan_script = os.path.join(BASE_DIR, 'tools', 'scan_secrets.py')
+    if os.path.exists(sec_scan_script):
+        try:
+            res = subprocess.run(
+                [sys.executable, sec_scan_script],
+                cwd=BASE_DIR,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace'
+            )
+            if res.returncode != 0:
+                print("      " + "!" * 50)
+                print("      [BLOCKED] 비밀정보(토큰/비밀키) 감지! 릴리즈가 즉시 전면 중단됩니다.")
+                print("      " + "!" * 50)
+                if res.stdout:
+                    for line in res.stdout.strip().splitlines():
+                        print(f"        -> {line}")
+                sys.exit(1)
+            print("      [OK] Git 추적 대상 비밀정보 0건 확인 (보안 감사 통과)")
+        except Exception as e:
+            print(f"      [FATAL] scan_secrets 실행 실패: {e}")
+            sys.exit(1)
+
+
 def get_current_version():
     if os.path.exists(VERSION_FILE):
         with open(VERSION_FILE, 'r', encoding='utf-8') as f:
@@ -598,7 +630,8 @@ def main():
     print("   Backup System Release & Versioning Pipeline")
     print("=" * 60)
 
-    # 릴리즈 착수 전 정적 분석(pyflakes) 사전 검증 (CI 실패 및 알림 메일 원천 차단)
+    # 릴리즈 착수 전 보안 감사(scan_secrets) 및 정적 분석(pyflakes) 사전 검증
+    run_preflight_security_gate()
     run_preflight_lint_gate()
 
     cur_ver = get_current_version()
