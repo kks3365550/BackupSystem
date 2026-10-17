@@ -276,6 +276,8 @@ class TestRepositoryChaos(unittest.TestCase):
 
         # 순수 snapshots와 blobs만 복사 (DB나 부가 파일 없음)
         for s in os.listdir(os.path.join(self.repo_dir, "snapshots")):
+            if not s.endswith(".json"):
+                continue
             shutil.copy(os.path.join(self.repo_dir, "snapshots", s), os.path.join(clean_repo, "snapshots", s))
         for shard in os.listdir(os.path.join(self.repo_dir, "blobs")):
             shutil.copytree(os.path.join(self.repo_dir, "blobs", shard), os.path.join(clean_repo, "blobs", shard))

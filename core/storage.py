@@ -783,6 +783,10 @@ class BlobStorage:
                         if chunk:
                             decompressed_hasher.update(chunk)
                             total_size += len(chunk)
+                    tail = decomp.flush()
+                    if tail:
+                        decompressed_hasher.update(tail)
+                        total_size += len(tail)
 
             calculated_hash = decompressed_hasher.hexdigest()
             if calculated_hash.lower() != sha256_hash.lower():

@@ -203,6 +203,8 @@ class TestEncryptionChaos(unittest.TestCase):
         os.makedirs(os.path.join(clean_repo, "keys"), exist_ok=True)
 
         for s in os.listdir(os.path.join(self.repo_dir, "snapshots")):
+            if not s.endswith(".json"):
+                continue
             shutil.copy(os.path.join(self.repo_dir, "snapshots", s), os.path.join(clean_repo, "snapshots", s))
         for shard in os.listdir(os.path.join(self.repo_dir, "blobs")):
             shutil.copytree(os.path.join(self.repo_dir, "blobs", shard), os.path.join(clean_repo, "blobs", shard))
@@ -259,6 +261,8 @@ class TestEncryptionChaos(unittest.TestCase):
         os.makedirs(os.path.join(remote_repo, "blobs"), exist_ok=True)
 
         for s in os.listdir(os.path.join(self.repo_dir, "snapshots")):
+            if not s.endswith(".json"):
+                continue
             shutil.copy(os.path.join(self.repo_dir, "snapshots", s), os.path.join(remote_repo, "snapshots", s))
         for shard in os.listdir(os.path.join(self.repo_dir, "blobs")):
             shutil.copytree(os.path.join(self.repo_dir, "blobs", shard), os.path.join(remote_repo, "blobs", shard))

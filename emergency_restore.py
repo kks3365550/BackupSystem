@@ -224,7 +224,7 @@ def run_emergency_restore(
                     continue
 
         if remap_from:
-            print(f"[*] 윈도우 사용자 폴더 자동 리매핑 감지 및 적용:")
+            print("[*] 윈도우 사용자 폴더 자동 리매핑 감지 및 적용:")
             print(f"    - 백업 계정: {remap_from}")
             print(f"    - 현재 계정: {current_user_profile} (현재 로그인된 계정으로 자동 전송됩니다)")
         else:
@@ -351,7 +351,7 @@ def run_emergency_restore(
             print("    (필요 시 위 .reg 파일을 실행하여 레지스트리를 적용하세요)")
 
     if driver_dirs_to_install:
-        print(f"\n[*] 복원된 윈도우 하드웨어 드라이버 저장소가 감지되었습니다:")
+        print("\n[*] 복원된 윈도우 하드웨어 드라이버 저장소가 감지되었습니다:")
         for dd in sorted(driver_dirs_to_install):
             print(f"    - {dd}")
         if "--auto" in sys.argv or "-a" in sys.argv:

@@ -631,11 +631,23 @@ def main():
     choice = input("\n복원할 스냅샷 번호 또는 ID를 입력하세요 (기본값: 1, Q=종료): ").strip()
     if choice.lower() == 'q':
         return
-    sel_idx = int(choice) - 1 if choice.isdigit() and 1 <= int(choice) <= len(snapshots) else 0
-    selected_snap = snapshots[sel_idx]
 
-    dest_in = input("복원 대상 폴더 경로를 입력하세요 (엔터 시 원본 위치): ").strip('"\' ')
-    dest = dest_in if dest_in else None
+    if choice.isdigit() and 1 <= int(choice) <= len(snapshots):
+        selected_snap = snapshots[int(choice) - 1]
+    elif choice:
+        match = next((s for s in snapshots if s["id"].lower() == choice.lower() or s["id"].lower().startswith(choice.lower())), None)
+        if match:
+            selected_snap = match
+        else:
+            print(f"[!] '{choice}'에 일치하는 스냅샷을 찾지 못하여 최신 스냅샷[1]을 선택합니다.")
+            selected_snap = snapshots[0]
+    else:
+        selected_snap = snapshots[0]
+
+    dest = args.dest
+    if not dest:
+        dest_in = input("복원 대상 폴더 경로를 입력하세요 (엔터 시 원본 위치): ").strip('"\' ')
+        dest = dest_in if dest_in else None
 
     restore_snapshot(
         repo_dir=repo,
