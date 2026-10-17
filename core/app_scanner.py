@@ -32,17 +32,45 @@ def _scan_installed_applications_impl() -> List[Dict[str, Any]]:
             "Microsoft .NET", "Microsoft Windows Application"
         ]
 
-        # Pre-scan candidate directories once into an in-memory map (O(1) lookup!)
+        import re
+
+        # Helper to extract executable/dir from command line
+        def extract_dir_from_cmd(cmd_str: str) -> str:
+            if not cmd_str or "msiexec" in cmd_str.lower():
+                return ""
+            m = re.search(r'"([^"]+\.exe)"', cmd_str, re.IGNORECASE)
+            if not m:
+                m = re.search(r'([a-zA-Z]:\\[^\s]+\.exe)', cmd_str, re.IGNORECASE)
+            if m:
+                exe_path = m.group(1)
+                if os.path.exists(exe_path):
+                    parent = os.path.dirname(exe_path)
+                    if os.path.basename(parent).lower() in ["bin", "cmd"]:
+                        grand = os.path.dirname(parent)
+                        return grand if os.path.exists(grand) else parent
+                    return parent
+            return ""
+
+        # Pre-scan candidate directories up to 2 levels deep into an in-memory map
         candidate_dirs = {}
         roaming_base = os.path.expanduser(r"~\AppData\Roaming")
         roaming_dirs = set()
 
-        for pf in [
+        scan_roots = [
             r"C:\Program Files",
             r"C:\Program Files (x86)",
             os.path.expanduser(r"~\AppData\Local\Programs"),
+            os.path.expanduser(r"~\AppData\Local"),
             roaming_base
-        ]:
+        ]
+        user_home = os.path.expanduser("~")
+        for tool_dir in [".cargo", ".rustup", ".vscode", ".docker"]:
+            tp = os.path.join(user_home, tool_dir)
+            if os.path.exists(tp):
+                candidate_dirs[tool_dir.lower()] = tp
+                candidate_dirs[tool_dir.strip(".").lower()] = tp
+
+        for pf in scan_roots:
             if os.path.exists(pf):
                 try:
                     with os.scandir(pf) as it:
@@ -53,6 +81,18 @@ def _scan_installed_applications_impl() -> List[Dict[str, Any]]:
                                     roaming_dirs.add(n_lower)
                                 if n_lower not in candidate_dirs:
                                     candidate_dirs[n_lower] = entry.path
+                                # Depth 2 subdirectories (e.g. Futuremark/SystemInfo, Samsung/GalaxyConnect...)
+                                try:
+                                    with os.scandir(entry.path) as sub_it:
+                                        for sub_entry in sub_it:
+                                            if sub_entry.is_dir(follow_symlinks=False):
+                                                sub_name = sub_entry.name.lower()
+                                                if sub_name not in candidate_dirs:
+                                                    candidate_dirs[sub_name] = sub_entry.path
+                                                combined = f"{n_lower}{sub_name}"
+                                                candidate_dirs[combined] = sub_entry.path
+                                except OSError:
+                                    pass
                 except OSError:
                     pass
 
@@ -74,6 +114,7 @@ def _scan_installed_applications_impl() -> List[Dict[str, Any]]:
                                         continue
 
                                     loc = ""
+                                    # 1. InstallLocation
                                     try:
                                         raw_loc, _ = winreg.QueryValueEx(app_key, "InstallLocation")
                                         raw_loc = str(raw_loc).strip('"').strip()
@@ -82,18 +123,45 @@ def _scan_installed_applications_impl() -> List[Dict[str, Any]]:
                                     except FileNotFoundError:
                                         pass
 
+                                    # 2. DisplayIcon
                                     if not loc:
                                         try:
                                             icon, _ = winreg.QueryValueEx(app_key, "DisplayIcon")
                                             icon_p = str(icon).split(",")[0].strip('"').strip()
                                             if icon_p and os.path.exists(icon_p):
-                                                loc = os.path.dirname(icon_p) if os.path.isfile(icon_p) else icon_p
+                                                parent_p = os.path.dirname(icon_p) if os.path.isfile(icon_p) else icon_p
+                                                if os.path.basename(parent_p).lower() in ["bin", "cmd"]:
+                                                    grand = os.path.dirname(parent_p)
+                                                    loc = grand if os.path.exists(grand) else parent_p
+                                                else:
+                                                    loc = parent_p
                                         except FileNotFoundError:
                                             pass
 
-                                    # Fast in-memory candidate lookup instead of 4x slow disk exists checks
+                                    # 3. UninstallString / QuietUninstallString
                                     if not loc:
+                                        for uninst_key in ["UninstallString", "QuietUninstallString"]:
+                                            try:
+                                                uninst_val, _ = winreg.QueryValueEx(app_key, uninst_key)
+                                                extracted = extract_dir_from_cmd(str(uninst_val))
+                                                if extracted and os.path.exists(extracted):
+                                                    loc = extracted
+                                                    break
+                                            except FileNotFoundError:
+                                                pass
+
+                                    # 4. In-memory candidate lookup (exact & simplified)
+                                    if not loc:
+                                        dn_clean = re.sub(r'[^a-zA-Z0-9가-힣]', '', display_name.lower())
                                         loc = candidate_dirs.get(display_name.lower(), "")
+                                        if not loc:
+                                            loc = candidate_dirs.get(dn_clean, "")
+                                        if not loc:
+                                            # Word match in candidates
+                                            for word in display_name.lower().split():
+                                                if len(word) >= 4 and word in candidate_dirs:
+                                                    loc = candidate_dirs[word]
+                                                    break
 
                                     pub = ""
                                     try:

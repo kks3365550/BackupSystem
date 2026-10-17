@@ -56,12 +56,12 @@ function renderInstalledApps(filterText = '') {
     container.innerHTML = filtered.map(app => {
         const loc = app.location || '';
         const isChecked = loc && state.selectedAppPaths.has(loc);
-        const hasLoc = app.has_location;
+        const hasLoc = app.has_location && loc;
 
         return `
             <div class="p-3 bg-slate-900/70 hover:bg-slate-800/90 rounded-xl border border-slate-800/90 flex items-center justify-between transition cursor-pointer ${isChecked ? 'border-blue-500/60 bg-blue-950/20' : ''}" onclick="toggleAppSelectionByIndex(${app.idx})">
                 <div class="flex items-center gap-3 overflow-hidden flex-1">
-                    <input type="checkbox" ${isChecked ? 'checked' : ''} ${!hasLoc ? 'disabled' : ''} onclick="event.stopPropagation(); toggleAppSelectionByIndex(${app.idx})" class="rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-0 w-4 h-4 shrink-0 cursor-pointer">
+                    <input type="checkbox" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation(); toggleAppSelectionByIndex(${app.idx})" class="rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-0 w-4 h-4 shrink-0 cursor-pointer">
                     <div class="overflow-hidden flex-1">
                         <div class="flex items-center gap-2 flex-wrap">
                             <span class="font-bold text-slate-100 text-xs">${app.name}</span>
@@ -69,12 +69,15 @@ function renderInstalledApps(filterText = '') {
                             ${app.version ? `<span class="text-[10px] text-slate-500 font-mono">v${app.version}</span>` : ''}
                         </div>
                         <div class="text-[11px] text-slate-400 truncate mt-1 font-mono">
-                            ${hasLoc ? `<span class="text-emerald-400/90 flex items-center gap-1"><i data-lucide="check" class="w-3 h-3 inline"></i> ${loc}</span>` : '<span class="text-slate-500">(기본 설치 폴더 자동 지정)</span>'}
+                            ${hasLoc 
+                                ? `<span class="text-emerald-400/90 flex items-center gap-1"><i data-lucide="check" class="w-3 h-3 inline"></i> ${loc}</span>` 
+                                : `<span class="text-amber-400/90 hover:text-amber-300 flex items-center gap-1" onclick="event.stopPropagation(); openDirectoryPickerForApp(${app.idx})"><i data-lucide="folder-search" class="w-3 h-3 inline"></i> 폴더 위치 수동 지정하기</span>`
+                            }
                         </div>
                     </div>
                 </div>
                 <div class="shrink-0 ml-3">
-                    <span class="text-[11px] px-2.5 py-1 rounded-lg font-medium ${isChecked ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}">
+                    <span class="text-[11px] px-2.5 py-1 rounded-lg font-medium transition ${isChecked ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}">
                         ${isChecked ? '선택됨' : '선택'}
                     </span>
                 </div>
@@ -151,9 +154,33 @@ function restoreCustomSelectionState() {
     }
 }
 
+function openDirectoryPickerForApp(idx) {
+    const app = state.installedApps.find(a => a.idx === idx);
+    if (!app) return;
+    state.browseModalCallback = (selectedPath) => {
+        if (selectedPath) {
+            app.location = selectedPath;
+            app.has_location = true;
+            state.selectedAppPaths.add(selectedPath);
+            filterAppsList();
+            updateCustomSummary();
+            saveCustomSelectionState();
+        }
+    };
+    browseToDirectory("C:\\Program Files");
+    openModal('browse-modal');
+}
+
 function toggleAppSelectionByIndex(idx) {
     const app = state.installedApps.find(a => a.idx === idx);
-    if (!app || !app.location) return;
+    if (!app) return;
+    
+    // If location is missing, open folder picker so user can pick it easily
+    if (!app.location) {
+        openDirectoryPickerForApp(idx);
+        return;
+    }
+
     const path = app.location;
     if (state.selectedAppPaths.has(path)) {
         state.selectedAppPaths.delete(path);
@@ -336,7 +363,4 @@ async function estimateCustomBackupSpace(btnEl) {
         }
     }
 }
-
-// --- Windows System Image (Bare-Metal) Logic ---
-let sysImageLogTimer = null;
 

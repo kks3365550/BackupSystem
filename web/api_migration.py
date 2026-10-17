@@ -21,6 +21,7 @@ class StartMigrationRequest(BaseModel):
 
 class StartArchiveRequest(BaseModel):
     source_drive: str = "C:"
+    target_drive: Optional[str] = None
     target_wim_path: Optional[str] = None
     compress: str = "fast"
     auto_verify: bool = True
@@ -104,11 +105,20 @@ async def api_migration_stop():
 
 @router.post("/archive/start")
 async def api_archive_start(req: StartArchiveRequest):
-    """보험용 드라이브 통백업(WIM) 캡처 및 자동 실측 검증 시작"""
+    """보험용 드라이브 통백업(WIM/qblk) 캡처 및 자동 실측 검증 시작"""
     manager = DriveArchiveManager.get_instance()
+    target_path = req.target_wim_path
+    if not target_path and req.target_drive:
+        import time, os
+        now_str = time.strftime("%Y%m%d_%H%M%S")
+        drive_root = req.target_drive.rstrip("\\/") + "\\"
+        archive_dir = os.path.join(drive_root, "MyBackup_Repository", "archives")
+        os.makedirs(archive_dir, exist_ok=True)
+        target_path = os.path.join(archive_dir, f"System_Drive_{req.source_drive[0]}_{now_str}.qblk")
+
     res = manager.start_capture(
         source_drive=req.source_drive,
-        target_wim_path=req.target_wim_path,
+        target_wim_path=target_path,
         compress=req.compress,
         auto_verify=req.auto_verify,
         upload_gdrive=req.upload_gdrive
@@ -188,4 +198,20 @@ async def api_archive_restore(req: RestoreArchiveRequest):
     )
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "복원 시작 실패"))
+    return res
+
+
+class DeleteArchiveRequest(BaseModel):
+    archive_path: str
+
+
+@router.delete("/archive")
+async def api_archive_delete(req: DeleteArchiveRequest):
+    """보관 중인 통백업 아카이브 및 메타데이터 안전 삭제"""
+    if not req.archive_path:
+        raise HTTPException(status_code=400, detail="archive_path 필드는 필수입니다.")
+    manager = DriveArchiveManager.get_instance()
+    res = manager.delete_archive(req.archive_path)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "아카이브 삭제 실패"))
     return res

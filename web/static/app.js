@@ -34,6 +34,7 @@ function switchTab(tabId) {
         loadVhdxList();
         if (typeof loadMigrationDrives === 'function') loadMigrationDrives();
         if (typeof loadArchiveList === 'function') loadArchiveList();
+        if (typeof startArchivePolling === 'function') startArchivePolling();
     }
 }
 
@@ -527,8 +528,8 @@ function renderDashboardSnapshotChart() {
         return tA - tB;
     });
 
-    // 최근 최대 14개 스냅샷
-    const chartSnaps = sorted.slice(-14);
+    // 최근 최대 10개 스냅샷 (차트 영역에 맞춤)
+    const chartSnaps = sorted.slice(-10);
     const maxBytes = Math.max(...chartSnaps.map(s => (s.summary && s.summary.total_bytes) || 1), 1024 * 1024);
     const latest = chartSnaps[chartSnaps.length - 1];
 
@@ -565,9 +566,9 @@ function renderDashboardSnapshotChart() {
         const tooltip = `[스냅샷 #${idx+1}]\nID: ${s.id}\n일시: ${dateLabel}\n용량: ${formatBytes(b)}\n파일 수: ${f.toLocaleString()}개\n프로필: ${s.profile_name || '기본 백업'}`;
 
         return `
-            <div class="w-20 shrink-0 flex flex-col justify-end items-center h-full group relative cursor-pointer" title="${tooltip}" onclick="inspectSnapshot('${s.id}')">
+            <div class="flex-1 min-w-[2.2rem] max-w-[4.2rem] flex flex-col justify-end items-center h-full group relative cursor-pointer" title="${tooltip}" onclick="inspectSnapshot('${s.id}')">
                 <!-- 상단 용량 배지 (항시 선명 표시 & 잘림 방지) -->
-                <div class="text-[10px] font-mono font-bold text-zinc-200 whitespace-nowrap absolute -top-7 left-1/2 -translate-x-1/2 bg-zinc-900/90 px-1.5 py-0.5 rounded border border-zinc-700/80 shadow-md pointer-events-none group-hover:border-blue-400 group-hover:text-white transition">
+                <div class="text-[9px] font-mono font-bold text-zinc-200 whitespace-nowrap absolute -top-6 left-1/2 -translate-x-1/2 bg-zinc-900/90 px-1 py-0.5 rounded border border-zinc-700/80 shadow-md pointer-events-none group-hover:border-blue-400 group-hover:text-white transition">
                     ${formatBytes(b)}
                 </div>
                 
@@ -586,8 +587,8 @@ function renderDashboardSnapshotChart() {
 
     // 다음 백업 예약/대기 슬롯 (시각적 균형감 제공)
     const nextSlotHtml = `
-        <div class="w-20 shrink-0 flex flex-col justify-end items-center h-full opacity-35 hover:opacity-80 transition cursor-pointer group" onclick="triggerQuickBackup()" title="클릭하여 지금 즉시 새 백업 생성">
-            <div class="text-[9px] font-mono text-zinc-400 -top-7 absolute whitespace-nowrap opacity-0 group-hover:opacity-100 transition">
+        <div class="flex-1 min-w-[2.2rem] max-w-[4.2rem] flex flex-col justify-end items-center h-full opacity-35 hover:opacity-80 transition cursor-pointer group" onclick="triggerQuickBackup()" title="클릭하여 지금 즉시 새 백업 생성">
+            <div class="text-[9px] font-mono text-zinc-400 -top-6 absolute whitespace-nowrap opacity-0 group-hover:opacity-100 transition">
                 + 백업 시작
             </div>
             <div class="w-full border-2 border-dashed border-zinc-700 group-hover:border-blue-500 rounded-t-lg flex flex-col items-center justify-center text-zinc-500 group-hover:text-blue-400 transition" style="height: 30%">
@@ -676,7 +677,7 @@ function renderProfilesList() {
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-900/60 p-3 rounded-xl text-xs">
+            <div class="grid grid-cols-2 gap-2.5 bg-slate-900/60 p-3 rounded-xl text-xs">
                 <div>
                     <span class="text-slate-500 block text-[11px]">스케줄 / 다음 예정</span>
                     <span class="font-medium text-slate-300">${p.auto_backup_enabled ? (p.schedule_type === 'daily' ? `매일 ${p.schedule_value}` : `${p.schedule_value}시간 주기`) : '수동 실행'}</span>

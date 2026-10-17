@@ -30,9 +30,11 @@ def run_preflight_lint_gate():
     린트 에러가 단 1건이라도 있으면 버전업/커밋/푸시를 즉시 차단(Fail-Closed)한다.
     """
     print("[0/5] Pre-flight Lint Check (pyflakes CI gate)...")
+    pyflakes_bin = shutil.which("pyflakes")
+    cmd = [pyflakes_bin] if pyflakes_bin else [sys.executable, '-m', 'pyflakes']
     try:
         res = subprocess.run(
-            [sys.executable, '-m', 'pyflakes'] + PREFLIGHT_LINT_TARGETS,
+            cmd + PREFLIGHT_LINT_TARGETS,
             cwd=BASE_DIR,
             capture_output=True,
             text=True,

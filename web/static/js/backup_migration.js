@@ -373,7 +373,7 @@ async function loadArchiveList() {
                 : '<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">미검증 아카이브</span>';
 
             return `
-                <div class="p-3.5 bg-zinc-950/80 rounded-xl border border-zinc-800/80 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:border-indigo-500/40 transition">
+                <div class="p-3.5 bg-zinc-950/80 rounded-xl border border-zinc-800/80 flex flex-col xl:flex-row xl:items-center justify-between gap-3 hover:border-indigo-500/40 transition">
                     <div class="space-y-1">
                         <div class="flex items-center gap-2 flex-wrap">
                             <span class="font-bold text-white text-xs">${escapeHtml(a.name)}</span>
@@ -386,7 +386,7 @@ async function loadArchiveList() {
                             <span>원본 VSN: <strong class="text-purple-300 font-mono">${escapeHtml(a.vsn)}</strong></span>
                         </div>
                     </div>
-                    <div class="flex items-center gap-2 shrink-0">
+                    <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
                         <button onclick="uploadArchiveToGdrive('${encodeURIComponent(a.path)}')" class="px-2.5 py-1.5 bg-purple-900/60 hover:bg-purple-800 text-purple-200 rounded-lg text-xs font-medium border border-purple-700/80 transition flex items-center gap-1" title="구글 드라이브로 6청크 초고속 병렬 업로드">
                             <i data-lucide="cloud-upload" class="w-3.5 h-3.5 text-purple-300"></i> 구글 6청크 업로드
                         </button>
@@ -396,6 +396,9 @@ async function loadArchiveList() {
                         <button onclick="openArchiveRestoreModal('${encodeURIComponent(a.path)}')" class="px-2.5 py-1.5 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1">
                             <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> 이 백업으로 복원
                         </button>
+                        <button onclick="deleteArchiveItem('${encodeURIComponent(a.path)}', '${escapeHtml(a.name)}', ${a.size_gb})" class="px-2.5 py-1.5 bg-rose-950/70 hover:bg-rose-900 text-rose-300 hover:text-white rounded-lg text-xs font-medium border border-rose-800/80 transition flex items-center gap-1" title="이 통백업 아카이브 삭제">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-400"></i> 삭제
+                        </button>
                     </div>
                 </div>
             `;
@@ -404,6 +407,33 @@ async function loadArchiveList() {
         if (window.lucide) window.lucide.createIcons();
     } catch (err) {
         console.error("아카이브 목록 조회 실패:", err);
+    }
+}
+
+async function deleteArchiveItem(archivePathEncoded, archiveName, sizeGb) {
+    const archivePath = decodeURIComponent(archivePathEncoded);
+    if (!confirm(`이 통백업 아카이브를 완전히 삭제하시겠습니까?\n\n- 파일명: ${archiveName}\n- 확보 용량: 약 ${sizeGb} GB\n- 저장 경로: ${archivePath}\n\n삭제된 아카이브 파일은 복구할 수 없습니다.`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch("/api/migration/archive", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ archive_path: archivePath })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            alert("아카이브 삭제 실패: " + (data.detail || data.error || "알 수 없는 오류"));
+            return;
+        }
+
+        alert(`통백업 아카이브가 성공적으로 삭제되었습니다.\n(확보된 저장 공간: ${data.freed_gb || sizeGb} GB)`);
+        loadArchiveList();
+        if (typeof loadSystemImageStatus === "function") loadSystemImageStatus();
+        if (typeof loadDashboard === "function") loadDashboard();
+    } catch (err) {
+        alert("통신 오류: " + err.message);
     }
 }
 
@@ -441,7 +471,10 @@ async function startDriveArchiveBackup() {
     const autoVerify = autoVerifyEl ? autoVerifyEl.checked : true;
     const uploadGdrive = uploadGdriveEl ? uploadGdriveEl.checked : false;
 
-    if (!confirm(`C: 드라이브 전체를 베어메탈 디스크 이미지로 통백업하시겠습니까?\n\n- 백업 엔진: VSS 스냅샷 + LBA 블록 스트리밍 (.qblk)\n- 4단계 실측 검증: ${autoVerify ? "포함 (권장)" : "미포함"}\n- 구글 드라이브 업로드: ${uploadGdrive ? "6청크 초고속 병렬 스트림 업로드" : "미포함 (로컬 보관)"}`)) {
+    const driveSelect = document.getElementById("sysimg-drive-select");
+    const targetDrive = (driveSelect && driveSelect.value) ? driveSelect.value : "D:";
+
+    if (!confirm(`C: 드라이브 전체를 베어메탈 디스크 이미지로 통백업하시겠습니까?\n\n- 대상: C: 전체 (부팅 EFI + OS + 모든 파일)\n- 저장 위치: ${targetDrive}\\MyBackup_Repository\\archives\n- 4단계 실측 검증: ${autoVerify ? "포함 (권장)" : "미포함"}\n- 구글 드라이브 업로드: ${uploadGdrive ? "6청크 초고속 병렬 스트림 업로드" : "미포함 (로컬 보관)"}`)) {
         return;
     }
 
@@ -451,6 +484,7 @@ async function startDriveArchiveBackup() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 source_drive: "C:",
+                target_drive: targetDrive,
                 compress: compress,
                 auto_verify: autoVerify,
                 upload_gdrive: uploadGdrive

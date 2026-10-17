@@ -119,32 +119,31 @@ class BackupLock:
             # 1. 기존 락 파일 상태 점검
             if os.path.exists(self.lock_path):
                 lock_info = self._read_lock_info()
-                if lock_info:
-                    lock_pid = lock_info.get("pid", -1)
-                    lock_host = lock_info.get("hostname", "")
-                    my_host = socket.gethostname()
+                lock_pid = lock_info.get("pid", -1) if lock_info else -1
+                lock_host = lock_info.get("hostname", "") if lock_info else ""
+                my_host = socket.gethostname()
 
-                    # 동일 호스트에서 해당 PID가 이미 사망했는지 확인
-                    if (not lock_host or lock_host == my_host) and not self._is_pid_alive(lock_pid):
-                        try:
-                            if os.path.exists(self.lock_path):
-                                os.remove(self.lock_path)
-                        except Exception:
-                            pass
-                    else:
-                        elapsed = time.time() - start_time
-                        if elapsed >= self.timeout_sec:
-                            start_str = lock_info.get("start_time", "알 수 없음")
-                            desc = lock_info.get("desc", "백업 프로세스")
-                            err_msg = (
-                                f"이미 다른 백업 작업이 실행 중입니다.\n"
-                                f"- 작업명: {desc} (PID: {lock_pid})\n"
-                                f"- 시작시간: {start_str}\n"
-                                f"- 저장소: {self.repo_dir}"
-                            )
-                            raise BackupAlreadyRunningError(err_msg, lock_info)
-                        time.sleep(0.5)
-                        continue
+                # 동일 호스트에서 해당 PID가 이미 사망했거나 lock_info를 읽을 수 없는 경우
+                if not lock_info or ((not lock_host or lock_host == my_host) and not self._is_pid_alive(lock_pid)):
+                    try:
+                        if os.path.exists(self.lock_path):
+                            os.remove(self.lock_path)
+                    except Exception:
+                        pass
+                else:
+                    elapsed = time.time() - start_time
+                    if elapsed >= self.timeout_sec:
+                        start_str = lock_info.get("start_time", "알 수 없음")
+                        desc = lock_info.get("desc", "백업 프로세스")
+                        err_msg = (
+                            f"이미 다른 백업 작업이 실행 중입니다.\n"
+                            f"- 작업명: {desc} (PID: {lock_pid})\n"
+                            f"- 시작시간: {start_str}\n"
+                            f"- 저장소: {self.repo_dir}"
+                        )
+                        raise BackupAlreadyRunningError(err_msg, lock_info)
+                    time.sleep(0.5)
+                    continue
 
             # 2. 락 파일 생성 시도 (원자적 O_CREAT | O_EXCL)
             try:

@@ -1,8 +1,7 @@
 // =========================================================================
 // [백업시스템] Windows 베어메탈 시스템 이미지 (전체 C드라이브) 백업 로직
 // =========================================================================
-
-let sysImageLogTimer = null;
+var sysImageLogTimer = null;
 
 async function loadSystemImageStatus() {
     const driveSelect = document.getElementById('sysimg-drive-select');
@@ -62,14 +61,15 @@ async function loadSystemImageStatus() {
         const lastStatus = document.getElementById('sysimg-last-status');
         const lastTime = document.getElementById('sysimg-last-time');
         if (lastStatus && lastTime) {
-            if (data.backup_info.exists) {
+            if (data.backup_info && data.backup_info.exists) {
                 lastStatus.innerText = `${data.backup_info.size_gb} GB`;
                 lastStatus.className = 'text-2xl font-black text-emerald-400 font-mono';
-                lastTime.innerText = `최근 백업: ${data.backup_info.last_modified || '-'}`;
+                const verifiedTag = data.backup_info.is_verified ? ' (4단계 실측 검증 완료)' : '';
+                lastTime.innerText = `최근 백업: ${data.backup_info.last_modified || '-'}${verifiedTag}`;
             } else {
                 lastStatus.innerText = '미생성';
                 lastStatus.className = 'text-2xl font-black text-slate-100 font-mono';
-                lastTime.innerText = `${data.backup_info.path} 에 이미지 없음`;
+                lastTime.innerText = '저장소에 생성된 통백업 아카이브 없음';
             }
         }
 
@@ -357,3 +357,12 @@ async function dismountVhdx(encodedPath) {
         alert('언마운트 요청 오류: ' + e.message);
     }
 }
+
+// Global export & automatic self-initialization
+window.loadSystemImageStatus = loadSystemImageStatus;
+window.loadVhdxList = loadVhdxList;
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadSystemImageStatus();
+});
+

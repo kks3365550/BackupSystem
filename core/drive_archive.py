@@ -2199,3 +2199,63 @@ class DriveArchiveManager:
         archives.sort(key=lambda x: x["modified_at"], reverse=True)
         return archives
 
+    def delete_archive(self, archive_path: str) -> Dict[str, Any]:
+        """
+        보관 중인 통백업 아카이브(.qblk, .wim, .vhdx) 및 관련 메타데이터 파일 안전 삭제
+        """
+        if not archive_path:
+            return {"success": False, "error": "삭제할 아카이브 경로가 지정되지 않았습니다."}
+
+        norm_path = os.path.abspath(archive_path)
+        if not os.path.exists(norm_path):
+            return {"success": False, "error": f"파일을 찾을 수 없습니다: {archive_path}"}
+
+        # 안전장치: 루트 드라이브나 시스템 핵심 폴더 삭제 방지
+        if len(norm_path) < 10 or norm_path.lower().startswith("c:\\windows") or norm_path.lower().startswith("c:\\users"):
+            return {"success": False, "error": "시스템 보호 정책에 의해 지정된 경로는 삭제할 수 없습니다."}
+
+        try:
+            deleted_files = []
+            freed_bytes = 0
+
+            # 본체 파일 크기 계측 및 삭제
+            if os.path.isfile(norm_path):
+                freed_bytes += os.path.getsize(norm_path)
+                os.remove(norm_path)
+                deleted_files.append(norm_path)
+            elif os.path.isdir(norm_path):
+                for root, dirs, files in os.walk(norm_path):
+                    for f in files:
+                        fp = os.path.join(root, f)
+                        try:
+                            freed_bytes += os.path.getsize(fp)
+                        except OSError:
+                            pass
+                shutil.rmtree(norm_path, ignore_errors=True)
+                deleted_files.append(norm_path)
+
+            # 동반 메타데이터 파일(.meta.json) 삭제
+            meta_candidates = [
+                norm_path + ".meta.json",
+                os.path.splitext(norm_path)[0] + ".meta.json"
+            ]
+            for mp in meta_candidates:
+                if os.path.exists(mp):
+                    try:
+                        freed_bytes += os.path.getsize(mp)
+                        os.remove(mp)
+                        deleted_files.append(mp)
+                    except Exception:
+                        pass
+
+            self.append_log(f"🗑️ [통백업 아카이브 삭제 완료] {norm_path} (확보된 용량: {round(freed_bytes / (1024**3), 2)} GB)")
+            return {
+                "success": True,
+                "deleted_files": deleted_files,
+                "freed_bytes": freed_bytes,
+                "freed_gb": round(freed_bytes / (1024 ** 3), 2),
+                "message": f"아카이브가 성공적으로 삭제되었습니다. ({round(freed_bytes / (1024**3), 2)} GB 확보)"
+            }
+        except Exception as e:
+            return {"success": False, "error": f"아카이브 삭제 중 오류 발생: {str(e)}"}
+

@@ -18,7 +18,7 @@ from core.verify import (
     IntegrityVerifier, RestoreVerificationError,
     generate_manifest_signature
 )
-from core.retention import RetentionManager
+from core.retention import RetentionManager, _parse_timestamp
 from core.vss_manager import VSSContext
 from core.crypto_sign import Ed25519Signer
 from core.crypto_at_rest import CryptoAtRestEngine
@@ -949,7 +949,7 @@ class SnapshotEngine:
                     except Exception:
                         pass
 
-            snapshots.sort(key=lambda x: x.get("created_at", 0), reverse=True)
+            snapshots.sort(key=lambda x: _parse_timestamp(x.get("created_at")), reverse=True)
             return snapshots
 
     @classmethod

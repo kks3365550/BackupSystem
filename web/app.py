@@ -4,6 +4,7 @@ import time
 import shutil
 import threading
 import psutil
+import subprocess
 import logging
 from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional
@@ -959,6 +960,44 @@ def get_alerts_summary():
             "disk": disk_info
         }
     }
+
+
+@app.post("/api/maintenance/clean-incomplete")
+async def api_clean_incomplete():
+    """D: 드라이브 내 미완료 백업 및 불필요한 임시 파일 정리 (관리자 권한 프로세스)"""
+    results = []
+    
+    target_winimg = r"D:\WindowsImageBackup"
+    if os.path.exists(target_winimg):
+        try:
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            subprocess.run(["cmd.exe", "/c", f'takeown /f "{target_winimg}" /r /d y && icacls "{target_winimg}" /grant Administrators:F /t && rd /s /q "{target_winimg}"'], capture_output=True, creationflags=creationflags)
+            if not os.path.exists(target_winimg):
+                results.append("WindowsImageBackup 삭제 성공")
+            else:
+                shutil.rmtree(target_winimg, ignore_errors=True)
+                results.append("WindowsImageBackup rmtree 완료" if not os.path.exists(target_winimg) else "WindowsImageBackup 잔여")
+        except Exception as e:
+            results.append(f"WindowsImageBackup 오류: {e}")
+
+    tmp_path = r"D:\DumpStack.log.tmp"
+    if os.path.exists(tmp_path):
+        try:
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            subprocess.run(["cmd.exe", "/c", f'del /f /q /a "{tmp_path}"'], capture_output=True, creationflags=creationflags)
+            results.append("DumpStack.log.tmp 삭제 성공")
+        except Exception as e:
+            results.append(f"DumpStack.log.tmp 오류: {e}")
+
+    lock_path = r"D:\MyBackup_Repository\backup.lock"
+    if os.path.exists(lock_path):
+        try:
+            os.remove(lock_path)
+            results.append("backup.lock 삭제 성공")
+        except Exception as e:
+            results.append(f"backup.lock 오류: {e}")
+
+    return {"success": True, "results": results}
 
 
 

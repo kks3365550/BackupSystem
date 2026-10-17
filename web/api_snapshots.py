@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException
 
 from core.config import ConfigManager
 from core.snapshot import SnapshotEngine
+from core.retention import _parse_timestamp
 from web.paths import BASE_DIR
 from web.state import append_task_log
 
@@ -164,7 +165,7 @@ def list_snapshots(repo_dir: Optional[str] = None):
                         s["offsite_status"] = "DISABLED"
                         s["is_offsite_protected"] = False
 
-    all_snaps.sort(key=lambda x: x.get("created_at", 0), reverse=True)
+    all_snaps.sort(key=lambda x: _parse_timestamp(x.get("created_at")), reverse=True)
     return all_snaps
 
 

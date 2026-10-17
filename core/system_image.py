@@ -43,27 +43,55 @@ class SystemImageManager:
         except Exception:
             d_total, d_used, d_free = 0, 0, 0
 
-        # 2. Check WindowsImageBackup folder
-        backup_folder = os.path.join(target_drive + "\\", "WindowsImageBackup")
-        has_backup = os.path.exists(backup_folder)
+        # 2. Check 통백업 아카이브 (DriveArchiveManager) 및 WindowsImageBackup 폴더
+        has_backup = False
         backup_size = 0
         last_modified = None
+        backup_path = None
+        backup_type = None
+        is_verified = False
+        backup_name = None
 
-        if has_backup:
-            try:
-                mtime = os.path.getmtime(backup_folder)
-                last_modified = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
-                total_sz = 0
-                for root, dirs, files in os.walk(backup_folder):
-                    for f in files:
-                        fp = os.path.join(root, f)
-                        try:
-                            total_sz += os.path.getsize(fp)
-                        except OSError:
-                            pass
-                backup_size = total_sz
-            except Exception:
-                pass
+        try:
+            from core.drive_archive import DriveArchiveManager
+            archives = DriveArchiveManager.get_instance().list_archives()
+            if archives:
+                latest = archives[0]
+                has_backup = True
+                backup_size = latest.get("size_bytes", 0)
+                last_modified = latest.get("modified_at") or latest.get("created_at")
+                backup_path = latest.get("path")
+                backup_type = latest.get("backup_type")
+                is_verified = latest.get("is_verified", False)
+                backup_name = latest.get("name")
+        except Exception:
+            archives = []
+
+        if not has_backup:
+            backup_folder = os.path.join(target_drive + "\\", "WindowsImageBackup")
+            if os.path.exists(backup_folder):
+                try:
+                    mtime = os.path.getmtime(backup_folder)
+                    last_modified = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+                    total_sz = 0
+                    for root, dirs, files in os.walk(backup_folder):
+                        for f in files:
+                            fp = os.path.join(root, f)
+                            try:
+                                total_sz += os.path.getsize(fp)
+                            except OSError:
+                                pass
+                    if total_sz > 0:
+                        has_backup = True
+                        backup_size = total_sz
+                        backup_path = backup_folder
+                        backup_type = "wbadmin"
+                except Exception:
+                    pass
+            if not backup_path:
+                backup_path = backup_folder
+        else:
+            backup_folder = backup_path
 
         with cls._lock:
             progress_percent = cls._progress_percent
@@ -96,10 +124,13 @@ class SystemImageManager:
             },
             "backup_info": {
                 "exists": has_backup,
-                "path": backup_folder,
+                "path": backup_path or backup_folder,
                 "last_modified": last_modified,
                 "size_bytes": backup_size,
-                "size_gb": round(backup_size / (1024 ** 3), 2)
+                "size_gb": round(backup_size / (1024 ** 3), 2),
+                "is_verified": is_verified,
+                "backup_type": backup_type,
+                "name": backup_name
             }
         }
 
